@@ -1,0 +1,77 @@
+PerHue: AI Color Palette Manager & Color Picker
+
+PerHue is an AI-powered color palette manager and color picker designed for creators, aiming to make it quick and fun to create and share stunning color palettes on the go.
+
+KEY FEATURES
+
+* Generate, preview, and modify color palettes using PerHue chat assistant
+* Automatically extract prominent colors from an image using your gallery or camera
+* Manually pick colors from objects or images using the dedicated color picker
+* Recognize and save hex color codes from text using your camera
+* Generate harmonious color schemes using various models (complementary, triadic, analogous, etc.)
+* Share palettes with a link for quick preview, even if the recipient doesn't have the app
+* View color details and convert between color codes (HEX, RGB, HSL, HSV, HWB, CMYK, CIELAB)
+* Copy color codes to your clipboard with a tap
+* Add colors using various color code formats, including CSS named colors
+* Access a color palette library with Material Design, CSS, and Tailwind palettes
+* Download palettes as PNG images
+* Rearrange colors in a palette with ease
+
+PRO BENEFITS
+
+Pro 
+
+* Add more than 4 colors to a palette
+* Explore/Search AI generated color palettes
+
+Pro Plus
+
+* AI chat to create color palette
+* AI color picker
+
+DESCRIPTION
+
+PerHue is a must-have productivity tool for designers, helping you manage colors easily for various tasks such as web and graphic design, logo creation, and more. The AI-powered chat assistant makes generating and modifying color palettes a breeze.
+
+Automatically extract prominent colors from images using our homemade algorithm tailored for color palettes. Manually pick colors from objects or images using the dedicated color picker, and even grab color codes from any random text, such as an email or article.
+
+Generate harmonious color schemes from an existing color using various models, including:
+
+* Complementary
+* Split Complementary
+* Split Complementary CW (Clockwise)
+* Split Complementary CCW (Counterclockwise)
+* Triadic
+* Clash
+* Natural
+* Analogous
+* Four Tone CW (Clockwise)
+* Four Tone CCW (Counterclockwise)
+* Five Tone A to E
+* Six Tone CW (Clockwise)
+* Six Tone CCW (Counterclockwise)
+* Monochromatic
+
+Save your favorite palettes to your library for easy access.
+
+Sharing is important, so we made it easier than ever to share color palettes. The recipient gets a link to quickly preview the colors in PerHue, even if they don't have the app installed.
+
+See all sorts of details about a color, including luminance and darkness. Convert any color code to various formats with ease. When adding a color, you can use any color code format, including the CSS named colors. Copy the color code to your clipboard with just a tap.
+
+Access a built-in color palette library featuring Material Design palettes, CSS named colors, and Tailwind color palettes for inspiration and quick use.
+
+With PerHue, you can work seamlessly without getting in your way. The app is designed to help you focus on the things you need the most, making color management a simple and enjoyable process.
+
+Download PerHue now and start creating stunning color palettes in seconds!
+
+You can also generate color palettes on our website perhue.app using AI (ChatGPT) and view and edit palettes in the app.
+
+OPEN SOURCE
+
+We believe in open source. The source code for PerHue is hosted at:
+https://github.com/croma-app/perhue-mobile-app
+
+SUPPORT
+
+Have any questions or suggestions? Please join our Discord channel:
+https://discord.com/invite/ZSBVsBqDtg

@@ -1,0 +1,49 @@
+# Ignore build artifacts
+build/
+DerivedData/
+
+# Ignore temporary files and folders
+*.xcworkspace
+*.xcuserdata
+*.xcuserstate
+*.xcscmblueprint
+*.swp
+.DS_Store
+
+# Ignore Xcode specific files
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+# Ignore CocoaPods directories
+Pods/
+
+# Ignore archives and logs
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Ignore Xcode project index and logs
+*.xcdebugger/
+*.xcuserdatad/
+*.xcuserdatad/*
+
+
+# Ignore Carthage dependencies if used (optional)
+Carthage/
+
+# Ignore fastlane folder if using fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# Ignore SPM (Swift Package Manager) artifacts
+.swiftpm/
+
+
+# Ignore React Native caches
+node_modules/
+yarn-error.log
+npm-debug.log
