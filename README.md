@@ -40,26 +40,17 @@ yarn install
 
 ---
 
-## 3️⃣ Xử lý cache nếu gặp lỗi build
+## 3️⃣ Run project
 
-### 3.1 Xóa thư mục .gradle trong android/ và sau đó chạy:
+`Trước khi run project thì cần phải copy debug.keystore vào thư mục android/app (liên hệ dhung để lấy file này)`
 
-```powershell
-./gradlew.bat clean
-```
-
----
-
-
-## 4️⃣ Chạy project
-
-### 4.1 Start Metro bundler
+### 3.1 Start Metro bundler
 
 ```powershell
 yarn start
 ```
 
-### 4.2 Build & chạy Android
+### 3.2 Build & chạy Android
 
 ```powershell
 yarn android
