@@ -1,6 +1,6 @@
-package app.croma;
+package app.perhue;
 
-import static app.croma.Colors.parse;
+import static app.perhue.Colors.parse;
 import static org.assertj.core.api.Assertions.*;
 
 import com.google.common.collect.Lists;

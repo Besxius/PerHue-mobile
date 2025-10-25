@@ -1,4 +1,4 @@
-package app.croma;
+package app.perhue;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -46,9 +46,9 @@ public class ColorPickerActivity extends Activity {
         start();
       } else {
         Toast.makeText(
-                this,
-                "camera permission denied. This feature can not work without camera permission",
-                Toast.LENGTH_LONG)
+            this,
+            "camera permission denied. This feature can not work without camera permission",
+            Toast.LENGTH_LONG)
             .show();
       }
     }
@@ -57,10 +57,9 @@ public class ColorPickerActivity extends Activity {
   @Override
   protected void onStart() {
     super.onStart();
-    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-        == PackageManager.PERMISSION_DENIED) {
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED) {
       ActivityCompat.requestPermissions(
-          this, new String[] {Manifest.permission.CAMERA}, MY_CAMERA_REQUEST_CODE);
+          this, new String[] { Manifest.permission.CAMERA }, MY_CAMERA_REQUEST_CODE);
     } else {
       start();
     }
@@ -193,7 +192,7 @@ public class ColorPickerActivity extends Activity {
   // Safely way get an instance of the Camera object.
   private Camera getCameraInstance() {
     Camera c = null;
-    int[] cameras = {Camera.CameraInfo.CAMERA_FACING_FRONT, 0};
+    int[] cameras = { Camera.CameraInfo.CAMERA_FACING_FRONT, 0 };
 
     try {
       c = Camera.open(); // Attempt to get a Camera instance

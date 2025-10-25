@@ -121,7 +121,7 @@ const HamburgerMenu = (props) => {
               id={'rate-us'}
               link={
                 Platform.OS == 'android'
-                  ? 'market://details?id=app.croma'
+                  ? 'market://details?id=app.perhue'
                   : 'https://apps.apple.com/app/id1596763657?action=write-review'
               }
               icon={<MaterialIcons name="star-outline" style={styles.icon} />}>

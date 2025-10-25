@@ -1,4 +1,4 @@
-package app.croma;
+package app.perhue;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;

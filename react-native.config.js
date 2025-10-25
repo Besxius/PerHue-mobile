@@ -2,7 +2,7 @@ module.exports = {
   project: {
     ios: {},
     android: {
-      packageName: 'app.croma'
+      packageName: 'app.perhue'
     }
   },
   dependencies: {

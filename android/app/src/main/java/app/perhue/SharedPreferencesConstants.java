@@ -1,4 +1,4 @@
-package app.croma;
+package app.perhue;
 
 public interface SharedPreferencesConstants {
   String COLOR_PICKER_ACTIVITY = "color-picker-activity";

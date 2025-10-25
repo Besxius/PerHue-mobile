@@ -1,4 +1,4 @@
-package app.croma;
+package app.perhue;
 
 import android.view.MotionEvent;
 import android.view.View;

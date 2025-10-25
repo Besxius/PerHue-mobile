@@ -1,9 +1,9 @@
-package app.croma;
+package app.perhue;
 
-import static app.croma.DrawTouchDot.getColorView;
-import static app.croma.FirebaseAnalyticsConstants.COLOR_PICKER_TEXT_RECOGNITION_COLORS;
-import static app.croma.FirebaseAnalyticsConstants.COLOR_PICKER_TOUCH_TO_GET_COLOR;
-import static app.croma.FirebaseAnalyticsConstants.RECOGNIZED_COLORS_PARAMS;
+import static app.perhue.DrawTouchDot.getColorView;
+import static app.perhue.FirebaseAnalyticsConstants.COLOR_PICKER_TEXT_RECOGNITION_COLORS;
+import static app.perhue.FirebaseAnalyticsConstants.COLOR_PICKER_TOUCH_TO_GET_COLOR;
+import static app.perhue.FirebaseAnalyticsConstants.RECOGNIZED_COLORS_PARAMS;
 
 import android.app.Activity;
 import android.content.Context;
@@ -124,9 +124,8 @@ public class CameraPreview extends SurfaceView
               Paint paint = new Paint();
               paint.setAntiAlias(true);
               paint.setColor(Color.RED);
-              Bitmap cpBitmap =
-                  Bitmap.createBitmap(
-                      cameraPreview.getWidth(), cameraPreview.getHeight(), Bitmap.Config.ARGB_8888);
+              Bitmap cpBitmap = Bitmap.createBitmap(
+                  cameraPreview.getWidth(), cameraPreview.getHeight(), Bitmap.Config.ARGB_8888);
               Canvas cc = new Canvas(cpBitmap);
               Canvas canvas = new Canvas(mutableBitmap);
               canvas.drawCircle(x, y, 5, paint);
@@ -145,51 +144,49 @@ public class CameraPreview extends SurfaceView
 
   private void recogniseAndDrawColors(Bitmap bitmap) {
     FirebaseVisionImage image = FirebaseVisionImage.fromBitmap(bitmap);
-    FirebaseVisionTextRecognizer detector =
-        FirebaseVision.getInstance().getOnDeviceTextRecognizer();
-    Task<FirebaseVisionText> result =
-        detector
-            .processImage(image)
-            .addOnSuccessListener(
-                firebaseVisionText -> {
-                  String resultText = firebaseVisionText.getText();
-                  List<TextBlock> textBlocks = firebaseVisionText.getTextBlocks();
-                  for (TextBlock textBlock : textBlocks) {
-                    List<String> colors = Colors.parse(textBlock.getText());
-                    List<String> newColors = new ArrayList<>();
-                    for (String color : colors) {
-                      int intColor = Color.parseColor(color);
-                      if (!this.colors.contains(intColor)) {
-                        this.colors.add(intColor);
-                        newColors.add(color);
-                      }
-                    }
-                    if (!newColors.isEmpty()) {
-                      Rect rect = textBlock.getBoundingBox();
-                      cameraPreview.addView(
-                          getColorTextView(
-                              getContext(),
-                              rect.left,
-                              rect.top,
-                              rect.right - rect.left,
-                              rect.bottom - rect.top,
-                              newColors));
-                      Toast.makeText(
-                              getContext(),
-                              newColors.size() + " new colors recognized.",
-                              Toast.LENGTH_LONG)
-                          .show();
-                      Bundle params = new Bundle();
-                      params.putInt(RECOGNIZED_COLORS_PARAMS, newColors.size());
-                      firebaseAnalytics.logEvent(COLOR_PICKER_TEXT_RECOGNITION_COLORS, params);
-                    }
+    FirebaseVisionTextRecognizer detector = FirebaseVision.getInstance().getOnDeviceTextRecognizer();
+    Task<FirebaseVisionText> result = detector
+        .processImage(image)
+        .addOnSuccessListener(
+            firebaseVisionText -> {
+              String resultText = firebaseVisionText.getText();
+              List<TextBlock> textBlocks = firebaseVisionText.getTextBlocks();
+              for (TextBlock textBlock : textBlocks) {
+                List<String> colors = Colors.parse(textBlock.getText());
+                List<String> newColors = new ArrayList<>();
+                for (String color : colors) {
+                  int intColor = Color.parseColor(color);
+                  if (!this.colors.contains(intColor)) {
+                    this.colors.add(intColor);
+                    newColors.add(color);
                   }
-                })
-            .addOnFailureListener(
-                e -> {
-                  Toast.makeText(getContext(), "Failed:" + e.getMessage(), Toast.LENGTH_LONG)
+                }
+                if (!newColors.isEmpty()) {
+                  Rect rect = textBlock.getBoundingBox();
+                  cameraPreview.addView(
+                      getColorTextView(
+                          getContext(),
+                          rect.left,
+                          rect.top,
+                          rect.right - rect.left,
+                          rect.bottom - rect.top,
+                          newColors));
+                  Toast.makeText(
+                      getContext(),
+                      newColors.size() + " new colors recognized.",
+                      Toast.LENGTH_LONG)
                       .show();
-                });
+                  Bundle params = new Bundle();
+                  params.putInt(RECOGNIZED_COLORS_PARAMS, newColors.size());
+                  firebaseAnalytics.logEvent(COLOR_PICKER_TEXT_RECOGNITION_COLORS, params);
+                }
+              }
+            })
+        .addOnFailureListener(
+            e -> {
+              Toast.makeText(getContext(), "Failed:" + e.getMessage(), Toast.LENGTH_LONG)
+                  .show();
+            });
   }
 
   private View getColorTextView(Context ct, int left, int top, int w, int h, List<String> colors) {
@@ -217,14 +214,13 @@ public class CameraPreview extends SurfaceView
       textView.setTypeface(null, Typeface.BOLD);
       textView.setTextColor(isColorDark(intColor) ? Color.WHITE : Color.BLACK);
       textView.setBackgroundColor(intColor);
-      Drawable sd =
-          new DrawableBuilder()
-              .rectangle()
-              .solidColor(intColor)
-              .strokeColor(Color.WHITE)
-              .strokeWidth(dp(4))
-              .cornerRadii(dp(20), dp(20), dp(20), dp(20))
-              .build();
+      Drawable sd = new DrawableBuilder()
+          .rectangle()
+          .solidColor(intColor)
+          .strokeColor(Color.WHITE)
+          .strokeWidth(dp(4))
+          .cornerRadii(dp(20), dp(20), dp(20), dp(20))
+          .build();
       textView.setBackground(sd);
       flexboxLayout.addView(textView);
       System.out.println("Width: " + textView.getWidth() + "," + textView.getHeight());
@@ -235,10 +231,9 @@ public class CameraPreview extends SurfaceView
   }
 
   public boolean isColorDark(int color) {
-    double darkness =
-        1
-            - (0.299 * Color.red(color) + 0.587 * Color.green(color) + 0.114 * Color.blue(color))
-                / 255;
+    double darkness = 1
+        - (0.299 * Color.red(color) + 0.587 * Color.green(color) + 0.114 * Color.blue(color))
+            / 255;
     if (darkness < 0.5) {
       return false; // It's a light color
     } else {
@@ -264,8 +259,7 @@ public class CameraPreview extends SurfaceView
   private Bitmap getBitmap(byte data[], Camera camera) {
     // Convert to JPG
     Camera.Size previewSize = camera.getParameters().getPreviewSize();
-    YuvImage yuvimage =
-        new YuvImage(data, ImageFormat.NV21, previewSize.width, previewSize.height, null);
+    YuvImage yuvimage = new YuvImage(data, ImageFormat.NV21, previewSize.width, previewSize.height, null);
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     yuvimage.compressToJpeg(new Rect(0, 0, previewSize.width, previewSize.height), 80, baos);
 

@@ -1,4 +1,4 @@
-package app.croma;
+package app.perhue;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -12,8 +12,7 @@ public class Utils {
 
   // Format and encode the string
   public static String getEncodedString(String text) {
-    String regex =
-        "((#([0-9a-f]{6}))|(#([0-9a-f]{3})))|(((rgba?)|(cmyk)|(lab))([\\s+]?\\([\\s+]?(\\d+)[\\s+]?,[\\s+]?(\\d+)[\\s+]?,[\\s+]?(\\d+)[\\s+]?[)]))|((l[\\*]?a[\\*]?b[\\*]?)([\\s+]?\\([\\s+]?(\\d+)[\\s+]?,[\\s+]?[-]?[\\s+]?(\\d+)[\\s+]?,[\\s+]?[-]?[\\s+]?(\\d+)[\\s+]?[)]))|(((hsva?)|(hsba?)|(hsla?))([\\s+]?\\([\\s+]?(\\d+)[\\s+]?,[\\s+]?(\\d+)[%]?[\\s+]?,[\\s+]?(\\d+)[%]?[\\s+]?[)]))";
+    String regex = "((#([0-9a-f]{6}))|(#([0-9a-f]{3})))|(((rgba?)|(cmyk)|(lab))([\\s+]?\\([\\s+]?(\\d+)[\\s+]?,[\\s+]?(\\d+)[\\s+]?,[\\s+]?(\\d+)[\\s+]?[)]))|((l[\\*]?a[\\*]?b[\\*]?)([\\s+]?\\([\\s+]?(\\d+)[\\s+]?,[\\s+]?[-]?[\\s+]?(\\d+)[\\s+]?,[\\s+]?[-]?[\\s+]?(\\d+)[\\s+]?[)]))|(((hsva?)|(hsba?)|(hsla?))([\\s+]?\\([\\s+]?(\\d+)[\\s+]?,[\\s+]?(\\d+)[%]?[\\s+]?,[\\s+]?(\\d+)[%]?[\\s+]?[)]))";
     Pattern pattern = Pattern.compile(regex);
     StringBuilder sb = new StringBuilder();
     Matcher m = pattern.matcher(text);
@@ -28,11 +27,11 @@ public class Utils {
     String query = "";
 
     try {
-      // Ember crashes if there are percentage signs in decoded URL, so let's strip them
-      query =
-          URLEncoder.encode(sb.toString().replaceAll("%", ""), "UTF-8")
-              .replaceAll("\\%0A", "%20")
-              .replaceAll("\\+", "%20");
+      // Ember crashes if there are percentage signs in decoded URL, so let's strip
+      // them
+      query = URLEncoder.encode(sb.toString().replaceAll("%", ""), "UTF-8")
+          .replaceAll("\\%0A", "%20")
+          .replaceAll("\\+", "%20");
 
     } catch (Exception e) {
       e.printStackTrace();
@@ -49,6 +48,7 @@ public class Utils {
       return false;
     }
   }
+
   // Check if device has a camera
   public static boolean checkCameraHardware(Context context) {
     if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)) {

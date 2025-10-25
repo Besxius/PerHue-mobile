@@ -1,8 +1,8 @@
-package app.croma;
+package app.perhue;
 
-import static app.croma.DrawTouchDot.getColorView;
-import static app.croma.FirebaseAnalyticsConstants.IMAGE_COLOR_PICKER_DONE;
-import static app.croma.FirebaseAnalyticsConstants.IMAGE_COLOR_PICKER_TOUCH_TO_GET_COLOR;
+import static app.perhue.DrawTouchDot.getColorView;
+import static app.perhue.FirebaseAnalyticsConstants.IMAGE_COLOR_PICKER_DONE;
+import static app.perhue.FirebaseAnalyticsConstants.IMAGE_COLOR_PICKER_TOUCH_TO_GET_COLOR;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -34,7 +34,7 @@ public class ImageColorPickerActivity extends AppCompatActivity {
   private static final String COLOR_PICKER_HELP_COUNT = "color_picker_help_count";
   private static final int HELP_MSG_MAX_COUNT = 2;
 
-  @SuppressLint({"SourceLockedOrientationActivity"})
+  @SuppressLint({ "SourceLockedOrientationActivity" })
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -60,16 +60,14 @@ public class ImageColorPickerActivity extends AppCompatActivity {
             finish();
           }
         });
-    final Bitmap bitmap[] = {null};
+    final Bitmap bitmap[] = { null };
     RelativeLayout imageDisplayArea = this.findViewById(R.id.image_display_area);
     imageView.post(
-        () ->
-            bitmap[0] =
-                Bitmap.createScaledBitmap(
-                    ((BitmapDrawable) imageView.getDrawable()).getBitmap(),
-                    imageView.getWidth(),
-                    imageView.getHeight(),
-                    true));
+        () -> bitmap[0] = Bitmap.createScaledBitmap(
+            ((BitmapDrawable) imageView.getDrawable()).getBitmap(),
+            imageView.getWidth(),
+            imageView.getHeight(),
+            true));
     imageView.setOnTouchListener(
         (v, event) -> {
           if (event.getAction() == MotionEvent.ACTION_UP) {

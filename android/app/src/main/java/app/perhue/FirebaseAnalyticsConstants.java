@@ -1,4 +1,4 @@
-package app.croma;
+package app.perhue;
 
 public interface FirebaseAnalyticsConstants {
   String PICK_COLORS_FROM_IMAGE = "pick_colors_from_image";

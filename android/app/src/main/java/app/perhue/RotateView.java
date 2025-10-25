@@ -1,4 +1,4 @@
-package app.croma;
+package app.perhue;
 
 import android.content.Context;
 import android.view.OrientationEventListener;
@@ -67,14 +67,13 @@ public class RotateView extends OrientationEventListener {
         animSet.setFillBefore(true);
         animSet.setFillEnabled(true);
 
-        final RotateAnimation animRotate =
-            new RotateAnimation(
-                preAngle,
-                angle,
-                RotateAnimation.RELATIVE_TO_SELF,
-                0.5f,
-                RotateAnimation.RELATIVE_TO_SELF,
-                0.5f);
+        final RotateAnimation animRotate = new RotateAnimation(
+            preAngle,
+            angle,
+            RotateAnimation.RELATIVE_TO_SELF,
+            0.5f,
+            RotateAnimation.RELATIVE_TO_SELF,
+            0.5f);
 
         animRotate.setDuration(300 * (Math.abs(preAngle - angle)) / 90);
         animRotate.setFillAfter(true);

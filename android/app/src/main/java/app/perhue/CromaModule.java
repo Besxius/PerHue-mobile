@@ -1,6 +1,6 @@
-package app.croma;
+package app.perhue;
 
-import static app.croma.FirebaseAnalyticsConstants.TIME_TAKEN_TO_PROCESS_MS;
+import static app.perhue.FirebaseAnalyticsConstants.TIME_TAKEN_TO_PROCESS_MS;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -54,17 +54,15 @@ public class CromaModule extends ReactContextBaseJavaModule implements ActivityE
   @ReactMethod
   public void getConfigString(String key, Promise promise) {
     // https://console.firebase.google.com/u/0/project/croma-a6256/config/env/firebase
-    promise.resolve( firebaseRemoteConfig.getString(key));
+    promise.resolve(firebaseRemoteConfig.getString(key));
   }
 
   @ReactMethod
   public void getAppInstallTime(Promise promise) {
     try {
-      long time =
-          reactContext
-              .getPackageManager()
-              .getPackageInfo(reactContext.getPackageName(), 0)
-              .firstInstallTime;
+      long time = reactContext
+          .getPackageManager()
+          .getPackageInfo(reactContext.getPackageName(), 0).firstInstallTime;
 
       promise.resolve(time + "");
     } catch (PackageManager.NameNotFoundException e) {
@@ -105,7 +103,8 @@ public class CromaModule extends ReactContextBaseJavaModule implements ActivityE
   }
 
   @Override
-  public void onNewIntent(Intent intent) {}
+  public void onNewIntent(Intent intent) {
+  }
 
   @ReactMethod
   public void navigateToImageColorPicker(String uri, Promise promise) {
