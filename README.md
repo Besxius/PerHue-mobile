@@ -25,7 +25,7 @@ corepack -v
 ### 1.2 Android Studio & SDK
 
 * Tải Native Development Kit (NDK) từ [đây](https://dl.google.com/android/repository/android-ndk-r26b-windows.zip)
-* Giải nén NDK vào thư mục Android SDK (mặc định: `C:\Users\<username>\AppData\Local\Android\Sdk\ndk\26.1.10909125`)
+* Giải nén NDK vào thư mục Android SDK (mặc định: `C:\Users\<username>\AppData\Local\Android\Sdk\ndk\26.1.10909125`) (nếu chưa có đường dẫn trên thì tạo mới)
 * Thêm `platform-tools` vào PATH để dùng ADB (tải [tại đây](https://developer.android.com/tools/releases/platform-tools?hl=vi)):
 
 ---
@@ -45,7 +45,7 @@ yarn install
 ### 3.1 Xóa thư mục .gradle trong android/ và sau đó chạy:
 
 ```powershell
-./gradlew clean
+./gradlew.bat clean
 ```
 
 ---
