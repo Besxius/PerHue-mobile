@@ -25,6 +25,7 @@ corepack -v
 ### 1.2 Android Studio & SDK
 
 * Tải Native Development Kit (NDK) từ [đây](https://dl.google.com/android/repository/android-ndk-r26b-windows.zip)
+* Giải nén NDK vào thư mục Android SDK (mặc định: `C:\Users\<username>\AppData\Local\Android\Sdk\ndk\26.1.10909125`)
 * Thêm `platform-tools` vào PATH để dùng ADB (tải [tại đây](https://developer.android.com/tools/releases/platform-tools?hl=vi)):
 
 ---
