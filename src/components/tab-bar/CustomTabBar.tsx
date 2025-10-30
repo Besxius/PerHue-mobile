@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather, Fontisto } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type TabName = 'home' | 'heart' | 'camera' | 'history' | 'user';
+type TabName = 'home' | 'favorite' | 'camera' | 'history' | 'user';
 
 interface CustomTabBarProps {
   activeTab: TabName;
@@ -12,13 +12,13 @@ interface CustomTabBarProps {
 
 const tabs: { name: TabName; icon: keyof typeof Fontisto.glyphMap }[] = [
   { name: 'home', icon: 'home' },
-  { name: 'heart', icon: 'heart' },
+  { name: 'favorite', icon: 'heart' },
   { name: 'camera', icon: 'camera' },
   { name: 'history', icon: 'history' },
   { name: 'user', icon: 'person' },
 ];
 
-const CustomTabBar: React.FC<CustomTabBarProps> = ({ activeTab, onTabPress }) => {
+const CustomTabBar = ({ activeTab, onTabPress }: CustomTabBarProps) => {
   const insets = useSafeAreaInsets();
   
   const ACTIVE_COLOR = '#3B82F6'; 
