@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather, MaterialCommunityIcons, Fontisto } from '@expo/vector-icons';
-import CustomTabBar from '../../tab-bar/CustomTabBar';
+import CustomTabBar from '../tab-bar/CustomTabBar';
 
 const logoIcon = require('../../assets/logo-icon-black.png');
 
@@ -33,9 +33,9 @@ const colorTypeStyleVideos = [
   { uri: 'https://source.unsplash.com/random/400x600?fashion,style,yellow', label: '' },
 ];
 
-type TabName = 'home' | 'heart' | 'camera' | 'history' | 'user';
+type TabName = 'home' | 'favorite' | 'camera' | 'history' | 'user';
 
-const HomeScreen: React.FC = () => {
+const HomeScreen = () => {
   const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<TabName>('home');
