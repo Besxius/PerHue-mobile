@@ -1,16 +1,18 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const FavoriteScreen: React.FC = () => {
+const CameraScreen = () => {
     const insets = useSafeAreaInsets();
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            Trongle Favorites Screen
+        <View style={styles.container}>
+            <Text>
+                Trongle Camera Screen
+            </Text>
         </View>
     );
 }
 
-export default FavoriteScreen;
+export default CameraScreen;
 
 const styles = StyleSheet.create({
     container: {
