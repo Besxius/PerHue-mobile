@@ -21,7 +21,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 type RootStackParamList = {
   Home: undefined;
   PackageScreen: undefined; // Đảm bảo đã định nghĩa route này
-  // ... các màn hình khác
+  NotificationScreen: undefined;
 };
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 // **********************************
@@ -67,6 +67,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     // Tên route phải khớp với tên bạn đã định nghĩa trong Navigator
     navigation.navigate('PackageScreen');
   };
+  const navigateToNotificationScreen = () => {
+    navigation.navigate("NotificationScreen");
+  };
 
   return (
     <View style={styles.container}>
@@ -84,7 +87,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           <View style={styles.iconGroup}>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={navigateToNotificationScreen}
+            >
               <Ionicons name="notifications" size={30} color="black" />
             </TouchableOpacity>
             {/* THÊM SỰ KIỆN navigateToPackageScreen VÀO ĐÂY */}
