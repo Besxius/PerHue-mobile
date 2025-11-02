@@ -10,9 +10,10 @@ import FavoriteScreen from '../screen/FavoriteScreen';
 import CameraScreen from '../screen/CameraScreen';
 import HistoryScreen from '../screen/HistoryScreen';
 import UserScreen from '../screen/UserScreen';
-import PackageScreen from '../screen/PackageScreen'; // <--- IMPORT MÀN HÌNH MỚI
+import PackageScreen from '../screen/PackageScreen';
 
 import CustomTabBar from '../tab-bar/CustomTabBar';
+import NotificationScreen from '../screen/NotificationScreen';
 
 // --- ĐỊNH NGHĨA KIỂU (TYPESCRIPT) ---
 
@@ -24,14 +25,12 @@ type TabName = 'home' | 'favorite' | 'camera' | 'history' | 'user';
 export type RootStackParamList = {
   Tabs: undefined; // Tên route chứa Tab Navigator
   PackageScreen: undefined; // Màn hình độc lập
-  // Bạn có thể thêm các tham số ở đây nếu cần, ví dụ: PackageScreen: { packageId: string };
+  NotificationScreen: undefined;
 };
 
 // --- NAVIGATORS ---
 const Tab = createBottomTabNavigator<Record<TabRouteName, undefined>>();
 const RootStack = createNativeStackNavigator<RootStackParamList>(); // Stack Navigator
-
-// --- LOGIC CUSTOM TAB BAR (GIỮ NGUYÊN) ---
 
 const mapRouteToTabName = (routeName: TabRouteName): TabName => {
   switch (routeName) {
@@ -109,18 +108,23 @@ const AppNavigator = () => {
     <NavigationContainer>
       <RootStack.Navigator
         initialRouteName="Tabs"
-        screenOptions={{ headerShown: false }} // Ẩn header mặc định cho cả Stack
+        screenOptions={{ headerShown: false }}
       >
-        {/* Màn hình chứa Tab Bar */}
         <RootStack.Screen name="Tabs" component={TabNavigator} />
-
-        {/* Màn hình độc lập, sẽ hiển thị trên Tab Bar */}
         <RootStack.Screen
           name="PackageScreen"
           component={PackageScreen}
           options={{
-            headerShown: true, // Hiển thị Header cho màn hình này
+            headerShown: true,
             title: 'Test packages',
+          }}
+        />
+        <RootStack.Screen
+          name="NotificationScreen"
+          component={NotificationScreen}
+          options={{
+            headerShown: true,
+            title: 'Notification center',
           }}
         />
       </RootStack.Navigator>
