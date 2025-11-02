@@ -2,18 +2,19 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack'; // Import Stack
-import { View } from 'react-native';
+import { TouchableOpacity, View, Text } from 'react-native';
 
 // Import màn hình
 import HomeScreen from '../screen/HomeScreen';
 import FavoriteScreen from '../screen/FavoriteScreen';
-import CameraScreen from '../screen/CameraScreen';
 import HistoryScreen from '../screen/HistoryScreen';
 import UserScreen from '../screen/UserScreen';
 import PackageScreen from '../screen/PackageScreen';
 
 import CustomTabBar from '../tab-bar/CustomTabBar';
 import NotificationScreen from '../screen/NotificationScreen';
+import ExpoCameraScreen from '../screen/ExpoCameraScreen';
+import Feather from '@expo/vector-icons/Feather';
 
 // --- ĐỊNH NGHĨA KIỂU (TYPESCRIPT) ---
 
@@ -57,6 +58,10 @@ const mapTabNameToRoute = (tabName: TabName): TabRouteName => {
 const CustomTab = ({ state, navigation }: any) => {
   const activeRouteName: TabRouteName = state.routes[state.index].name;
 
+  if (activeRouteName === 'Camera') {
+    return <View />;
+  }
+
   const activeTab: TabName = mapRouteToTabName(activeRouteName);
 
   const handleTabPress = (tabName: TabName) => {
@@ -96,7 +101,23 @@ const TabNavigator = () => (
   >
     <Tab.Screen name="Home" component={HomeScreen} />
     <Tab.Screen name="Favorite" component={FavoriteScreen} />
-    <Tab.Screen name="Camera" component={CameraScreen} />
+    <Tab.Screen
+      name="Camera"
+      component={ExpoCameraScreen}
+      options={({ navigation }) => ({
+        headerShown: true,
+        title: '',
+        headerTransparent: true,
+        headerLeft: () => (
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{ marginLeft: 15 }}
+          >
+            <Feather name="x" size={30} color="white" />
+          </TouchableOpacity>
+        ),
+      })}
+    />
     <Tab.Screen name="History" component={HistoryScreen} />
     <Tab.Screen name="User" component={UserScreen} />
   </Tab.Navigator>

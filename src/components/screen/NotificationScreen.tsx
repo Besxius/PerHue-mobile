@@ -97,7 +97,7 @@ const NotificationScreen: React.FC = () => {
     return (
         <View style={styles.container}>
             {/* Thanh Tab - Tab Bar */}
-            <View style={styles.tabBarContainer}>
+            <View style={styles.tabBarContainer}>~
                 <View style={styles.tabBar}>
                     <TouchableOpacity
                         style={styles.tabButton}

@@ -22,6 +22,7 @@ type RootStackParamList = {
   Home: undefined;
   PackageScreen: undefined; // Đảm bảo đã định nghĩa route này
   NotificationScreen: undefined;
+  ExpoCameraScreen: undefined;
 };
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 // **********************************
@@ -70,6 +71,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const navigateToNotificationScreen = () => {
     navigation.navigate("NotificationScreen");
   };
+  const navigateToExpoCameraScreen = () => {
+    navigation.navigate("ExpoCameraScreen");
+  };
 
   return (
     <View style={styles.container}>
@@ -100,7 +104,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             >
               <MaterialCommunityIcons name="package" size={30} color="black" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={navigateToExpoCameraScreen}
+            >
               <Fontisto name="player-settings" size={30} color="black" />
             </TouchableOpacity>
           </View>

@@ -20,8 +20,8 @@ const tabs: { name: TabName; icon: keyof typeof Fontisto.glyphMap }[] = [
 
 const CustomTabBar = ({ activeTab, onTabPress }: CustomTabBarProps) => {
   const insets = useSafeAreaInsets();
-  
-  const ACTIVE_COLOR = '#3B82F6'; 
+
+  const ACTIVE_COLOR = '#3B82F6';
   const INACTIVE_COLOR = '#888';
 
   return (
