@@ -11,7 +11,24 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather, MaterialCommunityIcons, Fontisto } from '@expo/vector-icons';
-import CustomTabBar from '../tab-bar/CustomTabBar';
+
+// *** GIẢ ĐỊNH DÙNG REACT NAVIGATION ***
+// Bạn cần thay thế 'RootStackParamList' bằng tên danh sách param thực tế của bạn
+// và cài đặt @react-navigation/native-stack (hoặc tương đương)
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+// Giả định kiểu cho Navigation
+type RootStackParamList = {
+  Home: undefined;
+  PackageScreen: undefined; // Đảm bảo đã định nghĩa route này
+  NotificationScreen: undefined;
+  ExpoCameraScreen: undefined;
+};
+type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+// **********************************
+
+// Giả định import
+// import CustomTabBar from '../tab-bar/CustomTabBar'; // Đã có trong code gốc
 
 const logoIcon = require('../../assets/logo-icon-black.png');
 
@@ -35,7 +52,8 @@ const colorTypeStyleVideos = [
 
 type TabName = 'home' | 'favorite' | 'camera' | 'history' | 'user';
 
-const HomeScreen = () => {
+// Cập nhật component để nhận prop navigation
+const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<TabName>('home');
@@ -43,6 +61,18 @@ const HomeScreen = () => {
   const handleTabPress = (tab: TabName) => {
     setActiveTab(tab);
     console.log(`Chuyển đến tab: ${tab}`);
+  };
+
+  // Hàm xử lý chuyển màn hình
+  const navigateToPackageScreen = () => {
+    // Tên route phải khớp với tên bạn đã định nghĩa trong Navigator
+    navigation.navigate('PackageScreen');
+  };
+  const navigateToNotificationScreen = () => {
+    navigation.navigate("NotificationScreen");
+  };
+  const navigateToExpoCameraScreen = () => {
+    navigation.navigate("ExpoCameraScreen");
   };
 
   return (
@@ -61,13 +91,23 @@ const HomeScreen = () => {
             </TouchableOpacity>
           </View>
           <View style={styles.iconGroup}>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={navigateToNotificationScreen}
+            >
               <Ionicons name="notifications" size={30} color="black" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
+            {/* THÊM SỰ KIỆN navigateToPackageScreen VÀO ĐÂY */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={navigateToPackageScreen} // <--- Đã thêm onPress
+            >
               <MaterialCommunityIcons name="package" size={30} color="black" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={navigateToExpoCameraScreen}
+            >
               <Fontisto name="player-settings" size={30} color="black" />
             </TouchableOpacity>
           </View>
@@ -124,7 +164,8 @@ const HomeScreen = () => {
       </ScrollView>
 
       <SafeAreaProvider>
-        <CustomTabBar activeTab={activeTab} onTabPress={handleTabPress} />
+        {/* Đảm bảo CustomTabBar của bạn hoạt động và được truyền props */}
+        {/* <CustomTabBar activeTab={activeTab} onTabPress={handleTabPress} /> */}
       </SafeAreaProvider>
     </View>
   );
@@ -132,6 +173,7 @@ const HomeScreen = () => {
 
 export default HomeScreen;
 
+// StyleSheet không đổi, được giữ nguyên như code gốc của bạn.
 const styles = StyleSheet.create({
   container: {
     flex: 1,

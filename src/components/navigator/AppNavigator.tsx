@@ -1,20 +1,37 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View } from 'react-native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack'; // Import Stack
+import { TouchableOpacity, View, Text } from 'react-native';
+
+// Import màn hình
 import HomeScreen from '../screen/HomeScreen';
 import FavoriteScreen from '../screen/FavoriteScreen';
-import CameraScreen from '../screen/CameraScreen';
 import HistoryScreen from '../screen/HistoryScreen';
 import UserScreen from '../screen/UserScreen';
+import PackageScreen from '../screen/PackageScreen';
 
 import CustomTabBar from '../tab-bar/CustomTabBar';
+import NotificationScreen from '../screen/NotificationScreen';
+import ExpoCameraScreen from '../screen/ExpoCameraScreen';
+import Feather from '@expo/vector-icons/Feather';
 
+// --- ĐỊNH NGHĨA KIỂU (TYPESCRIPT) ---
+
+// 1. Kiểu cho Bottom Tab Routes
 type TabRouteName = 'Home' | 'Favorite' | 'Camera' | 'History' | 'User';
-
 type TabName = 'home' | 'favorite' | 'camera' | 'history' | 'user';
 
+// 2. Kiểu cho ROOT Stack Routes
+export type RootStackParamList = {
+  Tabs: undefined; // Tên route chứa Tab Navigator
+  PackageScreen: undefined; // Màn hình độc lập
+  NotificationScreen: undefined;
+};
+
+// --- NAVIGATORS ---
 const Tab = createBottomTabNavigator<Record<TabRouteName, undefined>>();
+const RootStack = createNativeStackNavigator<RootStackParamList>(); // Stack Navigator
 
 const mapRouteToTabName = (routeName: TabRouteName): TabName => {
   switch (routeName) {
@@ -40,6 +57,10 @@ const mapTabNameToRoute = (tabName: TabName): TabRouteName => {
 
 const CustomTab = ({ state, navigation }: any) => {
   const activeRouteName: TabRouteName = state.routes[state.index].name;
+
+  if (activeRouteName === 'Camera') {
+    return <View />;
+  }
 
   const activeTab: TabName = mapRouteToTabName(activeRouteName);
 
@@ -69,23 +90,65 @@ const CustomTab = ({ state, navigation }: any) => {
   );
 };
 
+// --- COMPONENT TAB NAVIGATOR CON ---
+const TabNavigator = () => (
+  <Tab.Navigator
+    initialRouteName="Home"
+    tabBar={(props) => <CustomTab {...props} />}
+    screenOptions={{
+      headerShown: false,
+    }}
+  >
+    <Tab.Screen name="Home" component={HomeScreen} />
+    <Tab.Screen name="Favorite" component={FavoriteScreen} />
+    <Tab.Screen
+      name="Camera"
+      component={ExpoCameraScreen}
+      options={({ navigation }) => ({
+        headerShown: true,
+        title: '',
+        headerTransparent: true,
+        headerLeft: () => (
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{ marginLeft: 15 }}
+          >
+            <Feather name="x" size={30} color="white" />
+          </TouchableOpacity>
+        ),
+      })}
+    />
+    <Tab.Screen name="History" component={HistoryScreen} />
+    <Tab.Screen name="User" component={UserScreen} />
+  </Tab.Navigator>
+);
+
+// --- COMPONENT ROOT NAVIGATOR CHA ---
 const AppNavigator = () => {
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        initialRouteName="Home"
-        tabBar={(props) => <CustomTab {...props} />}
-
-        screenOptions={{
-          headerShown: false,
-        }}
+      <RootStack.Navigator
+        initialRouteName="Tabs"
+        screenOptions={{ headerShown: false }}
       >
-        <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Favorite" component={FavoriteScreen} />
-        <Tab.Screen name="Camera" component={CameraScreen} />
-        <Tab.Screen name="History" component={HistoryScreen} />
-        <Tab.Screen name="User" component={UserScreen} />
-      </Tab.Navigator>
+        <RootStack.Screen name="Tabs" component={TabNavigator} />
+        <RootStack.Screen
+          name="PackageScreen"
+          component={PackageScreen}
+          options={{
+            headerShown: true,
+            title: 'Test packages',
+          }}
+        />
+        <RootStack.Screen
+          name="NotificationScreen"
+          component={NotificationScreen}
+          options={{
+            headerShown: true,
+            title: 'Notification center',
+          }}
+        />
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 };
