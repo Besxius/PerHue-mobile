@@ -30,7 +30,7 @@ type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 // Giả định import
 // import CustomTabBar from '../tab-bar/CustomTabBar'; // Đã có trong code gốc
 
-const logoIcon = require('../../assets/logo-icon-black.png');
+const logoIcon = require('../assets/logo-icon-black.png');
 
 const { width } = Dimensions.get('window');
 
