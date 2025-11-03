@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import CustomTabBar from '../tab-bar/CustomTabBar';
+import CustomTabBar from '../components/CustomTabBar';
 // --- DATA MOCK ---
 interface Package {
     id: number;
