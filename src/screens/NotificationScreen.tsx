@@ -97,7 +97,7 @@ const NotificationScreen: React.FC = () => {
     return (
         <View style={styles.container}>
             {/* Thanh Tab - Tab Bar */}
-            <View style={styles.tabBarContainer}>~
+            <View style={styles.tabBarContainer}>
                 <View style={styles.tabBar}>
                     <TouchableOpacity
                         style={styles.tabButton}
@@ -105,7 +105,6 @@ const NotificationScreen: React.FC = () => {
                     >
                         <Text style={activeTabIndex === 0 ? styles.activeTabText : styles.tabText}>Daily Notifications</Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity
                         style={styles.tabButton}
                         onPress={() => handleTabPress(1)}

@@ -1,55 +1,31 @@
-// src/screen/WelcomeScreen.tsx (Ví dụ đơn giản)
 import React from 'react';
-import { View, Text, StyleSheet, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, ImageBackground, Image } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import CustomButton from '../components/CustomButton'; // Giả sử bạn có component này
-import { RootStackParamList } from '../navigation/AppNavigator'; // Import RootStackParamList
+import CustomButton from '../components/CustomButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AuthStackParamList } from '../navigation/AuthNavigator';
 
-const FIRST_LAUNCH_KEY = '@app_is_first_launch';
-
-// Định nghĩa kiểu Props
-type WelcomeScreenProps = StackScreenProps<RootStackParamList, 'WelcomeScreen'>;
+type WelcomeScreenProps = StackScreenProps<AuthStackParamList, 'WelcomeScreen'>;
+const logoIcon = require('../assets/logo-icon-black.png');
 
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
 
-    // const handleGetStarted = async () => {
-    //     try {
-    //         // 1. Đánh dấu rằng người dùng đã xem màn hình chào mừng
-    //         await AsyncStorage.setItem(FIRST_LAUNCH_KEY, 'true');
-
-    //         // 2. Chuyển hướng đến màn hình Login (hoặc trực tiếp đến Tabs nếu không cần Login)
-    //         // Dùng replace để người dùng không thể quay lại WelcomeScreen
-    //         navigation.replace('LoginScreen');
-
-    //     } catch (e) {
-    //         console.error("Lỗi khi lưu trạng thái lần đầu chạy:", e);
-    //         navigation.replace('LoginScreen'); // Vẫn chuyển hướng nếu có lỗi
-    //     }
-    // };
     const insets = useSafeAreaInsets();
     const handleGetStarted = () => {
-        // Không cần dùng AsyncStorage nữa
-
-        // Chuyển hướng đến màn hình Login
         navigation.navigate('LoginScreen');
     };
 
     return (
         <View style={[
             styles.container,
-            // Áp dụng paddingTop và paddingBottom từ insets
             {
                 paddingTop: insets.top,
-                paddingBottom: insets.bottom + 50 // Thêm 50 padding cho nút
+                paddingBottom: insets.bottom + 50
             }
         ]}>
-            {/* Mô phỏng giao diện từ hình ảnh */}
             <View style={styles.logoArea}>
-                {/* Thay bằng component Logo thực tế của bạn */}
                 <View style={styles.logoCircle}>
-                    <Text style={styles.logoText}>PJ</Text>
+                    <Image source={logoIcon} style={styles.avatar} />
                 </View>
                 <Text style={styles.title}>PERHUE</Text>
                 <Text style={styles.subtitle}>FIND YOUR COLOR</Text>
@@ -70,7 +46,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#2E3A59', // Màu nền tối
+        backgroundColor: '#2E3A59',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingBottom: 50,
@@ -90,7 +66,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 30,
     },
-    logoText: { // Thay thế bằng Image component thực tế
+    avatar: {
+        width: 125,
+        height: 125,
+        borderRadius: 24,
+    },
+    logoText: {
         fontSize: 30,
         fontWeight: 'bold',
         color: '#000'
