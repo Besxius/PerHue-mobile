@@ -11,20 +11,21 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather, MaterialCommunityIcons, Fontisto } from '@expo/vector-icons';
-
-// *** GIẢ ĐỊNH DÙNG REACT NAVIGATION ***
-// Bạn cần thay thế 'RootStackParamList' bằng tên danh sách param thực tế của bạn
-// và cài đặt @react-navigation/native-stack (hoặc tương đương)
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import CustomHeader from '../components/CustomHeader';
+import { RootStackParamList, TabName, TabRouteName } from '../navigation/AppNavigator';
+import { CompositeScreenProps } from '@react-navigation/native';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
-// Giả định kiểu cho Navigation
-type RootStackParamList = {
-  Home: undefined;
-  PackageScreen: undefined; // Đảm bảo đã định nghĩa route này
-  NotificationScreen: undefined;
-  ExpoCameraScreen: undefined;
-};
-type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+export type TabParamList = Record<TabRouteName, undefined>;
+
+// 2. Kiểu props cho HomeScreen (Là con của Tabs, và Tabs là con của RootStack)
+type HomeScreenProps = CompositeScreenProps<
+  // Lấy props từ Tab Navigator
+  BottomTabScreenProps<TabParamList, 'Home'>,
+  // Kết hợp với props từ Root Stack Navigator
+  NativeStackScreenProps<RootStackParamList>
+>;
 // **********************************
 
 // Giả định import
@@ -50,8 +51,6 @@ const colorTypeStyleVideos = [
   { uri: 'https://source.unsplash.com/random/400x600?fashion,style,yellow', label: '' },
 ];
 
-type TabName = 'home' | 'favorite' | 'camera' | 'history' | 'user';
-
 // Cập nhật component để nhận prop navigation
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -71,9 +70,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const navigateToNotificationScreen = () => {
     navigation.navigate("NotificationScreen");
   };
-  const navigateToExpoCameraScreen = () => {
-    navigation.navigate("ExpoCameraScreen");
-  };
+  // const navigateToSettingsScreen = () => {
+  //   navigation.navigate("SettingScreen");
+  // };
 
   return (
     <View style={styles.container}>
@@ -83,37 +82,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 60 + insets.bottom + 20 }}
       >
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <View style={styles.profileContainer}>
-            <Image source={logoIcon} style={styles.avatar} />
-            <TouchableOpacity style={styles.activityButton}>
-              <Text style={styles.activityButtonText}>My Activity</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.iconGroup}>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={navigateToNotificationScreen}
-            >
-              <Ionicons name="notifications" size={30} color="black" />
-            </TouchableOpacity>
-            {/* THÊM SỰ KIỆN navigateToPackageScreen VÀO ĐÂY */}
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={navigateToPackageScreen} // <--- Đã thêm onPress
-            >
-              <MaterialCommunityIcons name="package" size={30} color="black" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={navigateToExpoCameraScreen}
-            >
-              <Fontisto name="player-settings" size={30} color="black" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <CustomHeader
+          onNavigateToPackage={navigateToPackageScreen}
+          onNavigateToNotification={navigateToNotificationScreen}
+        // onNavigateToSettings={navigateToSettingsScreen}
+        />
 
-        <Text style={styles.helloText}>Hello, Trongle!</Text>
+        {/* <Text style={styles.helloText}>Hello, Trongle!</Text> */}
 
         <TouchableOpacity style={styles.announcementCard}>
           <View>
@@ -126,7 +101,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Ionicons name="arrow-forward" size={24} color="white" style={styles.announcementArrow} />
         </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>Recently expert viewed</Text>
+        <Text style={styles.sectionTitle}>Famous Experts</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentlyViewedScroll}>
           {recentlyViewedImages.map((uri, index) => (
             <Image key={index} source={{ uri }} style={styles.recentlyViewedImage} />
