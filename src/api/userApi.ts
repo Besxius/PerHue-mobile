@@ -72,7 +72,7 @@ export const uploadProfilePicture = async (
 
         if (axios.isAxiosError(error)) {
             // Thêm log chi tiết lỗi Axios (rất hữu ích cho gỡ lỗi Network)
-            console.error('❌ Chi tiết lỗi Axios:', error.toJSON());
+            console.error('Chi tiết lỗi Axios:', error.toJSON());
 
             errorMessage = error.response?.data?.message || error.message;
 

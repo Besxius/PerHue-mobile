@@ -49,6 +49,25 @@ export type UserInfo = {
     role: RoleInfo;
 };
 
+export interface ExpertInfo {
+    id: number;
+    nickname: string;
+    specialization: string;
+    bio: string;
+    yearsOfExperience: number;
+    languages: string;
+    rating: number;
+    certification: string;
+    introduction: string;
+    facebookAccount: string | null;
+    linkedInAccount: string | null;
+    instagramAccount: string | null;
+    email: string;
+    username: string;
+    profilePicture: string;
+    idNavigation: UserInfo
+}
+
 export interface GetColorRequest {
     pageIndex?: number;
     pageSize?: number;
@@ -66,7 +85,6 @@ export interface ColorType {
     name: string;
 }
 
-/** Mô tả một Bảng màu (Capsule Palette) */
 export interface CapsulePalette {
     id: number;
     colorTypeId: number;

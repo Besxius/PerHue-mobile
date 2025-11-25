@@ -1,99 +1,219 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     StyleSheet,
     View,
     Text,
     TouchableOpacity,
     StatusBar,
-    FlatList, // 💡 Sử dụng FlatList cho cả 2 danh sách
+    FlatList,
     Dimensions,
+    ActivityIndicator,
+    Modal,
+    TouchableWithoutFeedback,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
-import CapsulePalette from '../components/CapsulePalette';
+import CapsulePaletteComponent from '../components/CapsulePalette';
+import * as Clipboard from 'expo-clipboard';
 
-// Lấy kích thước màn hình
+import { ColorType, CapsulePalette, Color } from '../types/dataModels';
+import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
+
+interface TabItem extends ColorType { }
+
 const { width } = Dimensions.get('window');
 
-// 💡 Dữ liệu MỚI cho các bảng màu và loại mùa
-const SEASON_TYPES = [
-    'Cool Winter',
-    'Deep Winter',
-    'Clear Winter',
-    'Cool Summer',
-    'Soft Summer',
-    'Light Summer',
-    'Warm Autumn',
-    'Soft Autumn',
-    'Deep Autumn',
-    'Warm Spring',
-    'Light Spring',
-    'Clear Spring',
-];
-
-interface Palette {
-    id: string;
-    colors: [string, string, string, string];
-    season: string;
+interface ColorDetailProps {
+    color: Color;
 }
 
-const mockPalettes: Palette[] = [
-    { id: 'cw1', season: 'Cool Winter', colors: ['#5F9EA0', '#D8BFD8', '#B0E0E6', '#90EE90'] },
-    { id: 'cw2', season: 'Cool Winter', colors: ['#9932CC', '#DC143C', '#F08080', '#DDA0DD'] },
-    { id: 'cw3', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw4', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw5', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw6', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw7', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw8', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw9', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw10', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw11', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'cw12', season: 'Cool Winter', colors: ['#BDB76B', '#FF7F50', '#87CEFA', '#F0E68C'] },
-    { id: 'dw1', season: 'Deep Winter', colors: ['#5F014F', '#A31350', '#FCEECF', '#2E004F'] },
-    { id: 'dw2', season: 'Deep Winter', colors: ['#1C2A48', '#8A2BE2', '#F08080', '#000080'] },
-    { id: 'dw3', season: 'Deep Winter', colors: ['#4682B4', '#FFA07A', '#F0F8FF', '#4B0082'] },
-    { id: 'clr1', season: 'Clear Winter', colors: ['#FF00FF', '#00FFFF', '#E6E6FA', '#00FA9A'] },
-    { id: 'clr2', season: 'Clear Winter', colors: ['#C71585', '##FFD700', '#ADD8E6', '#FFB6C1'] },
-    { id: 'clr3', season: 'Clear Winter', colors: ['#D2B48C', '#808000', '#8FBC8F', '#20B2AA'] },
-    { id: 'cs1', season: 'Cool Summer', colors: ['#D6A8E8', '#F3F4F6', '#B0D3F8', '#7EC0EE'] },
-    { id: 'cs2', season: 'Cool Summer', colors: ['#9DCFEE', '#E8F5FF', '#C4D8EE', '#B4D9FF'] },
-    { id: 'cs3', season: 'Cool Summer', colors: ['#9DCFEE', '#E8F5FF', '#C4D8EE', '#B4D9FF'] },
-    { id: 'cs4', season: 'Cool Summer', colors: ['#D6A8E8', '#F3F4F6', '#B0D3F8', '#7EC0EE'] },
-    { id: 'cs5', season: 'Cool Summer', colors: ['#9DCFEE', '#E8F5FF', '#C4D8EE', '#B4D9FF'] },
-];
+const ColorDetailCard: React.FC<ColorDetailProps> = ({ color }) => {
+    const hexToRgb = (hex: string): [number, number, number] => {
+        let r = 0, g = 0, b = 0;
+        if (hex.length === 7) {
+            r = parseInt(hex.slice(1, 3), 16);
+            g = parseInt(hex.slice(3, 5), 16);
+            b = parseInt(hex.slice(5, 7), 16);
+        }
+        return [r, g, b];
+    };
+
+    const [r, g, b] = hexToRgb(color.hexCode);
+
+    const cmyk = '8, 0, 28, 25';
+
+    const handleCopy = async () => {
+        await Clipboard.setStringAsync(color.hexCode);
+    };
+
+    return (
+        <View style={modalStyles.colorCard}>
+            <View style={[modalStyles.colorSwatch, { backgroundColor: color.hexCode }]} />
+
+            <View style={modalStyles.colorInfo}>
+                <Text style={modalStyles.colorName}>{color.name}</Text>
+                <Text style={modalStyles.colorValue}>
+                    <Text style={modalStyles.colorLabel}>HEX:</Text> {color.hexCode}
+                </Text>
+                <Text style={modalStyles.colorValue}>
+                    <Text style={modalStyles.colorLabel}>RGB:</Text> {r}, {g}, {b}
+                </Text>
+                <Text style={modalStyles.colorValue}>
+                    <Text style={modalStyles.colorLabel}>CMYK:</Text> {cmyk}
+                </Text>
+            </View>
+            <TouchableOpacity style={modalStyles.copyButton} onPress={handleCopy}>
+                <Ionicons name="copy-outline" size={24} color="gray" />
+            </TouchableOpacity>
+        </View>
+    );
+};
+
+interface PaletteDetailModalProps {
+    isVisible: boolean;
+    palette: CapsulePalette | null;
+    onClose: () => void;
+}
+
+const PaletteDetailModal: React.FC<PaletteDetailModalProps> = ({ isVisible, palette, onClose }) => {
+    const insets = useSafeAreaInsets();
+
+    if (!palette) return null;
+
+    const title = palette.colorType?.name ? `${palette.colorType.name.toUpperCase()} PALETTE` : 'PALETTE DETAIL';
+
+    return (
+        <Modal
+            animationType="slide"
+            transparent={true}
+            visible={isVisible}
+            onRequestClose={onClose}
+        >
+            <TouchableWithoutFeedback onPress={onClose}>
+                <View style={modalStyles.centeredView}>
+
+                    <TouchableWithoutFeedback>
+                        <View style={[modalStyles.modalView, { paddingBottom: insets.bottom }]}>
+
+                            <View style={modalStyles.headerContainer}>
+                                <TouchableOpacity style={modalStyles.closeButton} onPress={onClose}>
+                                    <Ionicons name="arrow-back" size={24} color="#333" />
+                                </TouchableOpacity>
+                                <Text style={modalStyles.headerTitle}>{title}</Text>
+                            </View>
+
+                            <FlatList
+                                data={palette.colors}
+                                renderItem={({ item }) => <ColorDetailCard color={item} />}
+                                keyExtractor={(item) => item.id.toString()}
+                                contentContainerStyle={modalStyles.colorListContent}
+                                showsVerticalScrollIndicator={false}
+                            />
+
+                        </View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
 
 const CapsuleScreen: React.FC<any> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const [activeTab, setActiveTab] = useState(SEASON_TYPES[0]);
-    const [selectedPalette, setSelectedPalette] = useState('');
 
-    // Lọc danh sách bảng màu theo Tab đang hoạt động
-    const filteredPalettes = useMemo(() => {
-        return mockPalettes.filter(palette => palette.season === activeTab);
-    }, [activeTab]);
+    const [colorTypes, setColorTypes] = useState<TabItem[]>([]);
+    const [tabLoading, setTabLoading] = useState(true);
+    const [tabError, setTabError] = useState<string | null>(null);
 
-    // Định nghĩa các hàm điều hướng (giữ nguyên)
+    const [activeTabId, setActiveTabId] = useState<number | null>(null);
+
+    const [palettes, setPalettes] = useState<CapsulePalette[]>([]);
+    const [paletteLoading, setPaletteLoading] = useState(false);
+    const [paletteError, setPaletteError] = useState<string | null>(null);
+    const [selectedPaletteId, setSelectedPaletteId] = useState<number | null>(null);
+
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [selectedDetailPalette, setSelectedDetailPalette] = useState<CapsulePalette | null>(null);
+
+
+    useEffect(() => {
+        const fetchColorTypes = async () => {
+            try {
+                setTabLoading(true);
+                const data = await getColorType();
+                setColorTypes(data);
+                setTabError(null);
+
+                if (data.length > 0) {
+                    setActiveTabId(data[0].id);
+                }
+            } catch (e: any) {
+                console.error("Lỗi tải Color Types:", e);
+                setTabError(e.message || "Không thể tải các loại màu.");
+            } finally {
+                setTabLoading(false);
+            }
+        };
+
+        fetchColorTypes();
+    }, []);
+
+
+    useEffect(() => {
+        if (activeTabId === null) return;
+
+        const fetchPalettes = async () => {
+            try {
+                setPaletteLoading(true);
+                setPalettes([]);
+
+                const data = await getCapsulePalettesByType(activeTabId);
+                setPalettes(data);
+                setPaletteError(null);
+                setSelectedPaletteId(null);
+
+            } catch (e: any) {
+                console.error(`Lỗi tải Palettes cho ID ${activeTabId}:`, e);
+                setPaletteError(e.message || "Không thể tải bảng màu.");
+                setPalettes([]);
+            } finally {
+                setPaletteLoading(false);
+            }
+        };
+
+        fetchPalettes();
+    }, [activeTabId]);
+
+
+    const handlePalettePress = useCallback((palette: CapsulePalette) => {
+        setSelectedDetailPalette(palette);
+        setIsModalVisible(true);
+        setSelectedPaletteId(palette.id);
+    }, []);
+
+    const handleModalClose = useCallback(() => {
+        setIsModalVisible(false);
+        setSelectedDetailPalette(null);
+    }, []);
+
+
     const navigateToPackageScreen = () => {
         navigation.navigate('PackageScreen');
     };
     const navigateToNotificationScreen = () => {
         navigation.navigate("NotificationScreen");
     };
-    const navigateToSettingsScreen = () => {
-        navigation.navigate("SettingScreen");
-    };
 
-    // 💡 HÀM RENDER ITEM CHO FLATLIST NGANG (Tab Selector)
-    const renderTabItem = useCallback(({ item: tabName }: { item: string }) => {
-        const isActive = activeTab === tabName;
+    const renderTabItem = useCallback(({ item }: { item: TabItem }) => {
+        const isActive = activeTabId === item.id;
         return (
             <TouchableOpacity
                 style={[
                     styles.tabButton,
                     isActive && styles.tabButtonActive
                 ]}
-                onPress={() => setActiveTab(tabName)}
+                onPress={() => setActiveTabId(item.id)}
             >
                 <Text
                     style={[
@@ -101,90 +221,150 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
                         isActive && styles.tabTextActive
                     ]}
                 >
-                    {tabName}
+                    {item.name}
                 </Text>
             </TouchableOpacity>
         );
-    }, [activeTab]); // Phụ thuộc vào activeTab để render lại khi trạng thái thay đổi
+    }, [activeTabId]);
 
-    // 💡 HÀM RENDER ITEM CHO FLATLIST DỌC (Palette List)
-    const renderPaletteItem = useCallback(({ item }: { item: Palette }) => {
+    const renderPaletteItem = useCallback(({ item }: { item: CapsulePalette }) => {
+        const hexCodes = item.colors.map(color => color.hexCode);
+
+        const paddedColors: [string, string, string, string] = [
+            hexCodes[0] || '#FFFFFF',
+            hexCodes[1] || '#FFFFFF',
+            hexCodes[2] || '#FFFFFF',
+            hexCodes[3] || '#FFFFFF',
+        ];
+
         return (
             <View style={styles.paletteItemContainer}>
-                <CapsulePalette
-                    colors={item.colors}
-                    isSelected={selectedPalette === item.id}
-                    onSelect={() => setSelectedPalette(item.id)}
+                <CapsulePaletteComponent
+                    colors={paddedColors}
+                    isSelected={selectedPaletteId === item.id}
+                    onSelect={() => handlePalettePress(item)}
                 />
             </View>
         );
-    }, [selectedPalette]);
+    }, [selectedPaletteId, handlePalettePress]);
 
-    // Component hiển thị khi danh sách trống
-    const renderEmptyComponent = () => (
-        <Text style={styles.noDataText}>
-            Chưa có bảng màu nào cho "{activeTab}".
-        </Text>
+    const renderEmptyComponent = () => {
+        if (paletteError) {
+            return <Text style={styles.errorText}>Lỗi tải bảng màu: {paletteError}</Text>;
+        }
+        return (
+            <Text style={styles.noDataText}>
+                Chưa có bảng màu nào cho loại màu này.
+            </Text>
+        );
+    };
+
+    const renderPaletteLoading = () => (
+        <ActivityIndicator
+            size="large"
+            color="#4285F4"
+            style={styles.loadingIndicator}
+        />
     );
+
 
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
 
-            {/* 1. CustomHeader (giữ nguyên) */}
+            {/* 1. CustomHeader */}
             <CustomHeader
-                title='Capsule palette'
+                title='Capsule Palette'
                 onNavigateToPackage={navigateToPackageScreen}
                 onNavigateToNotification={navigateToNotificationScreen}
-            // onNavigateToSettings={navigateToSettingsScreen}
             />
 
             {/* 2. Thanh Tab Selector Cuộn Ngang - SỬ DỤNG FLATLIST */}
-            <FlatList
-                horizontal
-                data={SEASON_TYPES}
-                renderItem={renderTabItem}
-                keyExtractor={(item) => item}
-                showsHorizontalScrollIndicator={false}
-                style={styles.tabScrollContainer} // Dùng để giới hạn chiều cao
-                contentContainerStyle={styles.tabScrollContent} // Dùng để thêm padding
-            />
+            {tabLoading ? (
+                <ActivityIndicator
+                    size="small"
+                    color="#4285F4"
+                    style={styles.tabLoadingIndicator}
+                />
+            ) : tabError ? (
+                <Text style={styles.errorTextSmall}>{tabError}</Text>
+            ) : (
+                <FlatList
+                    horizontal
+                    data={colorTypes}
+                    renderItem={renderTabItem}
+                    keyExtractor={(item) => item.id.toString()}
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.tabScrollContainer}
+                    contentContainerStyle={styles.tabScrollContent}
+                />
+            )}
 
             {/* 3. Vùng hiển thị các Bảng màu (FlatList Dọc) */}
-            <FlatList
-                data={filteredPalettes}
-                renderItem={renderPaletteItem}
-                keyExtractor={(item) => item.id}
-                numColumns={2}
-                style={styles.paletteListWrapper}
-                contentContainerStyle={styles.paletteList}
-                ListEmptyComponent={renderEmptyComponent}
-                showsVerticalScrollIndicator={false}
-                // Thêm padding cho phần cuối của FlatList để tránh Tab Bar
-                ListFooterComponent={<View style={{ height: 60 + insets.bottom }} />}
+            {paletteLoading ? (
+                renderPaletteLoading()
+            ) : (
+                <FlatList
+                    data={palettes}
+                    renderItem={renderPaletteItem}
+                    keyExtractor={(item) => item.id.toString()}
+                    numColumns={2}
+                    style={styles.paletteListWrapper}
+                    contentContainerStyle={styles.paletteList}
+                    ListEmptyComponent={renderEmptyComponent}
+                    showsVerticalScrollIndicator={false}
+                    ListFooterComponent={<View style={{ height: 60 + insets.bottom }} />}
+                />
+            )}
+
+            {/* 4. MODAL HIỂN THỊ CHI TIẾT PALETTE */}
+            <PaletteDetailModal
+                isVisible={isModalVisible}
+                palette={selectedDetailPalette}
+                onClose={handleModalClose}
             />
 
-            {/* ⚠️ Đã loại bỏ View đệm dưới cùng vì nó đã được tích hợp vào ListFooterComponent của FlatList */}
         </View>
     );
 }
 
 export default CapsuleScreen;
 
-// Style chung cho màn hình
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#fff',
     },
-    // 2. Tab Selector FlatList
+    loadingIndicator: {
+        marginTop: 50,
+    },
+    tabLoadingIndicator: {
+        marginTop: 15,
+        marginBottom: 10,
+    },
+    errorText: {
+        width: '100%',
+        textAlign: 'center',
+        marginTop: 50,
+        fontSize: 16,
+        color: 'red',
+        paddingHorizontal: 20,
+    },
+    errorTextSmall: {
+        textAlign: 'center',
+        paddingHorizontal: 20,
+        fontSize: 14,
+        color: 'red',
+        marginTop: 10,
+        marginBottom: 10,
+    },
     tabScrollContainer: {
         height: 50,
         flexGrow: 0,
     },
     tabScrollContent: {
         paddingHorizontal: 20,
-        alignItems: 'center', // Canh giữa các nút bấm theo chiều dọc
+        alignItems: 'center',
     },
     tabButton: {
         backgroundColor: '#f5f5f5',
@@ -207,16 +387,14 @@ const styles = StyleSheet.create({
         color: '#4285F4',
         fontWeight: 'bold',
     },
-    // Style cho FlatList Dọc Content Container
     paletteList: {
         paddingHorizontal: 20,
-        paddingBottom: 50, // Padding đáy mặc định
-        justifyContent: 'space-between',
+        paddingBottom: 50,
     },
-    // Style cho từng item (Đảm bảo item chiếm đúng 50% chiều rộng trừ đi padding)
     paletteItemContainer: {
         width: '50%',
         paddingHorizontal: 5,
+        marginBottom: 15,
     },
     noDataText: {
         width: '100%',
@@ -227,5 +405,106 @@ const styles = StyleSheet.create({
     },
     paletteListWrapper: {
         flex: 1,
+    }
+});
+
+// ----------------------------------------------------
+// --- MODAL STYLES (CẬP NHẬT NỀN TRẮNG VÀ MÀU CHỮ) ---
+// ----------------------------------------------------
+
+const modalStyles = StyleSheet.create({
+    centeredView: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        // Nền mờ (màu đen) để nhấn ra ngoài
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    },
+    modalView: {
+        width: '100%',
+        height: '75%',
+        backgroundColor: 'white', // NỀN TRẮNG
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        overflow: 'hidden',
+    },
+    headerContainer: {
+        width: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 15,
+        paddingTop: 40,
+        position: 'relative',
+        backgroundColor: 'white', // NỀN TRẮNG cho header
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    closeButton: {
+        position: 'absolute',
+        left: 20,
+        top: 40,
+        zIndex: 10,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333', // MÀU CHỮ TỐI
+        textAlign: 'center',
+    },
+    colorListContent: {
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingBottom: 30,
+    },
+    colorCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F7F7F7', // Nền sáng cho card (màu xám nhạt)
+        borderRadius: 10,
+        padding: 15,
+        marginBottom: 15,
+        minHeight: 100,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    colorSwatch: {
+        width: 80,
+        height: '100%',
+        minHeight: 70,
+        borderRadius: 8,
+        marginRight: 15,
+        borderWidth: 1,
+        borderColor: '#DDD', // Viền nhạt
+    },
+    colorInfo: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    colorName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333', // MÀU CHỮ TỐI
+        marginBottom: 5,
+    },
+    colorValue: {
+        fontSize: 13,
+        color: '#666', // MÀU CHỮ XÁM
+        lineHeight: 18,
+    },
+    colorLabel: {
+        fontWeight: 'bold',
+        marginRight: 5,
+        color: '#333',
+    },
+    copyButton: {
+        position: 'absolute',
+        right: 15,
+        top: 15,
+        padding: 10,
+        borderRadius: 50,
+        backgroundColor: 'rgba(66, 133, 244, 0.1)',
     }
 });
