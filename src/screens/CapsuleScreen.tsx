@@ -63,7 +63,7 @@ const mockPalettes: Palette[] = [
     { id: 'cs5', season: 'Cool Summer', colors: ['#9DCFEE', '#E8F5FF', '#C4D8EE', '#B4D9FF'] },
 ];
 
-const FavoriteScreen: React.FC<any> = ({ navigation }) => {
+const CapsuleScreen: React.FC<any> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState(SEASON_TYPES[0]);
     const [selectedPalette, setSelectedPalette] = useState('');
@@ -169,7 +169,7 @@ const FavoriteScreen: React.FC<any> = ({ navigation }) => {
     );
 }
 
-export default FavoriteScreen;
+export default CapsuleScreen;
 
 // Style chung cho màn hình
 const styles = StyleSheet.create({

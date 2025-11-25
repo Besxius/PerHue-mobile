@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Feather, Fontisto } from '@expo/vector-icons';
+import { Entypo, Fontisto } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabName } from '../navigation/AppNavigator';
 
@@ -11,7 +11,7 @@ interface CustomTabBarProps {
 
 const tabs: { name: TabName; icon: keyof typeof Fontisto.glyphMap }[] = [
   { name: 'home', icon: 'home' },
-  { name: 'favorite', icon: 'heart' },
+  { name: 'capsule', icon: 'nav-icon-grid' },
   { name: 'camera', icon: 'camera' },
   { name: 'history', icon: 'history' },
   { name: 'menu', icon: 'nav-icon-a' },

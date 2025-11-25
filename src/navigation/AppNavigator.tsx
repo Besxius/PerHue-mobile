@@ -2,25 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { TouchableOpacity, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import HomeScreen from '../screens/HomeScreen';
-import FavoriteScreen from '../screens/FavoriteScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import UserScreen from '../screens/UserScreen';
 import PackageScreen from '../screens/PackageScreen';
 import CustomTabBar from '../components/CustomTabBar';
 import NotificationScreen from '../screens/NotificationScreen';
-import ExpoCameraScreen from '../screens/ExpoCameraScreen';
-import Feather from '@expo/vector-icons/Feather';
 import { AuthProvider, useAuth } from '../screens/auth/AuthContext';
 import SettingScreen from '../screens/SettingScreen';
 import AuthNavigator from './AuthNavigator';
-import { Camera } from 'expo-camera';
 import CameraScreen from '../screens/CameraScreen';
+import CapsuleScreen from '../screens/CapsuleScreen';
 
 // 1. Kiểu cho Bottom Tab Routes
-export type TabRouteName = 'Home' | 'Favorite' | 'Camera' | 'History' | 'Menu';
-export type TabName = 'home' | 'favorite' | 'camera' | 'history' | 'menu';
+export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
+export type TabName = 'home' | 'capsule' | 'camera' | 'history' | 'menu';
 
 // 2. Kiểu cho ROOT Stack Routes
 export type RootStackParamList = {
@@ -41,7 +38,7 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 const mapRouteToTabName = (routeName: TabRouteName): TabName => {
   switch (routeName) {
     case 'Home': return 'home';
-    case 'Favorite': return 'favorite';
+    case 'Capsule': return 'capsule';
     case 'Camera': return 'camera';
     case 'History': return 'history';
     case 'Menu': return 'menu';
@@ -52,7 +49,7 @@ const mapRouteToTabName = (routeName: TabRouteName): TabName => {
 const mapTabNameToRoute = (tabName: TabName): TabRouteName => {
   switch (tabName) {
     case 'home': return 'Home';
-    case 'favorite': return 'Favorite';
+    case 'capsule': return 'Capsule';
     case 'camera': return 'Camera';
     case 'history': return 'History';
     case 'menu': return 'Menu';
@@ -105,7 +102,7 @@ const TabNavigator = () => (
     }}
   >
     <Tab.Screen name="Home" component={HomeScreen} />
-    <Tab.Screen name="Favorite" component={FavoriteScreen} />
+    <Tab.Screen name="Capsule" component={CapsuleScreen} />
     <Tab.Screen
       name="Camera"
       component={CameraScreen}
