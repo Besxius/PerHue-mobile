@@ -48,3 +48,28 @@ export type UserInfo = {
     roleId: number;
     role: RoleInfo;
 };
+
+export interface GetColorRequest {
+    pageIndex?: number;
+    pageSize?: number;
+    searchTerm?: string;
+}
+
+export type Color = {
+    id: number;
+    name: string;
+    hexCode: string;
+}
+
+export interface ColorType {
+    id: number;
+    name: string;
+}
+
+/** Mô tả một Bảng màu (Capsule Palette) */
+export interface CapsulePalette {
+    id: number;
+    colorTypeId: number;
+    colorType: ColorType;
+    colors: Color[];
+}

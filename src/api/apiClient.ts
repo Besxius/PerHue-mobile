@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { LoginResponseData } from '../types/dataModels';
 
-const HOST_LAN_IP = '192.168.1.8';
+const HOST_LAN_IP = '192.168.1.10';
 const HTTP_PORT = '5009';
 // const HTTP_PORT = '7092';
 
