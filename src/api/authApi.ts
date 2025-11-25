@@ -70,7 +70,7 @@ export const loginWithGoogleAPI = async (idToken: string): Promise<LoginResponse
 
         if (accessToken) {
             await setAuthToken(accessToken);
-            await setRefreshToken(refreshToken || null); // 💡 LƯU REFRESH TOKEN
+            await setRefreshToken(refreshToken || null);
             return response.data;
         } else {
             throw new Error('Đăng nhập Google thất bại: Server không trả về Local Token.');

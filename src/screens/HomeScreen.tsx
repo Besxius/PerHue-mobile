@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,71 +8,93 @@ import {
   TouchableOpacity,
   Dimensions,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, Feather, MaterialCommunityIcons, Fontisto } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CustomHeader from '../components/CustomHeader';
 import { RootStackParamList, TabName, TabRouteName } from '../navigation/AppNavigator';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
-export type TabParamList = Record<TabRouteName, undefined>;
-
-// 2. Kiểu props cho HomeScreen (Là con của Tabs, và Tabs là con của RootStack)
-type HomeScreenProps = CompositeScreenProps<
-  // Lấy props từ Tab Navigator
-  BottomTabScreenProps<TabParamList, 'Home'>,
-  // Kết hợp với props từ Root Stack Navigator
-  NativeStackScreenProps<RootStackParamList>
->;
 // **********************************
-
-// Giả định import
-// import CustomTabBar from '../tab-bar/CustomTabBar'; // Đã có trong code gốc
-
-const logoIcon = require('../assets/logo-icon-black.png');
+// 1. IMPORT HÀM API VÀ KIỂU DỮ LIỆU
+// Cập nhật đường dẫn import này cho phù hợp với cấu trúc dự án của bạn
+import { ExpertInfo } from '../types/dataModels';
+import { getExpertListRanked } from '../api/expertApi';
+// **********************************
 
 const { width } = Dimensions.get('window');
 
-const recentlyViewedImages = [
-  'https://plus.unsplash.com/premium_photo-1752434963682-0cc26bb2d4f7?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=870',
-  'https://images.unsplash.com/photo-1761646062286-cd2f3c8574dd?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=904',
-  'https://plus.unsplash.com/premium_photo-1747852232208-ef9e129a65b6?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=774',
-  'https://plus.unsplash.com/premium_photo-1698749257193-e881163207d6?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=774',
-  'https://plus.unsplash.com/premium_photo-1694618623912-3d2288829cb5?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=774',
-  'https://plus.unsplash.com/premium_photo-1694618623912-3d2288829cb5?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=774',
-  'https://plus.unsplash.com/premium_photo-1694618623912-3d2288829cb5?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=774',
-];
-const colorTypeStyleVideos = [
-  { uri: 'https://source.unsplash.com/random/400x600?shopping,girl,live', label: 'Live' },
-  { uri: 'https://source.unsplash.com/random/400x600?pink,dress,girl', label: '' },
-  { uri: 'https://source.unsplash.com/random/400x600?shopping,bags,girl', label: '' },
-  { uri: 'https://source.unsplash.com/random/400x600?fashion,style,yellow', label: '' },
-];
+// Định nghĩa props navigator (Giữ nguyên)
+export type TabParamList = Record<TabRouteName, undefined>;
+type HomeScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<TabParamList, 'Home'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
-// Cập nhật component để nhận prop navigation
+const DEFAULT_AVATAR_URI = 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400';
+const DEFAULT_FALLBACK_URI = 'https://via.placeholder.com/400x600.png?text=No+Image';
+
+const colorTypeStyleImages = [
+  { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
+  { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
+  { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
+  { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
+];
+// **********************************
+
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-
   const [activeTab, setActiveTab] = useState<TabName>('home');
+
+  // State để lưu danh sách experts và trạng thái loading
+  const [expertList, setExpertList] = useState<ExpertInfo[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // useEffect gọi hàm API thực tế
+  useEffect(() => {
+    const fetchExperts = async () => {
+      try {
+        setIsLoading(true);
+        // Gọi hàm API bạn đã cung cấp
+        const experts = await getExpertListRanked();
+        setExpertList(experts);
+        setError(null);
+      } catch (e) {
+        console.error('Error fetching ranked experts:', e);
+        // Hiển thị thông báo lỗi cho người dùng
+        setError('Không thể tải danh sách chuyên gia. Vui lòng thử lại.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchExperts();
+  }, []); // [] đảm bảo chỉ chạy một lần khi mount
 
   const handleTabPress = (tab: TabName) => {
     setActiveTab(tab);
     console.log(`Chuyển đến tab: ${tab}`);
   };
 
-  // Hàm xử lý chuyển màn hình
   const navigateToPackageScreen = () => {
-    // Tên route phải khớp với tên bạn đã định nghĩa trong Navigator
     navigation.navigate('PackageScreen');
   };
   const navigateToNotificationScreen = () => {
     navigation.navigate("NotificationScreen");
   };
-  // const navigateToSettingsScreen = () => {
-  //   navigation.navigate("SettingScreen");
-  // };
+
+  // **********************************
+  // HÀM MỚI: Xử lý điều hướng đến màn hình chi tiết Expert
+  const navigateToExpertDetail = (expert: ExpertInfo) => {
+    // Sử dụng tên route 'ExpertDetailScreen' và truyền object expert qua params
+    navigation.navigate('ExpertDetailScreen', { expert: expert });
+  };
+  // **********************************
+
 
   return (
     <View style={styles.container}>
@@ -85,10 +107,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <CustomHeader
           onNavigateToPackage={navigateToPackageScreen}
           onNavigateToNotification={navigateToNotificationScreen}
-        // onNavigateToSettings={navigateToSettingsScreen}
         />
-
-        {/* <Text style={styles.helloText}>Hello, Trongle!</Text> */}
 
         <TouchableOpacity style={styles.announcementCard}>
           <View>
@@ -101,13 +120,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Ionicons name="arrow-forward" size={24} color="white" style={styles.announcementArrow} />
         </TouchableOpacity>
 
+        {/* Hiển thị danh sách Famous Experts */}
         <Text style={styles.sectionTitle}>Famous Experts</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentlyViewedScroll}>
-          {recentlyViewedImages.map((uri, index) => (
-            <Image key={index} source={{ uri }} style={styles.recentlyViewedImage} />
-          ))}
-        </ScrollView>
+        {isLoading ? (
+          <ActivityIndicator size="large" color="#3B82F6" style={styles.loadingIndicator} />
+        ) : error ? (
+          <Text style={styles.errorText}>Lỗi: {error}</Text>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentlyViewedScroll}>
+            {expertList.map((expert) => (
+              <TouchableOpacity
+                key={expert.id}
+                style={styles.expertAvatarContainer}
+                onPress={() => navigateToExpertDetail(expert)}
+              >
+                <Image
+                  source={{
+                    uri: expert.profilePicture || DEFAULT_AVATAR_URI
+                  }}
+                  style={styles.recentlyViewedImage}
+                />
+                <Text style={styles.expertName} numberOfLines={1}>{expert.nickname}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
+        {/* --- Các thành phần khác giữ nguyên --- */}
         <Text style={styles.sectionTitle}>My Orders</Text>
         <View style={styles.orderTabs}>
           <TouchableOpacity style={styles.orderTabActive}>
@@ -121,13 +160,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         <Text style={styles.sectionTitle}>Some color type style</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorStyleScroll}>
-          {colorTypeStyleVideos.map((video, index) => (
+          {/* CẬP NHẬT: Dùng colorTypeStyleImages */}
+          {colorTypeStyleImages.map((imageItem, index) => (
             <TouchableOpacity key={index} style={styles.videoCard}>
-              <Image source={{ uri: video.uri }} style={styles.videoThumbnail} />
-              <View style={styles.playIconOverlay}>
+              <Image
+                // CẬP NHẬT: Kiểm tra imageItem.uri và dùng DEFAULT_FALLBACK_URI
+                source={{ uri: imageItem.uri || DEFAULT_FALLBACK_URI }}
+                style={styles.videoThumbnail}
+              />
+              {/* Nếu đây là ảnh tĩnh, bạn có thể muốn loại bỏ playIconOverlay và liveBadge nếu không cần */}
+              {/* <View style={styles.playIconOverlay}>
                 <Ionicons name="play-circle-outline" size={30} color="white" />
-              </View>
-              {video.label === 'Live' && (
+              </View> */}
+              {imageItem.label === 'Live' && (
                 <View style={styles.liveBadge}>
                   <Text style={styles.liveBadgeText}>Live</Text>
                 </View>
@@ -138,61 +183,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={{ height: 30 }} />
       </ScrollView>
 
-      <SafeAreaProvider>
-        {/* Đảm bảo CustomTabBar của bạn hoạt động và được truyền props */}
-        {/* <CustomTabBar activeTab={activeTab} onTabPress={handleTabPress} /> */}
-      </SafeAreaProvider>
     </View>
   );
 };
 
 export default HomeScreen;
 
-// StyleSheet không đổi, được giữ nguyên như code gốc của bạn.
+// **********************************
+// StyleSheet (Giữ nguyên các styles đã định nghĩa)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-  },
-  profileContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 10,
-  },
-  activityButton: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  activityButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  iconGroup: {
-    flexDirection: 'row',
-  },
-  iconButton: {
-    marginLeft: 15,
-  },
-  helloText: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: '#333',
-    paddingHorizontal: 20,
-    marginBottom: 20,
   },
   announcementCard: {
     flexDirection: 'row',
@@ -227,17 +229,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 15,
   },
+  loadingIndicator: {
+    marginBottom: 30,
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
   recentlyViewedScroll: {
     paddingLeft: 20,
     marginBottom: 30,
+    height: 120,
+  },
+  expertAvatarContainer: {
+    width: 80,
+    marginRight: 15,
+    alignItems: 'center',
   },
   recentlyViewedImage: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    marginBottom: 5,
+  },
+  expertName: {
+    fontSize: 12,
+    color: '#333',
+    textAlign: 'center',
+    fontWeight: '600',
+    marginTop: 4,
+    width: '100%',
   },
   orderTabs: {
     flexDirection: 'row',

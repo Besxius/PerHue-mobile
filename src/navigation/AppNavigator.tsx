@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import HomeScreen from '../screens/HomeScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import UserScreen from '../screens/UserScreen';
@@ -14,12 +14,15 @@ import SettingScreen from '../screens/SettingScreen';
 import AuthNavigator from './AuthNavigator';
 import CameraScreen from '../screens/CameraScreen';
 import CapsuleScreen from '../screens/CapsuleScreen';
+// IMPORT ExpertDetailScreen
+import ExpertDetailScreen from '../screens/ExpertDetailScreen'; // Đảm bảo đường dẫn chính xác
+import { ExpertInfo } from '../types/dataModels'; // Import ExpertInfo
 
-// 1. Kiểu cho Bottom Tab Routes
+// 1. Kiểu cho Bottom Tab Routes (Giữ nguyên)
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
 export type TabName = 'home' | 'capsule' | 'camera' | 'history' | 'menu';
 
-// 2. Kiểu cho ROOT Stack Routes
+// 2. CẬP NHẬT Kiểu cho ROOT Stack Routes
 export type RootStackParamList = {
   Tabs: undefined;
   PackageScreen: undefined;
@@ -28,13 +31,16 @@ export type RootStackParamList = {
   WelcomeScreen: undefined;
   CameraScreen: undefined;
   UserScreen: undefined;
+  ExpertDetailScreen: { expert: ExpertInfo }; // Cần truyền ExpertInfo qua params
 };
 
 
 // --- NAVIGATORS ---
 const Tab = createBottomTabNavigator<Record<TabRouteName, undefined>>();
+// Cập nhật RootStack để sử dụng kiểu mới
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
+// --- Các hàm map route (Giữ nguyên) ---
 const mapRouteToTabName = (routeName: TabRouteName): TabName => {
   switch (routeName) {
     case 'Home': return 'home';
@@ -58,7 +64,7 @@ const mapTabNameToRoute = (tabName: TabName): TabRouteName => {
 }
 
 const CustomTab = ({ state, navigation }: any) => {
-  const activeRouteName: TabRouteName = state.routes[state.index].name;
+  const activeRouteName: TabRouteName = state.routes[state.index].name as TabRouteName;
 
   if (activeRouteName === 'Camera') {
     return <View />;
@@ -92,7 +98,7 @@ const CustomTab = ({ state, navigation }: any) => {
   );
 };
 
-// --- COMPONENT TAB NAVIGATOR CON ---
+// --- COMPONENT TAB NAVIGATOR CON (Giữ nguyên) ---
 const TabNavigator = () => (
   <Tab.Navigator
     initialRouteName="Home"
@@ -106,19 +112,6 @@ const TabNavigator = () => (
     <Tab.Screen
       name="Camera"
       component={CameraScreen}
-    // options={({ navigation }) => ({
-    //   headerShown: true,
-    //   title: '',
-    //   headerTransparent: true,
-    //   headerLeft: () => (
-    //     <TouchableOpacity
-    //       onPress={() => navigation.goBack()}
-    //       style={{ marginLeft: 15 }}
-    //     >
-    //       <Feather name="x" size={30} color="white" />
-    //     </TouchableOpacity>
-    //   ),
-    // })}
     />
     <Tab.Screen name="History" component={HistoryScreen} />
     <Tab.Screen name="Menu" component={SettingScreen} />
@@ -126,12 +119,10 @@ const TabNavigator = () => (
 );
 
 
-
 // --- COMPONENT ROOT NAVIGATOR CHA (CẬP NHẬT) ---
 const RootNavigationStack = () => {
   const { isLoggedIn, isLoading } = useAuth();
 
-  // 1. Hiển thị màn hình tải (Sử dụng trạng thái isLoading từ Context)
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -141,7 +132,6 @@ const RootNavigationStack = () => {
     );
   }
 
-  // 2. Hiển thị các nhóm màn hình tùy thuộc vào trạng thái
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
       {isLoggedIn ? (
@@ -175,6 +165,14 @@ const RootNavigationStack = () => {
               title: 'User profile'
             }}
           />
+          {/* THÊM ExpertDetailScreen */}
+          <RootStack.Screen
+            name="ExpertDetailScreen"
+            component={ExpertDetailScreen}
+            options={{
+              headerShown: false, // Sử dụng Custom Header trong màn hình này
+            }}
+          />
         </>
       ) : (
         // HIỂN THỊ MÀN HÌNH XÁC THỰC (CHƯA ĐĂNG NHẬP)
@@ -187,7 +185,7 @@ const RootNavigationStack = () => {
   );
 };
 
-// Bọc toàn bộ AppNavigator trong NavigationContainer VÀ AuthProvider
+// Bọc toàn bộ AppNavigator trong NavigationContainer VÀ AuthProvider (Giữ nguyên)
 const AppNavigator = () => (
   <NavigationContainer>
     <AuthProvider>
