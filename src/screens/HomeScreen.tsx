@@ -17,17 +17,11 @@ import CustomHeader from '../components/CustomHeader';
 import { RootStackParamList, TabName, TabRouteName } from '../navigation/AppNavigator';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-
-// **********************************
-// 1. IMPORT HÀM API VÀ KIỂU DỮ LIỆU
-// Cập nhật đường dẫn import này cho phù hợp với cấu trúc dự án của bạn
 import { ExpertInfo } from '../types/dataModels';
 import { getExpertListRanked } from '../api/expertApi';
-// **********************************
 
 const { width } = Dimensions.get('window');
 
-// Định nghĩa props navigator (Giữ nguyên)
 export type TabParamList = Record<TabRouteName, undefined>;
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -43,29 +37,24 @@ const colorTypeStyleImages = [
   { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
   { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
 ];
-// **********************************
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabName>('home');
 
-  // State để lưu danh sách experts và trạng thái loading
   const [expertList, setExpertList] = useState<ExpertInfo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // useEffect gọi hàm API thực tế
   useEffect(() => {
     const fetchExperts = async () => {
       try {
         setIsLoading(true);
-        // Gọi hàm API bạn đã cung cấp
         const experts = await getExpertListRanked();
         setExpertList(experts);
         setError(null);
       } catch (e) {
         console.error('Error fetching ranked experts:', e);
-        // Hiển thị thông báo lỗi cho người dùng
         setError('Không thể tải danh sách chuyên gia. Vui lòng thử lại.');
       } finally {
         setIsLoading(false);
@@ -87,14 +76,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     navigation.navigate("NotificationScreen");
   };
 
-  // **********************************
-  // HÀM MỚI: Xử lý điều hướng đến màn hình chi tiết Expert
   const navigateToExpertDetail = (expert: ExpertInfo) => {
     // Sử dụng tên route 'ExpertDetailScreen' và truyền object expert qua params
     navigation.navigate('ExpertDetailScreen', { expert: expert });
   };
-  // **********************************
-
 
   return (
     <View style={styles.container}>
@@ -146,7 +131,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </ScrollView>
         )}
 
-        {/* --- Các thành phần khác giữ nguyên --- */}
         <Text style={styles.sectionTitle}>My Orders</Text>
         <View style={styles.orderTabs}>
           <TouchableOpacity style={styles.orderTabActive}>
@@ -160,18 +144,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         <Text style={styles.sectionTitle}>Some color type style</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorStyleScroll}>
-          {/* CẬP NHẬT: Dùng colorTypeStyleImages */}
           {colorTypeStyleImages.map((imageItem, index) => (
             <TouchableOpacity key={index} style={styles.videoCard}>
               <Image
-                // CẬP NHẬT: Kiểm tra imageItem.uri và dùng DEFAULT_FALLBACK_URI
                 source={{ uri: imageItem.uri || DEFAULT_FALLBACK_URI }}
                 style={styles.videoThumbnail}
               />
-              {/* Nếu đây là ảnh tĩnh, bạn có thể muốn loại bỏ playIconOverlay và liveBadge nếu không cần */}
-              {/* <View style={styles.playIconOverlay}>
-                <Ionicons name="play-circle-outline" size={30} color="white" />
-              </View> */}
               {imageItem.label === 'Live' && (
                 <View style={styles.liveBadge}>
                   <Text style={styles.liveBadgeText}>Live</Text>
@@ -189,8 +167,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
 export default HomeScreen;
 
-// **********************************
-// StyleSheet (Giữ nguyên các styles đã định nghĩa)
 const styles = StyleSheet.create({
   container: {
     flex: 1,

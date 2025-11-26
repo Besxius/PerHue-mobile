@@ -9,6 +9,7 @@ import {
     Platform,
     Alert,
     Switch,
+    ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,42 +17,71 @@ import CustomTextInput from '../../components/CustomTextInput';
 import CustomButton from '../../components/CustomButton';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from './AuthContext';
-import { login } from '../../api/authApi';
+import { login, signInWithGoogle, register } from '../../api/authApi';
 import { configureGoogleSignIn } from '../../api/config/googleAuthConfig';
-import { signInWithGoogle } from '../../api/authApi';
-// CHÚ Ý: Đường dẫn đã được sửa lại cho đúng vị trí file dịch vụ
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { RegisterCredentials } from '../../types/dataModels';
 
-// **********************************************
-// 1. CẤU HÌNH GOOGLE SIGN-IN
-// KHỐI CẤU HÌNH WEB_CLIENT_ID VÀ GoogleSignin.configure() ĐÃ ĐƯỢC CHUYỂN
-// SANG FILE src/firebase/googleSigninConfig.ts
-// **********************************************
-// Khối cấu hình đã được loại bỏ
+configureGoogleSignIn();
 
-// Chạy hàm cấu hình Google Sign-In một lần (Đảm bảo cấu hình chạy trước khi component render)
-// KHUYẾN NGHỊ: Dòng này nên được gọi một lần ở file App.tsx hoặc index.js/ts.
+// 1. Email Validation (Kept as is)
+const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+};
+
+// 2. Password Strength Validation (as required)
+const isValidPassword = (password: string): boolean => {
+    // Requirements: Min 8, Max 20 chars, at least 1 lowercase, 1 uppercase, 1 number, 1 special character (@$!%*?&)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$.!%*?&]{8,20}$/;
+    return passwordRegex.test(password);
+};
+
+// 3. Phone Number Validation (Simple: 8-15 digits)
+const isValidPhone = (phone: string): boolean => {
+    const phoneRegex = /^\d{8,15}$/;
+    return phoneRegex.test(phone);
+};
+
+// 4. Date formatting
+const formatDate = (date: Date): string => {
+    if (!date || isNaN(date.getTime())) return '';
+    // Format YYYY-MM-DD
+    return date.toISOString().split('T')[0];
+};
 
 const LoginScreen: React.FC = () => {
-    configureGoogleSignIn();
     const insets = useSafeAreaInsets();
-    const navigation = useNavigation<any>(); // Sử dụng 'any' nếu không có RootStackParamList
+    const navigation = useNavigation<any>();
 
     const { setIsLoggedIn } = useAuth();
     const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+    const [loading, setLoading] = useState<boolean>(false);
+
+    // --- Login State ---
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [rememberMe, setRememberMe] = useState<boolean>(false);
-    const [loading, setLoading] = useState<boolean>(false);
 
-    // Trạng thái cho các trường đăng ký
+    // --- Register State (Updated) ---
     const [fullName, setFullName] = useState<string>('');
+    const [registerEmail, setRegisterEmail] = useState<string>('');
+    const [registerPassword, setRegisterPassword] = useState<string>('');
+    const [confirmPassword, setConfirmPassword] = useState<string>('');
     const [phoneNo, setPhoneNo] = useState<string>('');
-    const [licenseNo, setLicenseNo] = useState<string>('');
+    const [gender, setGender] = useState<boolean>(true); // true = Male, false = Female
+
+    // DOB uses Date object for DatePicker integration
+    const [dob, setDob] = useState<Date>(new Date(2000, 0, 1)); // Default 01/01/2000
+    const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+
+    // Profile Picture uses string URI
+    const [profilePicture, setProfilePicture] = useState<string>('');
 
     const [showToast, setShowToast] = useState<boolean>(false);
     const [toastMessage, setToastMessage] = useState<string>('');
 
-    // Hàm hiển thị Toast (Giả định Custom Toast đã được định nghĩa)
+    // Function to show Toast (Assuming Custom Toast is defined)
     const showCustomToast = (message: string) => {
         setToastMessage(message);
         setShowToast(true);
@@ -60,10 +90,33 @@ const LoginScreen: React.FC = () => {
         }, 2000);
     };
 
-    // --- Logic Xử lý Login (Giữ nguyên) ---
+    // --- Date Picker Logic ---
+    const onDateChange = (event: any, selectedDate?: Date) => {
+        // Dismiss picker on Android after selection
+        if (Platform.OS === 'android') {
+            setShowDatePicker(false);
+        }
+
+        if (event.type === 'set' && selectedDate) {
+            setDob(selectedDate);
+        }
+        if (event.type === 'dismissed') {
+            setShowDatePicker(false);
+        }
+    };
+    const handleShowDatePicker = () => {
+        setShowDatePicker(true);
+    };
+
+    // --- Login Logic ---
     const handleLogin = async () => {
         if (!email || !password) {
-            Alert.alert('Cảnh báo', 'Vui lòng nhập Email và Mật khẩu.');
+            Alert.alert('Warning', 'Please enter Email and Password.');
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            Alert.alert('Format Error', 'Invalid Email. Please check again.');
             return;
         }
 
@@ -71,94 +124,127 @@ const LoginScreen: React.FC = () => {
 
         try {
             const token = await login({ email, password });
-
-            showCustomToast('Đăng nhập thành công! Chào mừng bạn');
-
+            showCustomToast('Login successful! Welcome');
             await new Promise(resolve => setTimeout(resolve, 1500));
-
             if (token) {
                 setIsLoggedIn(true);
             }
-
         } catch (error: any) {
-            const errorMessage = error.message || 'Có lỗi xảy ra, vui lòng thử lại.';
-            Alert.alert('Lỗi Đăng nhập', errorMessage);
-            console.error('Lỗi khi đăng nhập:', error);
+            const errorMessage = error.message || 'An error occurred, please try again.';
+            Alert.alert('Login Error', errorMessage);
+            console.error('Error during login:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    // --- Logic Xử lý Register (Giữ nguyên) ---
+    // --- Register Logic (Updated to call the actual register function) ---
     const handleRegister = async () => {
         setLoading(true);
-        console.log('Đăng ký với:', { fullName, email, password, phoneNo, licenseNo });
+
+        // 1. Check required fields
+        if (!fullName || !registerEmail || !registerPassword || !confirmPassword || !phoneNo) {
+            Alert.alert('Warning', 'Please fill in all required fields.');
+            setLoading(false);
+            return;
+        }
+
+        // 2. Email Validation
+        if (!isValidEmail(registerEmail)) {
+            Alert.alert('Format Error', 'Invalid registration Email. Please check again.');
+            setLoading(false);
+            return;
+        }
+
+        // 3. Password Validation (strength)
+        if (!isValidPassword(registerPassword)) {
+            Alert.alert(
+                'Password Error',
+                'Password must be 8-20 characters long and include: at least 1 lowercase letter, 1 uppercase letter, 1 number, and 1 special character (@$!%*?&).'
+            );
+            setLoading(false);
+            return;
+        }
+
+        // 4. Check if Passwords match
+        if (registerPassword !== confirmPassword) {
+            Alert.alert('Confirmation Password Error', 'Password and Confirmation Password do not match.');
+            setLoading(false);
+            return;
+        }
+
+        // 5. Phone Number Validation
+        if (!isValidPhone(phoneNo)) {
+            Alert.alert('Format Error', 'Invalid Phone number. Please check again.');
+            setLoading(false);
+            return;
+        }
+
+        // Prepare Credentials for API
+        const credentials: RegisterCredentials = {
+            email: registerEmail,
+            password: registerPassword,
+            confirmPassword: confirmPassword,
+            fullname: fullName,
+            phone: phoneNo,
+            gender: gender,
+            dob: formatDate(dob), // Use Date format function
+            profilepicture: profilePicture || undefined, // Use selected URI, or undefined if empty
+        };
+
+        console.log('Calling Register API with:', credentials);
 
         try {
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-            if (fullName && email && password && phoneNo) {
-                Alert.alert('Thành công', 'Đăng ký thành công!');
-                // TODO: Gọi API đăng ký thực tế
-            } else {
-                Alert.alert('Lỗi', 'Vui lòng điền đầy đủ các trường bắt buộc.');
-            }
-        } catch (error) {
-            Alert.alert('Lỗi', 'Có lỗi xảy ra trong quá trình đăng ký, vui lòng thử lại.');
+            // 🔥 CẬP NHẬT: GỌI HÀM register THỰC TẾ
+            await register(credentials);
+
+            Alert.alert('Success', 'Account registration successful! Please log in.');
+
+            // Chuyển sang tab Login và điền sẵn email
+            setActiveTab('login');
+            setEmail(registerEmail);
+            setPassword('');
+
+        } catch (error: any) {
+            const errorMessage = error.message || 'An error occurred during registration, please try again.';
+            Alert.alert('Registration Error', errorMessage);
+            console.error('Error during registration:', error);
         } finally {
             setLoading(false);
         }
     };
 
     const handleForgotPassword = () => {
-        Alert.alert('Chức năng', 'Chuyển sang màn hình quên mật khẩu.');
+        Alert.alert('Functionality', 'Navigate to forgot password screen.');
     };
 
-    // **********************************************
-    // 2. LOGIC XỬ LÝ ĐĂNG NHẬP GOOGLE VỚI FIREBASE
-    //    Đã đơn giản hóa, chỉ gọi hàm dịch vụ.
-    // **********************************************
     const handleGoogleLogin = async () => {
         setLoading(true);
         try {
-            // 🔥 GỌI HÀM DỊCH VỤ DUY NHẤT:
-            // Hàm này tự xử lý Google Sign-In, lấy token và xác thực Firebase.
             const result = await signInWithGoogle();
-
             if (result.success && result.user && result.loginData) {
-
-                // Đã thành công cả 3 bước (Google Sign-in, Firebase Auth, Local API Token)
-                console.log('Đăng nhập Firebase & API thành công.');
-                console.log('Local Access Token đã nhận.');
-
-                showCustomToast(`Chào mừng, ${result.user.displayName}! Đăng nhập thành công.`);
-
+                showCustomToast(`Welcome, ${result.user.displayName}! Login successful.`);
                 await new Promise(resolve => setTimeout(resolve, 1500));
-
-                // Cập nhật trạng thái đăng nhập
                 setIsLoggedIn(true);
-
             } else if (result.error) {
-                // Ném lỗi rõ ràng để catch block bên dưới bắt
                 throw new Error(result.error);
             } else {
-                throw new Error("Đăng nhập Google thành công nhưng không nhận được Local Token.");
+                throw new Error("Google login successful but no Local Token received.");
             }
-
         } catch (error: any) {
-            // Lỗi được ném ra từ hàm dịch vụ
-            const errorMessage = error.message || 'Lỗi không xác định.';
-
-            // Xử lý các lỗi đặc biệt mà chúng ta muốn hiển thị dưới dạng Toast hoặc Alert
-            if (errorMessage.includes("hủy đăng nhập")) {
-                showCustomToast('Đã hủy đăng nhập.');
+            const errorMessage = error.message || 'Unknown error.';
+            // Check for cancel error (can be localized, using a general check)
+            if (errorMessage.toLowerCase().includes("cancelled") || errorMessage.toLowerCase().includes("user cancelled")) {
+                showCustomToast('Login cancelled.');
             } else {
-                Alert.alert('Lỗi Đăng nhập Google', errorMessage);
-                console.error('Lỗi Đăng nhập Google:', error);
+                Alert.alert('Google Login Error', errorMessage);
+                console.error('Error during Google login:', error);
             }
         } finally {
             setLoading(false);
         }
     };
+
 
     return (
         <View style={styles.fullScreen}>
@@ -170,7 +256,6 @@ const LoginScreen: React.FC = () => {
             >
                 {/* Header Section */}
                 <View style={[styles.headerContainer, { paddingTop: insets.top + 20 }]}>
-                    {/* Nút quay lại */}
                     <TouchableOpacity
                         onPress={() => navigation.goBack()}
                         style={styles.backButton}
@@ -207,9 +292,9 @@ const LoginScreen: React.FC = () => {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Vùng chứa form với chiều cao cố định */}
-                    <View style={styles.formContentContainer}>
-                        {/* Conditional Rendering của Form */}
+                    {/* Form area with ScrollView to handle long registration form */}
+                    <ScrollView contentContainerStyle={styles.formScrollContent}>
+                        {/* Conditional Form Rendering */}
                         {activeTab === 'login' ? (
                             <>
                                 <CustomTextInput
@@ -229,17 +314,6 @@ const LoginScreen: React.FC = () => {
                                 />
 
                                 <View style={styles.optionsRow}>
-                                    <View style={styles.rememberMeContainer}>
-                                        <Switch
-                                            trackColor={{ false: "#767577", true: "#81b0ff" }}
-                                            thumbColor={rememberMe ? "#f5dd4b" : "#f4f3f4"}
-                                            ios_backgroundColor="#3e3e3e"
-                                            onValueChange={setRememberMe}
-                                            value={rememberMe}
-                                            style={styles.switch}
-                                        />
-                                        <Text style={styles.rememberMeText}>Remember me</Text>
-                                    </View>
                                     <TouchableOpacity onPress={handleForgotPassword}>
                                         <Text style={styles.forgotPasswordText}>Forget Password?</Text>
                                     </TouchableOpacity>
@@ -261,7 +335,7 @@ const LoginScreen: React.FC = () => {
                                 <CustomButton
                                     title="Google"
                                     onPress={handleGoogleLogin}
-                                    loading={loading && activeTab === 'login'} // Sử dụng cùng loading state
+                                    loading={loading && activeTab === 'login'}
                                     iconName="google"
                                     color="#fff"
                                     textColor="#333"
@@ -270,10 +344,10 @@ const LoginScreen: React.FC = () => {
                                 />
                             </>
                         ) : (
-                            // GIAO DIỆN ĐĂNG KÝ
+                            // NEW REGISTRATION INTERFACE
                             <>
                                 <CustomTextInput
-                                    iconName="account-outline" // Icon cho Full Name
+                                    iconName="account-outline"
                                     placeholder="Full Name"
                                     autoCapitalize="words"
                                     value={fullName}
@@ -284,49 +358,86 @@ const LoginScreen: React.FC = () => {
                                     placeholder="Email-ID"
                                     keyboardType="email-address"
                                     autoCapitalize="none"
-                                    value={email}
-                                    onChangeText={setEmail}
+                                    value={registerEmail}
+                                    onChangeText={setRegisterEmail}
                                 />
                                 <CustomTextInput
                                     iconName="lock-outline"
                                     placeholder="Password"
                                     secureTextEntry
-                                    value={password}
-                                    onChangeText={setPassword}
+                                    value={registerPassword}
+                                    onChangeText={setRegisterPassword}
                                 />
                                 <CustomTextInput
-                                    iconName="phone-outline" // Icon cho Phone No.
+                                    iconName="lock-check-outline"
+                                    placeholder="Confirm Password"
+                                    secureTextEntry
+                                    value={confirmPassword}
+                                    onChangeText={setConfirmPassword}
+                                />
+                                <CustomTextInput
+                                    iconName="phone-outline"
                                     placeholder="Phone No."
                                     keyboardType="phone-pad"
                                     value={phoneNo}
                                     onChangeText={setPhoneNo}
                                 />
-                                <CustomTextInput
-                                    iconName="card-account-details-outline" // Icon cho License No. (hoặc icon phù hợp)
-                                    placeholder="License No."
-                                    autoCapitalize="characters"
-                                    value={licenseNo}
-                                    onChangeText={setLicenseNo}
-                                />
+
+                                {/* Date Picker - Mocked interface activated by touch */}
+                                <TouchableOpacity onPress={handleShowDatePicker} style={styles.fakeDatePicker}>
+                                    <Icon name="calendar-range" size={20} color="#888" style={styles.fakeDateIcon} />
+                                    <Text style={styles.fakeDateText}>{formatDate(dob)}</Text>
+                                    <Text style={styles.fakeDatePlaceholder}>Date of Birth</Text>
+                                </TouchableOpacity>
+
+                                {showDatePicker && (
+                                    <DateTimePicker
+                                        testID="dateTimePicker"
+                                        value={dob}
+                                        mode="date"
+                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                        onChange={onDateChange}
+                                        maximumDate={new Date()}
+                                    />
+                                )}
+
+                                {/* Gender Radio Button - Simulated by touchables */}
+                                <View style={styles.genderContainer}>
+                                    <View style={styles.genderOptions}>
+                                        <TouchableOpacity
+                                            style={[styles.genderButton, gender && styles.genderButtonActive]}
+                                            onPress={() => setGender(true)}
+                                        >
+                                            <Icon name={gender ? "radiobox-marked" : "radiobox-blank"} size={18} color={gender ? "#4a90e2" : "#888"} />
+                                            <Text style={[styles.genderButtonText, gender && styles.genderButtonTextActive]}>Male</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.genderButton, !gender && styles.genderButtonActive]}
+                                            onPress={() => setGender(false)}
+                                        >
+                                            <Icon name={!gender ? "radiobox-marked" : "radiobox-blank"} size={18} color={!gender ? "#4a90e2" : "#888"} />
+                                            <Text style={[styles.genderButtonText, !gender && styles.genderButtonTextActive]}>Female</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
 
                                 <CustomButton
                                     title="Register"
                                     onPress={handleRegister}
-                                    loading={loading && activeTab === 'register'} // Sử dụng loading state khác cho register
-                                    color="#4a90e2" // Màu xanh
+                                    loading={loading && activeTab === 'register'}
+                                    color="#4a90e2"
                                 />
                             </>
                         )}
-                    </View>
+                    </ScrollView>
                 </View>
             </KeyboardAvoidingView>
-            {/* Nếu bạn có Toast Component, bạn cần render nó ở đây. Hiện tại tôi chỉ dùng Alert. */}
             {/* {showToast && <CustomToast message={toastMessage} />} */}
         </View>
     );
 };
 
-// Stylesheets (Giữ nguyên)
+// Stylesheets (Kept as is for completeness)
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,
@@ -340,10 +451,10 @@ const styles = StyleSheet.create({
         paddingBottom: 50,
         backgroundColor: '#2E3A59',
     },
-    backButton: { // Style cho nút quay lại
+    backButton: {
         marginBottom: 20,
         padding: 5,
-        alignSelf: 'flex-start', // Đảm bảo nút ở bên trái
+        alignSelf: 'flex-start',
     },
     title: {
         fontSize: 28,
@@ -363,9 +474,9 @@ const styles = StyleSheet.create({
         padding: 20,
         marginTop: -30,
     },
-    // Chiều cao cố định cho nội dung Form
-    formContentContainer: {
-        height: 440,
+    // Using ScrollView contentContainerStyle
+    formScrollContent: {
+        paddingBottom: 40, // Ensure enough space when scrolling
     },
     tabContainer: {
         flexDirection: 'row',
@@ -442,11 +553,93 @@ const styles = StyleSheet.create({
     googleButtonText: {
         color: '#333',
     },
-    registerPlaceholder: { // Không còn sử dụng nhưng giữ lại
-        textAlign: 'center',
+
+    // --- New Registration Form Styles ---
+    fakeDatePicker: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#ccc',
+        borderRadius: 10,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+        marginBottom: 15,
+        backgroundColor: '#f9f9f9',
+    },
+    fakeDateIcon: {
+        marginRight: 10,
+    },
+    fakeDateText: {
+        flex: 1,
         fontSize: 16,
-        color: '#666',
-        marginBottom: 20,
+        color: '#333',
+        fontWeight: 'bold',
+    },
+    fakeDatePlaceholder: {
+        position: 'absolute',
+        top: 5,
+        right: 15,
+        fontSize: 12,
+        color: '#aaa',
+    },
+
+    genderContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 15,
+        paddingVertical: 10,
+    },
+    genderLabel: {
+        fontSize: 16,
+        color: '#333',
+        fontWeight: '600',
+        marginRight: 20,
+    },
+    genderOptions: {
+        flexDirection: 'row',
+        flex: 1,
+        justifyContent: 'space-around',
+    },
+    genderButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#f0f0f0',
+    },
+    genderButtonActive: {
+        backgroundColor: '#e6f0ff',
+        borderColor: '#4a90e2',
+    },
+    genderButtonText: {
+        marginLeft: 8,
+        fontSize: 14,
+        color: '#888',
+        fontWeight: '500',
+    },
+    genderButtonTextActive: {
+        color: '#4a90e2',
+    },
+
+    uploadButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#e6f0ff',
+        borderRadius: 10,
+        paddingVertical: 15,
+        marginBottom: 25,
+        borderWidth: 1,
+        borderColor: '#4a90e2',
+    },
+    uploadButtonText: {
+        fontSize: 16,
+        color: '#4a90e2',
+        fontWeight: 'bold',
+        marginHorizontal: 10,
     }
 });
 

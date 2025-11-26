@@ -20,7 +20,7 @@ export interface RegisterCredentials {
     phone: string;
     gender: boolean;
     dob: string;
-    profilepicture: string;
+    profilepicture?: string;
 }
 
 export type SignInResult = {
@@ -90,4 +90,22 @@ export interface CapsulePalette {
     colorTypeId: number;
     colorType: ColorType;
     colors: Color[];
+}
+
+export interface ServicePackage {
+    id: number;
+    name: string;
+    description: string;
+    price: number;
+    duration: number;
+    createdDate: string;
+    updatedDate: string | null;
+}
+export interface PaymentCallbackParams {
+    code: string;
+    id: string;
+    cancel: boolean;
+    status: string;
+    orderCode: string;
+    packageId: number;
 }

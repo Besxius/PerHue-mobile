@@ -478,9 +478,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     );
 };
 
-// =========================================================
-// --- STYLESHEET (CẬP NHẬT) ---
-// =========================================================
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     loadingText: { color: '#fff', textAlign: 'center', marginTop: screenHeight / 2 },
