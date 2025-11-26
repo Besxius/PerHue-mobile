@@ -6,11 +6,10 @@ import { ApiResponse } from '../types/apiTypes';
 import apiClient, { setAuthToken, setRefreshToken } from './apiClient';
 
 const USER_ENDPOINT = '/auth';
-
 export const login = async (credentials: LoginCredentials): Promise<LoginResponseData> => {
     try {
         const response = await apiClient.post<LoginResponseData>(
-            `${USER_ENDPOINT}/login`,
+            `${USER_ENDPOINT}/login`, // Thay thế bằng endpoint đăng nhập thực tế của bạn
             credentials
         );
 
@@ -18,20 +17,42 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
 
         if (accessToken) {
             await setAuthToken(accessToken);
-            await setRefreshToken(refreshToken || null); // 💡 LƯU REFRESH TOKEN
+            await setRefreshToken(refreshToken || null);
             return response.data;
         } else {
-            throw new Error('Đăng nhập thất bại: Server không trả về Token.');
+            // Trường hợp response 2xx nhưng không có token
+            throw new Error('Login failed: No access token returned from server.');
         }
 
     } catch (error) {
-        let errorMessage = 'Lỗi kết nối hoặc server khi đăng nhập.';
+        let errorMessage = 'Error connecting to server during login.';
+
         if (axios.isAxiosError(error)) {
-            errorMessage = error.response?.data?.message || error.message;
+            const status = error.response?.status;
+
+            switch (status) {
+                case 404:
+                    // Tài khoản không tồn tại
+                    errorMessage = 'Account does not exist.';
+                    break;
+                case 403:
+                    // Tài khoản bị khóa hoặc không có quyền truy cập
+                    errorMessage = 'Account is locked or access is forbidden.';
+                    break;
+                case 401:
+                    // Sai email hoặc password
+                    errorMessage = 'Incorrect email or password.';
+                    break;
+                default:
+                    // Các lỗi khác (5xx, 400, 422, v.v.)
+                    errorMessage = error.response?.data?.message || `Unexpected error: ${error.message}`;
+                    break;
+            }
         } else if (error instanceof Error) {
             errorMessage = error.message;
         }
 
+        // Luôn ném lỗi với thông báo chi tiết
         throw new Error(errorMessage);
     }
 };
@@ -46,10 +67,17 @@ export const register = async (credentials: RegisterCredentials): Promise<void> 
         return response.data;
 
     } catch (error) {
-        let errorMessage = 'Lỗi kết nối hoặc server khi đăng ký.';
+        let errorMessage = 'Error connecting to server during registration.';
         if (axios.isAxiosError(error)) {
-            // Lấy thông báo lỗi từ server (ví dụ: Email đã tồn tại)
-            errorMessage = error.response?.data?.message || error.message;
+            const status = error.response?.status;
+            switch (status) {
+                case 401:
+                    errorMessage = 'Email have already been registered.';
+                    break;
+                case 404:
+                    errorMessage = 'Server endpoint not found.';
+                    break;
+            }
         } else if (error instanceof Error) {
             errorMessage = error.message;
         }
@@ -73,10 +101,10 @@ export const loginWithGoogleAPI = async (idToken: string): Promise<LoginResponse
             await setRefreshToken(refreshToken || null);
             return response.data;
         } else {
-            throw new Error('Đăng nhập Google thất bại: Server không trả về Local Token.');
+            throw new Error('Login with Google failed: No access token returned from server.');
         }
     } catch (error) {
-        let errorMessage = 'Lỗi kết nối hoặc server khi đăng nhập Google.';
+        let errorMessage = 'Error connecting to server during Google login.';
         if (axios.isAxiosError(error)) {
             errorMessage = error.response?.data?.message || error.message;
         } else if (error instanceof Error) {
@@ -100,7 +128,7 @@ export async function signInWithGoogle(): Promise<SignInResult> {
         const idToken = signInResponse.data?.idToken;
 
         if (!idToken) {
-            return { success: false, error: 'Không nhận được ID Token từ Google.' };
+            return { success: false, error: 'Not received Token Id from Google' };
         }
 
         // 3. Tạo thông tin xác thực Firebase từ ID Token Google
@@ -119,16 +147,16 @@ export async function signInWithGoogle(): Promise<SignInResult> {
 
     } catch (error: any) {
         if (error.code === 'E_SIGN_IN_CANCELLED') {
-            return { success: false, error: 'Người dùng đã hủy đăng nhập.' };
+            return { success: false, error: 'Account have canceled login' };
         }
 
         // Xử lý các lỗi khác của Google Sign-in
         let errorMessage = `Lỗi đăng nhập: ${error.message}`;
         if (error.code === 'E_NETWORK_ERROR') {
-            errorMessage = 'Lỗi mạng: Không thể kết nối.';
+            errorMessage = 'Network error occurred during Google Sign-In.';
         }
 
-        console.error('Lỗi chi tiết:', error);
+        console.error('Detail error', error);
 
         return { success: false, error: errorMessage };
     }
@@ -140,7 +168,7 @@ export const logout = async (): Promise<void> => {
     } catch (error) {
         // Vẫn phải xóa token khỏi client ngay cả khi gọi API thất bại.
         if (axios.isAxiosError(error)) {
-            console.error('Lỗi server khi đăng xuất:', error.response?.data?.message || error.message);
+            console.error('Server Error when logout', error.response?.data?.message || error.message);
         }
     } finally {
         await setAuthToken(null);
