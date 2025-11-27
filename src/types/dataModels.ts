@@ -85,7 +85,7 @@ export interface ColorType {
     name: string;
 }
 
-export interface CapsulePalette {
+export interface CapsulePaletteModel {
     id: number;
     colorTypeId: number;
     colorType: ColorType;

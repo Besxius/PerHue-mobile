@@ -9,8 +9,8 @@ import {
     Platform,
     Image,
     Dimensions,
-    TextInput,
     Animated,
+    TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,25 +27,28 @@ import AntDesign from '@expo/vector-icons/AntDesign';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Entypo from '@expo/vector-icons/Entypo';
-import Svg, { Rect, Mask, Circle, Defs, Ellipse } from 'react-native-svg'; // <-- IMPORT MỚI
-import { Color } from '../types/dataModels';
-import ColorPickerPopup from '../components/ColorPickerPopup';
+import Svg, { Rect, Mask, Circle, Defs, Ellipse } from 'react-native-svg';
+import { CapsulePaletteModel, Color, ColorType } from '../types/dataModels';
 import { getCorlorListSpectrum } from '../api/colorApi';
-import ColorPickerTool from '../components/ColorPickerTool';
-import PalettePickerPopup from '../components/PalettePickerPopup';
+import ColorPopup from '../components/ColorPopup';
+import ColorPickerPopup from '../components/ColorPickerPopup';
+import PalettePopup from '../components/PalettePopup';
+import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
+import ColorPickerOverlay, { AttributeColor, DEFAULT_SELECTED_COLORS, SelectedColors } from '../components/ColorPickerOverlay';
+import { FontAwesome } from '@expo/vector-icons';
 
-// Lấy kích thước màn hình
+// Get screen dimensions
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Định nghĩa kiểu dữ liệu cho ảnh được chọn
+// Define type for selected photo
 type PhotoAsset = PhotoFile | Asset | null;
 type CaptureMode = 'manual' | 'ai' | 'expert';
 
-// Giá trị màu mặc định
+// Default color value
 const DEFAULT_COLOR: Color = { id: 0, name: "Default White", hexCode: "white" };
 
-const OVAL_WIDTH = screenWidth * 0.55; // Chiều rộng của hình bầu dục
-const OVAL_HEIGHT = screenWidth * 0.7; // Chiều cao của hình bầu dục (cao hơn chiều rộng một chút)
+const OVAL_WIDTH = screenWidth * 0.55;
+const OVAL_HEIGHT = screenWidth * 0.7;
 const OVAL_RADIUS_X = OVAL_WIDTH / 2;
 const OVAL_RADIUS_Y = OVAL_HEIGHT / 2;
 const OVAL_CENTER_X = screenWidth / 2;
@@ -56,7 +59,7 @@ const TOTAL_WIDTH_TABS = screenWidth * 0.7;
 const TAB_AREA_WIDTH = TOTAL_WIDTH_TABS;
 const TAB_ITEM_WIDTH = TAB_AREA_WIDTH / 3;
 
-// 1. Vị trí dịch chuyển TƯƠNG ĐỐI bên trong vùng TAB_AREA_WIDTH
+// 1. RELATIVE translation position inside the TAB_AREA_WIDTH region
 const TAB_POSITIONS: { [key in CaptureMode]: number } = {
     manual: (TAB_ITEM_WIDTH * 0) + (TAB_ITEM_WIDTH / 2) - (HIGHLIGHT_WIDTH / 2),
     ai: (TAB_ITEM_WIDTH * 1) + (TAB_ITEM_WIDTH / 2) - (HIGHLIGHT_WIDTH / 2),
@@ -96,9 +99,56 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     const [colorFilters, setColorFilters] = useState<Color[]>([]);
 
     const highlightAnim = useRef(new Animated.Value(TAB_POSITIONS.manual)).current;
+    const [colorTypes, setColorTypes] = useState<ColorType[]>([]);
+    const [palettesBySeason, setPalettesBySeason] = useState<CapsulePaletteModel[]>([]);
+    const [isLoadingPalettes, setIsLoadingPalettes] = useState(false);
+    const [selectedTabName, setSelectedTabName] = useState<string>('');
+
+    const [showSkiaPicker, setShowSkiaPicker] = useState(false);
+    const [capturedColors, setCapturedColors] = useState<SelectedColors | null>(null);
+
+    const loadPalettesByTypeId = useCallback(async (colorTypeId: number, seasonName: string) => {
+        setIsLoadingPalettes(true);
+        try {
+            const data = await getCapsulePalettesByType(colorTypeId);
+
+            const updatedData: CapsulePaletteModel[] = data.map(p => ({
+                ...p,
+                colorType: { id: colorTypeId, name: seasonName }
+            }));
+            setPalettesBySeason(updatedData);
+        } catch (error) {
+            console.error('Error loading palettes for season:', seasonName, error);
+            setPalettesBySeason([]);
+        } finally {
+            setIsLoadingPalettes(false);
+        }
+    }, []);
 
     useEffect(() => {
-        // Tính toán vị trí dịch chuyển dựa trên chế độ đang chọn
+        const loadInitialData = async () => {
+            if (colorTypes.length > 0) return;
+
+            try {
+                const types = await getColorType() as ColorType[];
+                setColorTypes(types);
+
+                if (types.length > 0) {
+                    const defaultType = types[0];
+                    const defaultTab = defaultType.name;
+                    setSelectedTabName(defaultTab);
+
+                    await loadPalettesByTypeId(defaultType.id, defaultTab);
+                }
+            } catch (error) {
+                console.error('Error loading initial data:', error);
+            }
+        };
+
+        loadInitialData();
+    }, [loadPalettesByTypeId, colorTypes.length]);
+
+    useEffect(() => {
         const targetX = TAB_POSITIONS[captureMode];
 
         Animated.timing(highlightAnim, {
@@ -113,8 +163,8 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             const data = await getCorlorListSpectrum();
             setColorFilters(data);
         } catch (error) {
-            console.error("Lỗi khi tải màu từ API:", error);
-            Alert.alert("Lỗi tải màu", "Không thể tải dữ liệu màu từ API.");
+            console.error("Error loading colors from API:", error);
+            Alert.alert("Color Load Error", "Could not load color data from API.");
         }
     }, []);
 
@@ -123,6 +173,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     };
 
     const handleGoBack = () => {
+        setCapturedColors(null);
         navigation.goBack();
     };
 
@@ -135,6 +186,13 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const handleShowPalettePicker = () => {
         setShowPalettePicker(true);
+    };
+    const handleShowSkiaPicker = () => {
+        if (fullPreviewUri) {
+            setShowSkiaPicker(true);
+        } else {
+            Alert.alert("Chụp Ảnh", "Vui lòng chụp ảnh hoặc chọn ảnh từ thư viện trước.");
+        }
     };
 
     useEffect(() => {
@@ -150,7 +208,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             if (cameraPermission === 'granted') {
                 setHasPermission(true);
             } else {
-                Alert.alert('Lỗi Quyền', 'Không có quyền truy cập camera.');
+                Alert.alert('Permission Error', 'No access to camera.');
             }
         };
         requestPermissions();
@@ -174,7 +232,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         if (backCamera && frontCamera) {
             setCameraPosition(prev => (prev === 'back' ? 'front' : 'back'));
         } else {
-            Alert.alert('Thông báo', 'Chỉ tìm thấy một camera.');
+            Alert.alert('Notice', 'Only one camera found.');
         }
     }, [backCamera, frontCamera]);
 
@@ -186,8 +244,8 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 setCurrentPhoto(photo);
                 setFullPreviewUri(uri);
             } catch (e) {
-                console.error("Lỗi khi chụp ảnh", e);
-                Alert.alert('Lỗi', 'Không thể chụp ảnh.');
+                console.error("Error taking photo", e);
+                Alert.alert('Error', 'Could not take photo.');
             }
         }
     };
@@ -209,10 +267,10 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const handleUpload = () => {
         if (!currentPhoto) {
-            Alert.alert('Lỗi', 'Không có ảnh để upload.');
+            Alert.alert('Error', 'No photo to upload.');
             return;
         }
-        Alert.alert('Upload Giả lập', `Đã sẵn sàng upload ảnh từ: ${'path' in currentPhoto ? currentPhoto.path : currentPhoto.uri}`, [
+        Alert.alert('Simulated Upload', `Ready to upload photo from: ${'path' in currentPhoto ? currentPhoto.path : currentPhoto.uri}`, [
             { text: "OK", onPress: handleRetake }
         ]);
     };
@@ -221,6 +279,10 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         setFullPreviewUri(null);
         setCurrentPhoto(null);
         setCaptionText('');
+        setCapturedColors(null);
+        if (captureMode === 'ai' || captureMode === 'expert') {
+            setShowSkiaPicker(true);
+        }
     };
 
     const handleToggleFlash = () => {
@@ -238,14 +300,34 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     };
 
     if (!hasPermission) {
-        return <View style={styles.container}><Text style={styles.loadingText}>Đang yêu cầu quyền truy cập Camera...</Text></View>;
+        return <View style={styles.container}><Text style={styles.loadingText}>Requesting Camera Permissions...</Text></View>;
     }
     if (!activeDevice) {
-        return <View style={styles.container}><Text style={styles.loadingText}>Không tìm thấy thiết bị camera nào.</Text></View>;
+        return <View style={styles.container}><Text style={styles.loadingText}>No camera devices found.</Text></View>;
     }
 
-    const shouldShowColorOverlay = captureMode === 'manual' && selectedColorInfo.id !== DEFAULT_COLOR.id && !fullPreviewUri && !showColorPicker;
+    const shouldShowColorOverlay = captureMode === 'manual' && selectedColorInfo.id !== DEFAULT_COLOR.id && !showColorPicker;
     const shouldShowFrame = (captureMode === 'ai' || captureMode === 'expert') && !fullPreviewUri;
+    const shouldShowEyeDropper = (captureMode === 'ai' || captureMode === 'expert') && fullPreviewUri;
+
+    const renderColorBlock = (attribute: AttributeColor) => {
+
+        return (
+            <TouchableOpacity
+                key={attribute}
+                style={styles.colorBlockWrapper}
+                onPress={handleShowSkiaPicker}
+            >
+                <View
+                    style={[
+                        styles.colorSquare,
+                        { backgroundColor: capturedColors![attribute].hex }
+                    ]}
+                />
+                <Text style={styles.colorLabel}>{attribute}</Text>
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -258,9 +340,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 video={false}
             />
 
-            {/* ********************************************** */}
-            {/* SỬ DỤNG REACT-NATIVE-SVG CHO MASKING */}
-            {/* ********************************************** */}
             {shouldShowColorOverlay && (
                 <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
                     <Svg
@@ -269,13 +348,9 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                         style={[StyleSheet.absoluteFill, { zIndex: 1 }]}
                     >
                         <Defs>
-                            {/* 1. Định nghĩa Mask: Mask Hole (Hình bầu dục) */}
-                            {/* Màu trắng = Vùng hiển thị. Màu đen = Vùng bị cắt bỏ/trong suốt */}
                             <Mask id="ovalMask" x="0" y="0" width={screenWidth} height={screenHeight}>
-                                {/* Lớp nền (Background) mask: MÀU TRẮNG (Hiển thị toàn bộ) */}
                                 <Rect x="0" y="0" width={screenWidth} height={screenHeight} fill="white" />
 
-                                {/* Lỗ (Hole) mask: MÀU ĐEN (Cắt bỏ/Trong suốt) */}
                                 <Ellipse
                                     cx={OVAL_CENTER_X}
                                     cy={OVAL_CENTER_Y}
@@ -286,8 +361,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                             </Mask>
                         </Defs>
 
-                        {/* 2. Áp dụng Mask lên lớp phủ màu */}
-                        {/* Rect này là lớp phủ màu rắn (SOLID COLOR OVERLAY) */}
                         <Rect
                             x="0"
                             y="0"
@@ -306,7 +379,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 </View>
             )}
 
-            {/* Vùng Preview (Nếu có ảnh) */}
+            {/* Preview Area (If photo taken) */}
             {fullPreviewUri && (
                 <View style={styles.previewContainer}>
                     <Image source={{ uri: fullPreviewUri }} style={styles.previewImage} />
@@ -315,36 +388,37 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                         <TouchableOpacity style={styles.topControlButton} onPress={handleRetake}>
                             <Ionicons name="arrow-back" size={30} color="white" />
                         </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.topControlButton} onPress={handleToggleLeftControls}>
+                            <Entypo name={showLeftControls ? "chevron-up" : "chevron-down"} size={30} color="white" />
+                        </TouchableOpacity>
                     </View>
 
-                    <TextInput
+                    {/* <TextInput
                         style={styles.captionInput}
                         value={captionText}
                         onChangeText={setCaptionText}
-                        placeholder="Thêm chú thích..."
+                        placeholder="Add a caption..."
                         placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                    />
+                    /> */}
 
-                    <View style={[styles.previewActions, { paddingBottom: insets.bottom + 10 }]}>
-                        <TouchableOpacity style={styles.storyButton}>
-                            <Image
-                                source={{ uri: 'https://i.pravatar.cc/150?img=1' }}
-                                style={styles.profilePicture}
-                            />
-                            <Text style={styles.storyButtonText}>Tin của bạn</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.friendButton}>
-                            <Ionicons name="star" size={20} color="white" />
-                            <Text style={styles.friendButtonText}>Bạn thân</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.sendButton} onPress={handleUpload}>
-                            <Ionicons name="chevron-forward" size={24} color="white" />
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity style={[styles.sendButton, { bottom: insets.bottom + 70 }]} onPress={handleUpload}>
+                        <View style={styles.sendButtonContent}>
+                            <Text style={styles.buttonText}>SEND</Text>
+                            {/* <Ionicons name="chevron-forward" size={24} color="white" style={styles.sendIcon} /> */}
+                        </View>
+                    </TouchableOpacity>
+                    {capturedColors && (
+                        <View style={[styles.paletteContainer, { bottom: 150 + insets.bottom }]}>
+                            {Object.keys(DEFAULT_SELECTED_COLORS).map(key =>
+                                renderColorBlock(key as AttributeColor)
+                            )}
+                        </View>
+                    )}
                 </View>
             )}
 
-            {/* Thanh điều hướng trên cùng (Ẩn trong preview) */}
+            {/* Top Navigation Bar (Hidden in preview) */}
             {!fullPreviewUri && (
                 <View style={[styles.topControls, { paddingTop: insets.top + 10 }]}>
                     <TouchableOpacity style={styles.topControlButton} onPress={handleGoBack}>
@@ -360,8 +434,8 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 </View>
             )}
 
-            {/* Các nút chức năng dọc bên phải (Ẩn trong preview) */}
-            {!fullPreviewUri && showLeftControls && (
+            {/* Vertical Right Controls (Hidden in preview) */}
+            {showLeftControls && (
                 <View style={[styles.rightControls, { top: insets.top + 80 }]}>
                     <TouchableOpacity
                         style={styles.leftControlButton}
@@ -369,23 +443,33 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                     >
                         <Ionicons name="color-filter" size={24} color="white" />
                     </TouchableOpacity>
+
                     <TouchableOpacity
                         style={styles.leftControlButton}
                         onPress={() => setShowColorPicker(true)}
                     >
                         <Ionicons name="color-palette" size={24} color="white" />
                     </TouchableOpacity>
+
                     <TouchableOpacity
                         style={styles.leftControlButton}
                         onPress={handleShowPalettePicker}
                     >
                         <Ionicons name="grid" size={24} color="white" />
                     </TouchableOpacity>
+
+                    {shouldShowEyeDropper && (
+                        <TouchableOpacity
+                            style={styles.leftControlButton}
+                            onPress={handleShowSkiaPicker}
+                        >
+                            <FontAwesome name="eyedropper" size={24} color="white" />
+                        </TouchableOpacity>)}
                 </View>
             )}
 
-            {/* Vùng chứa Tag Name (Ẩn trong preview và khi Popup đang mở) */}
-            {!fullPreviewUri && !showColorPicker && (
+            {/* Tag Name Container (Hidden in preview and when Popup is open) */}
+            {!showColorPicker && (
                 <View style={styles.filterTagContainer}>
                     <View style={styles.filterRow}>
                         {/* 1. Tag Name */}
@@ -401,7 +485,9 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                                 <Text style={styles.tagNameText}>
                                     {selectedColorInfo.name.toUpperCase()}
                                 </Text>
-                                <TouchableOpacity onPress={() => setSelectedColorInfo(DEFAULT_COLOR)} style={styles.closeIcon}>
+                                <TouchableOpacity
+                                    style={styles.closeIcon}
+                                    onPress={() => setSelectedColorInfo(DEFAULT_COLOR)}>
                                     <Ionicons name="close" size={18} color="white" />
                                 </TouchableOpacity>
                             </View>
@@ -410,23 +496,21 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 </View>
             )}
 
-            {/* Thanh điều hướng dưới cùng và các chế độ (Ẩn trong preview) */}
+            {/* Bottom Navigation Bar and Modes (Hidden in preview) */}
             {!fullPreviewUri && (
                 <View style={[styles.bottomNavigationWrapper, { paddingBottom: insets.bottom }]}>
                     <View style={[styles.captureModeSelector, { width: TAB_AREA_WIDTH, alignSelf: 'center' }]}>
 
-                        {/* --- Thanh highlight ANIMATED --- */}
                         <Animated.View style={[
                             styles.modeHighlight,
                             {
-                                // BỎ left: INITIAL_OFFSET, chỉ dịch chuyển bằng highlightAnim
                                 transform: [{
                                     translateX: highlightAnim
                                 }]
                             }
                         ]} />
 
-                        {/* Các nút Tab */}
+                        {/* Tab Buttons */}
                         <TouchableOpacity style={[styles.tabButton]} onPress={() => setCaptureMode('manual')}>
                             <Text style={[styles.modeText, captureMode === 'manual' && styles.activeModeText]}>Manual</Text>
                         </TouchableOpacity>
@@ -454,26 +538,45 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 </View>
             )}
 
-            <ColorPickerPopup
+            <ColorPopup
                 showColorPicker={showColorPicker}
                 setShowColorPicker={setShowColorPicker}
                 colorFilters={colorFilters}
                 selectedColorInfo={selectedColorInfo}
                 handleColorSelect={handleColorSelect}
             />
-            <ColorPickerTool
+            <ColorPickerPopup
                 isVisible={showColorPickerTool}
                 onClose={() => setShowColorPickerTool(false)}
                 onColorSelected={handleColorSelect}
                 initialColorHex={selectedColorInfo.hexCode}
                 colorFilters={colorFilters}
             />
-            <PalettePickerPopup
+            <PalettePopup
                 showPalettePicker={showPalettePicker}
                 setShowPalettePicker={setShowPalettePicker}
                 colorFilters={colorFilters}
                 handleColorSelect={handleColorSelect}
+                colorTypes={colorTypes}
+                palettesBySeason={palettesBySeason}
+                isLoading={isLoadingPalettes}
+                selectedTabName={selectedTabName}
+                loadPalettesByTypeId={loadPalettesByTypeId}
+                setSelectedTabName={setSelectedTabName}
             />
+
+            {showSkiaPicker && fullPreviewUri && (
+                <ColorPickerOverlay
+                    imageUri={fullPreviewUri}
+                    initialColors={capturedColors}
+                    onClose={() => setShowSkiaPicker(false)}
+                    onDone={(colors) => {
+                        setCapturedColors(colors);
+                        console.log("Màu đã chọn:", colors);
+                        setShowSkiaPicker(false);
+                    }}
+                />
+            )}
         </View>
     );
 };
@@ -482,8 +585,6 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     loadingText: { color: '#fff', textAlign: 'center', marginTop: screenHeight / 2 },
 
-    // --- Styles cho SVG Masking (Cập nhật Frame Định vị) ---
-    // Khung định vị vẫn sử dụng View để nằm trên cùng
     invertedColorFrame: {
         position: 'absolute',
         top: 0,
@@ -494,18 +595,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 4,
     },
-    invertedFrameInnerOval: { // <-- STYLE MỚI CHO HÌNH BẦU DỤC
+    invertedFrameInnerOval: {
         width: OVAL_WIDTH,
         height: OVAL_HEIGHT,
-        borderRadius: OVAL_HEIGHT / 2, // Tạo hình bầu dục từ borderRadius của hình chữ nhật
-        backgroundColor: 'transparent', // Trong suốt
+        borderRadius: OVAL_HEIGHT / 2,
+        backgroundColor: 'transparent',
         borderWidth: 4,
-        borderColor: 'white', // Viền trắng
+        borderColor: 'white',
     },
-    // --- Kết thúc Styles cho SVG Masking ---
 
-    // --- Styles cho Preview ---
-    previewContainer: { flex: 1, backgroundColor: 'black' },
+    // --- Styles for Preview ---
+    previewContainer: {
+        flex: 1, backgroundColor: 'black'
+    },
     previewImage: {
         width: screenWidth,
         height: screenHeight,
@@ -515,7 +617,7 @@ const styles = StyleSheet.create({
     },
     captionInput: {
         position: 'absolute',
-        bottom: 180,
+        bottom: 120,
         width: '80%',
         alignSelf: 'center',
         color: 'white',
@@ -526,18 +628,6 @@ const styles = StyleSheet.create({
         padding: 10,
         borderRadius: 10,
         zIndex: 3,
-    },
-    previewActions: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingTop: 15,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     storyButton: {
         flexDirection: 'row',
@@ -574,13 +664,31 @@ const styles = StyleSheet.create({
         marginLeft: 5,
     },
     sendButton: {
+        position: 'absolute',
+        right: 20,
         backgroundColor: '#0095F6',
         borderRadius: 25,
         padding: 10,
         marginLeft: 'auto',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+    },
+    sendButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 2,
+    },
+    sendIcon: {
+        marginLeft: 5,
+    },
+    buttonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
     },
 
-    // Thanh điều hướng trên cùng
+    // Top Navigation Bar
     topControls: {
         position: 'absolute',
         top: 0,
@@ -596,7 +704,7 @@ const styles = StyleSheet.create({
         padding: 5,
     },
 
-    // Các nút chức năng dọc bên phải
+    // Vertical Right Controls
     rightControls: {
         position: 'absolute',
         right: 15,
@@ -616,7 +724,7 @@ const styles = StyleSheet.create({
     },
 
     // =========================================================
-    // Styles cho Tag Name
+    // Styles for Tag Name
     // =========================================================
     filterTagContainer: {
         position: 'absolute',
@@ -668,7 +776,7 @@ const styles = StyleSheet.create({
     },
 
     // =========================================================
-    // Styles cho Bottom Navigation
+    // Styles for Bottom Navigation
     // =========================================================
     bottomNavigationWrapper: {
         position: 'absolute',
@@ -723,12 +831,47 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     captureButton: {
-        width: 70, height: 70, borderRadius: 35,
-        borderWidth: 4, borderColor: '#fff',
+        width: 70, height: 70,
+        borderRadius: 35,
+        borderWidth: 4,
+        borderColor: '#fff',
         backgroundColor: 'transparent',
-        justifyContent: 'center', alignItems: 'center',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    innerCaptureButton: { width: 60, height: 60, borderRadius: 30 },
+    innerCaptureButton: {
+        width: 60,
+        height: 60,
+        borderRadius: 30
+    },
+    colorBlockWrapper: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginBottom: 10,
+        padding: 5,
+        borderRadius: 5,
+    },
+    colorSquare: {
+        width: 40,
+        height: 40,
+        borderRadius: 5,
+        borderWidth: 2,
+        borderColor: 'white',
+        marginBottom: 5,
+    },
+    colorLabel: {
+        color: 'white',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    paletteContainer: {
+        position: 'absolute',
+        // bottom: 150, // Đã chuyển sang inline style
+        right: 20,
+        backgroundColor: 'rgba(65, 53, 53, 0.6)',
+        borderRadius: 10,
+        padding: 10,
+    },
 });
 
 export default CameraScreen;
