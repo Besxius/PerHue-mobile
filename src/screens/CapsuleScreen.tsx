@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
     Modal,
     TouchableWithoutFeedback,
+    TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from '@expo/vector-icons';
@@ -17,7 +18,7 @@ import CustomHeader from '../components/CustomHeader';
 import CapsulePaletteComponent from '../components/CapsulePalette';
 import * as Clipboard from 'expo-clipboard';
 
-import { ColorType, CapsulePalette, Color } from '../types/dataModels';
+import { ColorType, CapsulePaletteModel, Color } from '../types/dataModels';
 import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
 
 interface TabItem extends ColorType { }
@@ -40,7 +41,6 @@ const ColorDetailCard: React.FC<ColorDetailProps> = ({ color }) => {
     };
 
     const [r, g, b] = hexToRgb(color.hexCode);
-
     const cmyk = '8, 0, 28, 25';
 
     const handleCopy = async () => {
@@ -72,7 +72,7 @@ const ColorDetailCard: React.FC<ColorDetailProps> = ({ color }) => {
 
 interface PaletteDetailModalProps {
     isVisible: boolean;
-    palette: CapsulePalette | null;
+    palette: CapsulePaletteModel | null;
     onClose: () => void;
 }
 
@@ -128,13 +128,31 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
 
     const [activeTabId, setActiveTabId] = useState<number | null>(null);
 
-    const [palettes, setPalettes] = useState<CapsulePalette[]>([]);
+    const [palettes, setPalettes] = useState<CapsulePaletteModel[]>([]);
     const [paletteLoading, setPaletteLoading] = useState(false);
     const [paletteError, setPaletteError] = useState<string | null>(null);
     const [selectedPaletteId, setSelectedPaletteId] = useState<number | null>(null);
 
+    const [searchText, setSearchText] = useState('');
+
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [selectedDetailPalette, setSelectedDetailPalette] = useState<CapsulePalette | null>(null);
+    const [selectedDetailPalette, setSelectedDetailPalette] = useState<CapsulePaletteModel | null>(null);
+
+
+    const filteredPalettes = useMemo(() => {
+        if (!searchText) {
+            return palettes;
+        }
+
+        const lowerCaseSearch = searchText.toLowerCase();
+
+        return palettes.filter(palette => {
+            return palette.colors.some(color =>
+                color.name.toLowerCase().includes(lowerCaseSearch) ||
+                color.hexCode.toLowerCase().includes(lowerCaseSearch)
+            );
+        });
+    }, [palettes, searchText]);
 
 
     useEffect(() => {
@@ -169,7 +187,14 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
                 setPalettes([]);
 
                 const data = await getCapsulePalettesByType(activeTabId);
-                setPalettes(data);
+                const activeColorType = colorTypes.find(t => t.id === activeTabId);
+
+                const palettesWithColorType = data.map(p => ({
+                    ...p,
+                    colorType: p.colorType || activeColorType
+                }));
+
+                setPalettes(palettesWithColorType);
                 setPaletteError(null);
                 setSelectedPaletteId(null);
 
@@ -183,10 +208,10 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
         };
 
         fetchPalettes();
-    }, [activeTabId]);
+    }, [activeTabId, colorTypes]);
 
 
-    const handlePalettePress = useCallback((palette: CapsulePalette) => {
+    const handlePalettePress = useCallback((palette: CapsulePaletteModel) => {
         setSelectedDetailPalette(palette);
         setIsModalVisible(true);
         setSelectedPaletteId(palette.id);
@@ -213,7 +238,9 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
                     styles.tabButton,
                     isActive && styles.tabButtonActive
                 ]}
-                onPress={() => setActiveTabId(item.id)}
+                onPress={() => {
+                    setActiveTabId(item.id);
+                }}
             >
                 <Text
                     style={[
@@ -227,7 +254,7 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
         );
     }, [activeTabId]);
 
-    const renderPaletteItem = useCallback(({ item }: { item: CapsulePalette }) => {
+    const renderPaletteItem = useCallback(({ item }: { item: CapsulePaletteModel }) => {
         const hexCodes = item.colors.map(color => color.hexCode);
 
         const paddedColors: [string, string, string, string] = [
@@ -252,6 +279,9 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
         if (paletteError) {
             return <Text style={styles.errorText}>Lỗi tải bảng màu: {paletteError}</Text>;
         }
+        if (palettes.length > 0 && searchText) {
+            return <Text style={styles.noDataText}>Không tìm thấy kết quả tìm kiếm "{searchText}" trong mùa này.</Text>;
+        }
         return (
             <Text style={styles.noDataText}>
                 Chưa có bảng màu nào cho loại màu này.
@@ -272,14 +302,28 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
 
-            {/* 1. CustomHeader */}
             <CustomHeader
                 title='Capsule Palette'
                 onNavigateToPackage={navigateToPackageScreen}
                 onNavigateToNotification={navigateToNotificationScreen}
             />
 
-            {/* 2. Thanh Tab Selector Cuộn Ngang - SỬ DỤNG FLATLIST */}
+            <View style={styles.searchContainer}>
+                <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Tìm kiếm theo tên màu hoặc mã hex..."
+                    placeholderTextColor="#999"
+                    value={searchText}
+                    onChangeText={setSearchText}
+                />
+                {searchText.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearSearchButton}>
+                        <Ionicons name="close-circle" size={20} color="#999" />
+                    </TouchableOpacity>
+                )}
+            </View>
+
             {tabLoading ? (
                 <ActivityIndicator
                     size="small"
@@ -300,12 +344,11 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
                 />
             )}
 
-            {/* 3. Vùng hiển thị các Bảng màu (FlatList Dọc) */}
             {paletteLoading ? (
                 renderPaletteLoading()
             ) : (
                 <FlatList
-                    data={palettes}
+                    data={filteredPalettes}
                     renderItem={renderPaletteItem}
                     keyExtractor={(item) => item.id.toString()}
                     numColumns={2}
@@ -317,7 +360,6 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
                 />
             )}
 
-            {/* 4. MODAL HIỂN THỊ CHI TIẾT PALETTE */}
             <PaletteDetailModal
                 isVisible={isModalVisible}
                 palette={selectedDetailPalette}
@@ -334,6 +376,29 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#fff',
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 10,
+        marginHorizontal: 20,
+        marginTop: 10,
+        marginBottom: 10,
+        paddingHorizontal: 10,
+        height: 40,
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 15,
+        color: '#333',
+        paddingVertical: 0,
+    },
+    clearSearchButton: {
+        marginLeft: 8,
     },
     loadingIndicator: {
         marginTop: 50,
@@ -408,21 +473,16 @@ const styles = StyleSheet.create({
     }
 });
 
-// ----------------------------------------------------
-// --- MODAL STYLES (CẬP NHẬT NỀN TRẮNG VÀ MÀU CHỮ) ---
-// ----------------------------------------------------
-
 const modalStyles = StyleSheet.create({
     centeredView: {
         flex: 1,
         justifyContent: 'flex-end',
-        // Nền mờ (màu đen) để nhấn ra ngoài
         backgroundColor: 'rgba(0, 0, 0, 0.7)',
     },
     modalView: {
         width: '100%',
         height: '75%',
-        backgroundColor: 'white', // NỀN TRẮNG
+        backgroundColor: 'white',
         borderTopLeftRadius: 30,
         borderTopRightRadius: 30,
         overflow: 'hidden',
@@ -435,7 +495,7 @@ const modalStyles = StyleSheet.create({
         paddingVertical: 15,
         paddingTop: 40,
         position: 'relative',
-        backgroundColor: 'white', // NỀN TRẮNG cho header
+        backgroundColor: 'white',
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
     },
@@ -448,7 +508,7 @@ const modalStyles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#333', // MÀU CHỮ TỐI
+        color: '#333',
         textAlign: 'center',
     },
     colorListContent: {
@@ -459,7 +519,7 @@ const modalStyles = StyleSheet.create({
     colorCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F7F7F7', // Nền sáng cho card (màu xám nhạt)
+        backgroundColor: '#F7F7F7',
         borderRadius: 10,
         padding: 15,
         marginBottom: 15,
@@ -477,7 +537,7 @@ const modalStyles = StyleSheet.create({
         borderRadius: 8,
         marginRight: 15,
         borderWidth: 1,
-        borderColor: '#DDD', // Viền nhạt
+        borderColor: '#DDD',
     },
     colorInfo: {
         flex: 1,
@@ -486,12 +546,12 @@ const modalStyles = StyleSheet.create({
     colorName: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: '#333', // MÀU CHỮ TỐI
+        color: '#333',
         marginBottom: 5,
     },
     colorValue: {
         fontSize: 13,
-        color: '#666', // MÀU CHỮ XÁM
+        color: '#666',
         lineHeight: 18,
     },
     colorLabel: {
