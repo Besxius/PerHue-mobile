@@ -326,3 +326,76 @@ export interface ExpertRequestHistoryItem {
     expertStatus: string;
     assignmentDate: string;
 }
+export interface UserInfoInSubscription {
+    id: number;
+    email: string;
+    username: string;
+    fullname: string;
+    phone: string;
+    gender: boolean;
+    dob: string;
+    isactive: boolean;
+    profilepicture: string;
+    roleId: number;
+    role: RoleInfo;
+}
+
+export interface UserSubscriptionInformation {
+    startDate: string;
+    endDate: string;
+    status: boolean;
+    remainingUses: number;
+    createAt: string;
+    updateAt: string;
+    userId: number;
+    servicePackageId: number;
+    servicePackage: ServicePackage;
+    user: UserInfoInSubscription; // Hoặc UserInfo nếu đã có
+}
+
+export interface UserPayment {
+    id: number;
+    userId: number;
+    userFullname: string;
+    userEmail: string;
+    amount: number;
+    description: string;
+    orderCode: string;
+    createdAt: string; // ISO DateTime string
+    paymentLogs: PaymentLog[];
+}
+
+export interface PaymentLog {
+    id: number;
+    paymentId: number;
+    message: string;
+    createdAt: string; // ISO DateTime string
+    oldStatus: string;
+    newStatus: string;
+    metadata: string;
+}
+
+export interface ReportPayload {
+    content: string; // Nội dung báo cáo/phản hồi
+    type: string;    // Loại báo cáo (ví dụ: 'BUG', 'FEEDBACK', 'REQUEST')
+}
+
+export interface ReportResult {
+    id: number;
+    content: string;
+    type: string;
+    status: string;
+    notice: string;
+    userAccountId: number;
+    userEmail: string;
+    username: string;
+    createdAt: string; // ISO DateTime string
+    updatedAt: string; // ISO DateTime string
+}
+
+export interface ReportResponse {
+    code: number;
+    result: ReportResult;
+    message: string;
+    success: boolean;
+}

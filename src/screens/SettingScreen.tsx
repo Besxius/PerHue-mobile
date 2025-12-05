@@ -34,16 +34,16 @@ const SETTINGS_DATA: { title: string; data: SettingItem[] }[] = [
             { id: '1', icon: 'person-outline', iconSet: 'Ionicons', label: 'Edit profile', action: 'navigate', targetScreen: 'UserScreen' },
             { id: '2', icon: 'signature', iconSet: 'AntDesign', label: 'Become Expert', action: 'navigate', targetScreen: 'VerifyExpertScreen' },
             { id: '3', icon: 'bell', iconSet: 'Feather', label: 'Notifications', action: 'navigate', targetScreen: 'Notifications' },
-            // { id: '4', icon: 'shield-lock-outline', iconSet: 'MaterialCommunityIcons', label: 'Security', action: 'navigate', targetScreen: 'Security' },
+            { id: '4', icon: 'albums-outline', iconSet: 'Ionicons', label: 'My Subscription', action: 'navigate', targetScreen: 'MySubscriptionScreen' },
+            { id: '5', icon: 'card-outline', iconSet: 'Ionicons', label: 'My payment history', action: 'navigate', targetScreen: 'MyPaymentHistoryScreen' },
             // { id: '5', icon: 'lock-closed-outline', iconSet: 'Ionicons', label: 'Privacy', action: 'navigate', targetScreen: 'Privacy' },
         ],
     },
     {
         title: 'Support & About',
         data: [
-            { id: '5', icon: 'folder-outline', iconSet: 'Ionicons', label: 'My Subscribtion', action: 'navigate', targetScreen: 'UserSubscriptionScreen' },
-            { id: '6', icon: 'help-circle-outline', iconSet: 'Ionicons', label: 'Help & Support', action: 'navigate', targetScreen: 'HelpAndSupport' },
-            { id: '7', icon: 'shield', iconSet: 'Feather', label: 'Terms and Policies', action: 'navigate', targetScreen: 'TermsAndPolicies' },
+            { id: '6', icon: 'help-circle-outline', iconSet: 'Ionicons', label: 'Help & Support', action: 'navigate', targetScreen: 'HelpAndSupportScreen' },
+            { id: '7', icon: 'shield', iconSet: 'Feather', label: 'Terms and Policies', action: 'navigate', targetScreen: 'TermAndPoliciesScreen' },
         ],
     },
     // {
@@ -56,8 +56,8 @@ const SETTINGS_DATA: { title: string; data: SettingItem[] }[] = [
     {
         title: 'Actions',
         data: [
-            { id: '10', icon: 'flag', iconSet: 'Feather', label: 'Report a problem', action: 'action', targetScreen: 'ReportProblem' },
-            { id: '11', icon: 'log-out-outline', iconSet: 'Ionicons', label: 'Log out', action: 'logout', targetScreen: 'LogOut' },
+            // { id: '10', icon: 'flag', iconSet: 'Feather', label: 'Report a problem', action: 'action', targetScreen: 'ReportProblem' },
+            { id: '10', icon: 'log-out-outline', iconSet: 'Ionicons', label: 'Log out', action: 'logout', targetScreen: 'LogOut' },
             // { id: '12', icon: 'account-plus-outline', iconSet: 'MaterialCommunityIcons', label: 'Add account', action: 'action', targetScreen: 'AddAccount' },
         ],
     },
