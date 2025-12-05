@@ -14,9 +14,13 @@ import SettingScreen from '../screens/SettingScreen';
 import AuthNavigator from './AuthNavigator';
 import CameraScreen from '../screens/CameraScreen';
 import CapsuleScreen from '../screens/CapsuleScreen';
-// IMPORT ExpertDetailScreen
-import ExpertDetailScreen from '../screens/ExpertDetailScreen'; // Đảm bảo đường dẫn chính xác
-import { ExpertInfo } from '../types/dataModels'; // Import ExpertInfo
+import ExpertDetailScreen from '../screens/ExpertDetailScreen';
+import { ExpertInfo } from '../types/dataModels';
+import ManualTestResultDetailScreen from '../screens/ManualTestResultDetailScreen';
+import VerifyExpertScreen from '../screens/VerifyExpertScreen';
+import UserSubscriptionScreen from '../screens/UserSubscriptionScreen';
+import AiTestResultDetailScreen from '../screens/AiTestResultDetailScreen';
+import CreateExpertTestResponse from '../screens/CreateExpertTestResponse';
 
 // 1. Kiểu cho Bottom Tab Routes (Giữ nguyên)
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
@@ -31,7 +35,12 @@ export type RootStackParamList = {
   WelcomeScreen: undefined;
   CameraScreen: undefined;
   UserScreen: undefined;
-  ExpertDetailScreen: { expert: ExpertInfo }; // Cần truyền ExpertInfo qua params
+  ExpertDetailScreen: { expert: ExpertInfo };
+  VerifyExpertScreen: undefined;
+  UserSubscriptionScreen: undefined;
+  ManualTestResultDetailScreen: { id: number };
+  CreateExpertTestResponse: { id: number },
+  AiTestResultDetailScreen: { id: number };
 };
 
 
@@ -165,17 +174,56 @@ const RootNavigationStack = () => {
               title: 'User profile'
             }}
           />
-          {/* THÊM ExpertDetailScreen */}
           <RootStack.Screen
             name="ExpertDetailScreen"
             component={ExpertDetailScreen}
             options={{
-              headerShown: false, // Sử dụng Custom Header trong màn hình này
+              headerShown: false,
+            }}
+          />
+          <RootStack.Screen
+            name="ManualTestResultDetailScreen"
+            component={ManualTestResultDetailScreen}
+            options={{
+              headerShown: true,
+              title: 'Manual Test Result'
+            }}
+          />
+          <RootStack.Screen
+            name="AiTestResultDetailScreen"
+            component={AiTestResultDetailScreen}
+            options={{
+              headerShown: true,
+              title: 'AI Test Result'
+            }}
+          />
+          <RootStack.Screen
+            name="CreateExpertTestResponse"
+            component={CreateExpertTestResponse}
+            options={{
+              headerShown: false,
+              title: '',
+              headerTransparent: true,
+            }}
+          />
+          <RootStack.Screen
+            name="VerifyExpertScreen"
+            component={VerifyExpertScreen}
+            options={{
+              headerShown: true,
+              title: 'Register Expert information'
+            }}
+          />
+          <RootStack.Screen
+            name="UserSubscriptionScreen"
+            component={UserSubscriptionScreen}
+            options={{
+              headerShown: true,
+              title: 'History subscription'
             }}
           />
         </>
       ) : (
-        // HIỂN THỊ MÀN HÌNH XÁC THỰC (CHƯA ĐĂNG NHẬP)
         <RootStack.Screen
           name="Auth"
           component={AuthNavigator}
@@ -185,7 +233,6 @@ const RootNavigationStack = () => {
   );
 };
 
-// Bọc toàn bộ AppNavigator trong NavigationContainer VÀ AuthProvider (Giữ nguyên)
 const AppNavigator = () => (
   <NavigationContainer>
     <AuthProvider>

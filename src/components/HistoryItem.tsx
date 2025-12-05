@@ -1,100 +1,133 @@
-import React, { FC, memo } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Image } from "react-native";
+import React, { FC, useCallback } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    Image,
+    ImageSourcePropType,
+} from 'react-native';
+import { BaseHistoryItem } from '../types';
 
-// ======================================================================
-// 1. ĐỊNH NGHĨA TYPESCRIPT INTERFACE
-// ======================================================================
-interface ImageSource {
-    uri: string;
-}
-
-export interface HistoryItemType { // Export interface để sử dụng bên ngoài
-    id: number;
-    type: "Request" | "Order";
-    number: string;
-    method: string;
-    status: "Processing" | "Completed";
-    responses: number;
-    buttonText: string;
-    isOrder: boolean;
-    imageSources: ImageSource[];
-}
+// --- Định nghĩa Kiểu (Types) ---
+// Tái định nghĩa các kiểu cần thiết từ HistoryScreen.tsx
+interface ImageSource { uri: string; }
 
 interface HistoryItemProps {
-    item: HistoryItemType;
-    onPressAction?: (item: HistoryItemType) => void; // Thêm prop xử lý sự kiện
+    item: BaseHistoryItem;
+    onPressAction: (item: BaseHistoryItem) => void;
 }
 
-// ======================================================================
-// 2. COMPONENT HISTORY ITEM (Sử dụng React.memo)
-// ======================================================================
-const HistoryItem: FC<HistoryItemProps> = memo(({ item, onPressAction }) => {
-    const isProcessing = item.status === "Processing";
-    const isCompleted = item.status === "Completed";
+// Hàm render ảnh thumbnail
+const renderImageThumbnails = (imageSources: ImageSource[]) => {
+    // Chỉ lấy tối đa 4 ảnh
+    const displayedImages = imageSources.slice(0, 4);
+    const imageCount = displayedImages.length;
 
-    // 💡 Logic cho Style Button
-    const buttonStyle = [
-        styles.actionButton,
-        isProcessing ? styles.trackButton : styles.reviewButton,
-    ];
+    if (imageCount === 0) {
+        return (
+            <View style={styles.imageGrid}>
+                <Text style={styles.noImageText}>No Image</Text>
+            </View>
+        );
+    }
 
-    // 💡 Logic cho Icon trạng thái
-    const statusIcon = isCompleted ? (
-        <View style={styles.checkIconContainer}>
-            <Text style={styles.checkIcon}>✓</Text>
+    if (imageCount === 1) {
+        return (
+            <View style={styles.imageGrid}>
+                <Image
+                    source={{ uri: displayedImages[0].uri }}
+                    style={styles.fullImage}
+                    resizeMode="cover"
+                />
+            </View>
+        );
+    }
+
+    // Hiển thị dạng lưới 2x2 cho 2, 3 hoặc 4 ảnh
+    return (
+        <View style={styles.imageGrid}>
+            {displayedImages.map((source, index) => (
+                <Image
+                    key={index}
+                    source={{ uri: source.uri }}
+                    style={styles.gridImage}
+                    resizeMode="cover"
+                />
+            ))}
         </View>
-    ) : null;
+    );
+};
 
-    // Xử lý sự kiện khi nhấn nút hành động
-    const handleActionPress = () => {
-        if (onPressAction) {
+// ======================================================================
+// COMPONENT HISTORY ITEM
+// ======================================================================
+const HistoryItem: FC<HistoryItemProps> = ({ item, onPressAction }) => {
+    const isCompleted = item.status === 'Completed';
+    const isPending = item.status === 'Pending' || item.status === 'PendingReview';
+    const isEnabled = isCompleted || (item.isExpert && isPending);
+    const isDisabled = !isEnabled;
+    const buttonStyleOverride = item.isExpert && isPending ? styles.reviewButton : styles.trackButton;
+
+    const handlePress = useCallback(() => {
+        if (!isDisabled) {
             onPressAction(item);
-        } else {
-            console.log(`${item.buttonText} action for ${item.number}`);
         }
-    };
+    }, [item, onPressAction, isDisabled]);
 
     return (
         <View style={styles.itemContainer}>
-            {/* Cột trái: Hình ảnh (Grid/Full) */}
-            <View style={styles.imageGrid}>
-                {item.imageSources.slice(0, 4).map((source, index) => (
-                    <Image
-                        key={index}
-                        source={source}
-                        // Điều kiện render: nếu có > 2 ảnh thì chia 4 ô (grid), ngược lại dùng full size
-                        style={item.imageSources.length > 2 ? styles.gridImage : styles.fullImage}
-                        resizeMode="cover"
-                    />
-                ))}
-            </View>
+            {/* 1. Image Thumbnail */}
+            {renderImageThumbnails(item.imageSources)}
 
-            {/* Cột giữa: Thông tin */}
+            {/* 2. Content */}
             <View style={styles.itemContent}>
+                {/* ID & Type */}
                 <Text style={styles.itemTitle}>
-                    {item.type} <Text style={styles.itemNumber}>{item.number}</Text>
+                    {item.title}
                 </Text>
-                <Text style={styles.itemMethod}>{item.method}</Text>
-                <View style={styles.statusRow}>
-                    <Text style={[styles.itemStatus, isProcessing ? styles.processingStatus : styles.completedStatus]}>
-                        {item.status}
+
+                {/* Color Type Name (Result) */}
+                {item.subTitle && (
+                    <Text style={styles.itemMethod}>
+                        {item.subTitle}
                     </Text>
-                    {statusIcon}
+                )}
+
+                {/* Date and Status */}
+                <View style={styles.statusRow}>
+                    <Text style={styles.dateText}>
+                        Date: {item.date}
+                    </Text>
+                    <View style={styles.statusIndicator}>
+                        {isCompleted && (
+                            <View style={styles.checkIconContainer}>
+                                <Text style={styles.checkIcon}>✓</Text>
+                            </View>
+                        )}
+                        <Text style={[
+                            styles.itemStatus,
+                            isCompleted ? styles.completedStatus : styles.processingStatus
+                        ]}>
+                            {item.status}
+                        </Text>
+                    </View>
                 </View>
             </View>
 
-            {/* Cột phải: Response & Action Button */}
+            {/* 3. Action Button */}
             <View style={styles.itemActions}>
-                <Text style={styles.responseCount}>
-                    {item.responses} {item.responses === 1 ? 'response' : 'responses'}
-                </Text>
                 <TouchableOpacity
-                    style={buttonStyle}
-                    onPress={handleActionPress}
+                    style={[
+                        styles.actionButton,
+                        isDisabled ? styles.disabledButton : buttonStyleOverride
+                    ]}
+                    onPress={handlePress}
+                    disabled={isDisabled}
                 >
                     <Text style={[
                         styles.buttonText,
-                        isProcessing ? styles.trackButtonText : styles.reviewButtonText
+                        isDisabled ? styles.disabledButtonText : (item.isExpert && isPending ? styles.reviewButtonText : styles.trackButtonText)
                     ]}>
                         {item.buttonText}
                     </Text>
@@ -102,14 +135,15 @@ const HistoryItem: FC<HistoryItemProps> = memo(({ item, onPressAction }) => {
             </View>
         </View>
     );
-});
+};
 
 export default HistoryItem;
 
 // ======================================================================
-// 3. STYLES (Giữ nguyên từ code cũ)
+// STYLES (Sao chép từ HistoryScreen.tsx để đảm bảo đồng bộ)
 // ======================================================================
 const styles = StyleSheet.create({
+    // --- Container ---
     itemContainer: {
         flexDirection: 'row',
         paddingVertical: 15,
@@ -118,7 +152,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
 
-    // --- Image Grid Styles ---
+    // --- Image Grid ---
     imageGrid: {
         width: 80,
         height: 80,
@@ -127,6 +161,14 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         overflow: 'hidden',
         borderRadius: 8,
+        backgroundColor: '#f0f0f0', // Thêm nền cho trường hợp không có ảnh
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    noImageText: {
+        fontSize: 12,
+        color: '#aaa',
+        textAlign: 'center',
     },
     gridImage: {
         width: '50%',
@@ -135,10 +177,10 @@ const styles = StyleSheet.create({
     fullImage: {
         width: '100%',
         height: '100%',
-        borderRadius: 8,
+        borderRadius: 8, // Thêm lại border radius cho ảnh đơn
     },
 
-    // --- Content Styles ---
+    // --- Content ---
     itemContent: {
         flex: 1,
     },
@@ -149,16 +191,34 @@ const styles = StyleSheet.create({
     },
     itemNumber: {
         fontWeight: 'bold',
-    },
+    }, // Không dùng
     itemMethod: {
         fontSize: 16,
         fontWeight: '600',
         marginTop: 2,
+        color: '#333'
     },
+    extraInfoText: {
+        fontSize: 12,
+        color: '#888',
+        marginTop: 4,
+    },
+    dateText: {
+        fontSize: 12,
+        color: '#888',
+        marginRight: 10,
+    },
+
+    // --- Status ---
     statusRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 5,
+        flexWrap: 'wrap',
+    },
+    statusIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     itemStatus: {
         fontSize: 14,
@@ -178,6 +238,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
+        marginRight: 5,
     },
     checkIcon: {
         color: '#fff',
@@ -186,7 +247,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
 
-    // --- Actions Styles ---
+    // --- Actions ---
     itemActions: {
         marginLeft: 10,
         alignItems: 'flex-end',
@@ -211,7 +272,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderWidth: 1,
         borderColor: '#4C7BE2',
-    },
+    }, // Không dùng
     buttonText: {
         fontSize: 14,
         fontWeight: '600',
@@ -221,5 +282,12 @@ const styles = StyleSheet.create({
     },
     reviewButtonText: {
         color: '#4C7BE2',
-    }
+    },
+    disabledButton: {
+        backgroundColor: '#ccc', // Màu nền xám khi disabled
+    },
+    disabledButtonText: {
+        color: '#888', // Màu chữ xám khi disabled
+    },
+
 });

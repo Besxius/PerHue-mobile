@@ -10,7 +10,6 @@ import {
     Image,
     Dimensions,
     Animated,
-    TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,7 +27,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Entypo from '@expo/vector-icons/Entypo';
 import Svg, { Rect, Mask, Circle, Defs, Ellipse } from 'react-native-svg';
-import { CapsulePaletteModel, Color, ColorType } from '../types/dataModels';
+import { ColorTestRequest, CapsulePaletteModel, Color, ColorType, ImageFile, ManualColorTestResponse, AiColorTestResponse } from '../types/dataModels';
 import { getCorlorListSpectrum } from '../api/colorApi';
 import ColorPopup from '../components/ColorPopup';
 import ColorPickerPopup from '../components/ColorPickerPopup';
@@ -36,6 +35,11 @@ import PalettePopup from '../components/PalettePopup';
 import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
 import ColorPickerOverlay, { AttributeColor, DEFAULT_SELECTED_COLORS, SelectedColors } from '../components/ColorPickerOverlay';
 import { FontAwesome } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
+import { aiColorTest, expertColorTest, manualColorTest } from '../api/colorTestApi';
+import ManualResultModal from '../components/ManualResultModal';
+import AiTestResultModal from '../components/AiResultModal';
+import ExpertSuccessModal from '../components/ExpertSuccessModal';
 
 // Get screen dimensions
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -47,8 +51,8 @@ type CaptureMode = 'manual' | 'ai' | 'expert';
 // Default color value
 const DEFAULT_COLOR: Color = { id: 0, name: "Default White", hexCode: "white" };
 
-const OVAL_WIDTH = screenWidth * 0.55;
-const OVAL_HEIGHT = screenWidth * 0.7;
+const OVAL_WIDTH = screenWidth * 0.7;
+const OVAL_HEIGHT = screenWidth * 0.8;
 const OVAL_RADIUS_X = OVAL_WIDTH / 2;
 const OVAL_RADIUS_Y = OVAL_HEIGHT / 2;
 const OVAL_CENTER_X = screenWidth / 2;
@@ -82,30 +86,39 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const [fullPreviewUri, setFullPreviewUri] = useState<string | null>(null);
     const [currentPhoto, setCurrentPhoto] = useState<PhotoAsset>(null);
-    const [captionText, setCaptionText] = useState('');
 
     const [captureMode, setCaptureMode] = useState<CaptureMode>('manual');
 
     const [showLeftControls, setShowLeftControls] = useState(true);
 
-    const [showColorPicker, setShowColorPicker] = useState(false);
+    const [showColorPickerPopup, setShowColorPickerTool] = useState(false);
+    const [showColorPopup, setShowColorPicker] = useState(false);
+    const [showPalettPopup, setShowPalettePicker] = useState(false);
+    const [showSkiaPicker, setShowSkiaPicker] = useState(false);
 
-    const [showColorPickerTool, setShowColorPickerTool] = useState(false);
-
-    const [showPalettePicker, setShowPalettePicker] = useState(false);
+    const [savedColors, setSavedColors] = useState<Color[]>([]);
+    const [showSavedColorPopup, setShowSavedColorPopup] = useState(false);
 
     const [selectedColorInfo, setSelectedColorInfo] = useState<Color>(DEFAULT_COLOR);
 
     const [colorFilters, setColorFilters] = useState<Color[]>([]);
-
-    const highlightAnim = useRef(new Animated.Value(TAB_POSITIONS.manual)).current;
     const [colorTypes, setColorTypes] = useState<ColorType[]>([]);
     const [palettesBySeason, setPalettesBySeason] = useState<CapsulePaletteModel[]>([]);
     const [isLoadingPalettes, setIsLoadingPalettes] = useState(false);
     const [selectedTabName, setSelectedTabName] = useState<string>('');
 
-    const [showSkiaPicker, setShowSkiaPicker] = useState(false);
     const [capturedColors, setCapturedColors] = useState<SelectedColors | null>(null);
+    const [showModeDropdown, setShowModeDropdown] = useState(false);
+
+    const [showManualResultModal, setShowManualResultModal] = useState(false);
+    const [manualResultData, setManualResultData] = useState<ManualColorTestResponse | null>(null);
+
+    const [showAiResultModal, setShowAiResultModal] = useState(false);
+    const [aiResultData, setAiResultData] = useState<AiColorTestResponse | null>(null);
+
+    const [showExpertSuccessModal, setShowExpertSuccessModal] = useState(false);
+
+    const highlightAnim = useRef(new Animated.Value(TAB_POSITIONS.manual)).current;
 
     const loadPalettesByTypeId = useCallback(async (colorTypeId: number, seasonName: string) => {
         setIsLoadingPalettes(true);
@@ -182,6 +195,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         setShowColorPicker(false);
         setShowColorPickerTool(false);
         setShowPalettePicker(false);
+        setShowSavedColorPopup(false);
     };
 
     const handleShowPalettePicker = () => {
@@ -193,6 +207,280 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         } else {
             Alert.alert("Chụp Ảnh", "Vui lòng chụp ảnh hoặc chọn ảnh từ thư viện trước.");
         }
+    };
+    const handleChangeCaptureMode = (mode: 'manual' | 'ai' | 'expert') => {
+        if (mode === 'manual') {
+            setShowSkiaPicker(false);
+            setCaptureMode(mode);
+        } else {
+            setShowSkiaPicker(true);
+            setCaptureMode(mode);
+        }
+    };
+    const handleChangeCaptureModePreview = (newMode: 'ai' | 'expert') => {
+        setCaptureMode(newMode);
+        setShowModeDropdown(false);
+    };
+    const handleSaveColor = () => {
+        if (selectedColorInfo.id !== DEFAULT_COLOR.id) {
+            // Kiểm tra xem màu đã tồn tại chưa (có thể dùng id hoặc hexCode để so sánh)
+            const exists = savedColors.some(c => c.id === selectedColorInfo.id || c.hexCode === selectedColorInfo.hexCode);
+
+            if (!exists) {
+                // Tạo một bản sao mới của màu để gán ID tạm thời nếu cần (đảm bảo mỗi màu có ID duy nhất)
+                const colorToSave: Color = {
+                    ...selectedColorInfo,
+                    id: selectedColorInfo.id === 0 ? Date.now() : selectedColorInfo.id
+                };
+                setSavedColors(prev => [colorToSave, ...prev]);
+                Toast.show({
+                    type: 'success',
+                    text1: 'Thành công',
+                    text2: `Đã lưu màu "${selectedColorInfo.name}"!`,
+                    visibilityTime: 2000,
+                });
+            } else {
+                Toast.show({
+                    type: 'info', // Hoặc type: 'warning'
+                    text1: 'Thông báo',
+                    text2: `Màu "${selectedColorInfo.name}" đã được lưu trước đó.`,
+                    visibilityTime: 2000,
+                });
+            }
+        } else {
+            Toast.show({
+                type: 'error',
+                text1: 'Lỗi',
+                text2: 'Vui lòng chọn một màu cụ thể để lưu.',
+                visibilityTime: 2000,
+            });
+        }
+    };
+
+    const handleDeleteSavedColor = (colorId: number) => {
+        setSavedColors(prevColors => {
+            const updatedColors = prevColors.filter(color => color.id !== colorId);
+            // Nếu màu bị xóa đang là màu được chọn hiện tại, reset về DEFAULT_COLOR
+            if (selectedColorInfo.id === colorId) {
+                setSelectedColorInfo(DEFAULT_COLOR);
+            }
+            return updatedColors;
+        });
+    };
+
+    const handleManualTest = async () => {
+        if (!currentPhoto) {
+            Toast.show({ type: 'error', text1: 'Error', text2: 'No photo captured to submit.', visibilityTime: 2000 });
+            return;
+        }
+
+        const SelectedColors: string[] = savedColors.map(c => c.hexCode);
+        console.log("SelectedColors for Manual Test:", SelectedColors);
+
+        if (SelectedColors.length === 0) {
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Please select at least one saved color.', visibilityTime: 3000 });
+            return;
+        }
+
+        const isPhotoFile = (currentPhoto: PhotoAsset): currentPhoto is PhotoFile => {
+            return (currentPhoto as PhotoFile).path !== undefined;
+        };
+
+        let imageFileForApi: ImageFile;
+        const defaultMimeType = 'image/jpeg';
+        const defaultFileName = 'photo.jpg';
+
+        if (isPhotoFile(currentPhoto)) {
+            const path = currentPhoto.path;
+
+            const fileName = path.substring(path.lastIndexOf('/') + 1) || defaultFileName;
+            const fileExtension = fileName.split('.').pop()?.toLowerCase();
+
+            let mimeType = defaultMimeType;
+            if (fileExtension === 'png') {
+                mimeType = 'image/png';
+            } else if (fileExtension === 'heic') {
+                mimeType = 'image/heic';
+            }
+
+            imageFileForApi = {
+                uri: `file://${path}`,
+                type: mimeType,
+                name: fileName,
+            };
+        } else if (currentPhoto && currentPhoto.uri) {
+            const uri = currentPhoto.uri;
+            const fileName = currentPhoto.fileName || uri.substring(uri.lastIndexOf('/') + 1) || defaultFileName;
+            imageFileForApi = {
+                uri: uri,
+                type: currentPhoto.type || defaultMimeType,
+                name: fileName,
+            };
+        } else {
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Invalid photo data. Cannot format for API.', visibilityTime: 3000 });
+            return;
+        }
+
+        Toast.show({ type: 'info', text1: 'Processing', text2: 'Uploading photo and colors to the server...', visibilityTime: 3000 });
+
+        try {
+            // 3. Gọi API với định dạng đầu vào đã chuẩn hóa (string[] và ImageFile)
+            // Lưu ý: Đảm bảo hàm manualColorTest đã được định nghĩa để nhận (string[], ImageFile)
+            const result: ManualColorTestResponse = await manualColorTest(SelectedColors, imageFileForApi);
+
+            setManualResultData(result);
+            setShowManualResultModal(true);
+
+            // Tùy chọn: Reset trạng thái camera sau khi gửi thành công
+            // handleRetake(); 
+
+        } catch (error) {
+            console.error('Error calling manualColorTest API:', error);
+
+            // Xử lý lỗi với Type Narrowing cho Axios (đảm bảo import axios)
+            let errorMessage = 'Failed to retrieve color analysis results.';
+
+            console.error('Error calling manualColorTest API:', error);
+
+            Toast.show({
+                type: 'error',
+                text1: 'API Error',
+                text2: errorMessage,
+                visibilityTime: 4000
+            });
+        }
+    };
+
+    const handleNavigateToManualDetail = () => {
+        if (manualResultData && fullPreviewUri) {
+            setShowManualResultModal(false); // Đóng modal
+            navigation.navigate('ManualResultDetail', {
+                resultData: manualResultData, // Truyền data theo cấu trúc mới
+                currentPhotoUri: fullPreviewUri
+            });
+            // Tùy chọn: Reset trạng thái camera để chụp tiếp
+            // handleRetake(); 
+        } else {
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không có dữ liệu chi tiết.', visibilityTime: 2000 });
+        }
+    };
+
+    const handleCloseManualModal = () => {
+        setShowManualResultModal(false);
+        setManualResultData(null); // Reset dữ liệu khi đóng
+    };
+
+    const handleColorTest = async () => {
+        if (!currentPhoto || fullPreviewUri === null) {
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Please take a photo before sending.', visibilityTime: 2000 });
+            return;
+        }
+
+        if (captureMode !== 'ai' && captureMode !== 'expert') {
+            Toast.show({ type: 'error', text1: 'Error', text2: 'This function is only for AI or Expert mode.', visibilityTime: 2000 });
+            return;
+        }
+
+        if (!capturedColors) {
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Please select Hair, Eye, Lip and Skin color.', visibilityTime: 3000 });
+            return;
+        }
+
+        const isPhotoFile = (currentPhoto: PhotoAsset): currentPhoto is PhotoFile => {
+            return (currentPhoto as PhotoFile).path !== undefined;
+        };
+
+        let imageFileForApi: ImageFile;
+        const defaultMimeType = 'image/jpeg';
+        const defaultFileName = 'photo.jpg';
+
+        if (isPhotoFile(currentPhoto)) {
+            const path = currentPhoto.path;
+            const fileName = path.substring(path.lastIndexOf('/') + 1) || defaultFileName;
+            const fileExtension = fileName.split('.').pop()?.toLowerCase();
+            let mimeType = defaultMimeType;
+            if (fileExtension === 'png') {
+                mimeType = 'image/png';
+            } else if (fileExtension === 'heic') {
+                mimeType = 'image/heic';
+            }
+
+            imageFileForApi = {
+                uri: `file://${path}`,
+                type: mimeType,
+                name: fileName,
+            };
+        } else if (currentPhoto && currentPhoto.uri) {
+            const uri = currentPhoto.uri;
+            const fileName = currentPhoto.fileName || uri.substring(uri.lastIndexOf('/') + 1) || defaultFileName;
+            imageFileForApi = {
+                uri: uri,
+                type: currentPhoto.type || defaultMimeType,
+                name: fileName,
+            };
+        } else {
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Invalid image data.', visibilityTime: 3000 });
+            return;
+        }
+
+        // 3. Chuẩn bị tham số cho API
+        const aiTestParams: ColorTestRequest = {
+            imageFile: imageFileForApi,
+            hairColor: capturedColors.Hair.hex,
+            eyesColor: capturedColors.Eyes.hex,
+            lipsColor: capturedColors.Lips.hex,
+            skinColor: capturedColors.Skin.hex,
+        };
+
+        Toast.show({ type: 'info', text1: 'Processing', text2: `Sending image and color to AI Test mode ${captureMode.toUpperCase()}...`, visibilityTime: 3000 });
+
+
+        // 4. Gọi API aiColorTest
+        try {
+            if (captureMode === 'ai') {
+                const result = await aiColorTest(aiTestParams);
+
+                setAiResultData(result);
+                setShowAiResultModal(true);
+            } else {
+                const result = await expertColorTest(aiTestParams);
+
+                setShowExpertSuccessModal(true);
+
+                handleRetake()
+            }
+
+
+        } catch (error) {
+            console.error(`Error calling ${captureMode.toUpperCase()} API:`, error);
+
+            let errorMessage = `Thử nghiệm AI thất bại. Vui lòng thử lại.`;
+
+            Toast.show({
+                type: 'error',
+                text1: 'Lỗi API',
+                text2: errorMessage,
+                visibilityTime: 4000
+            });
+        }
+    };
+
+    const handleNavigateToAiDetail = (result: AiColorTestResponse) => {
+        if (fullPreviewUri) {
+            setShowAiResultModal(false); // Đóng modal
+            // Bạn cần đảm bảo đã cấu hình route 'AiResultDetail' trong AppNavigator
+            navigation.navigate('AiResultDetail', {
+                resultData: result,
+                currentPhotoUri: fullPreviewUri
+            });
+        } else {
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không có dữ liệu chi tiết ảnh.', visibilityTime: 2000 });
+        }
+    };
+
+    const handleCloseAiModal = () => {
+        setShowAiResultModal(false);
+        setAiResultData(null); // Reset dữ liệu khi đóng
     };
 
     useEffect(() => {
@@ -265,23 +553,15 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         });
     };
 
-    const handleUpload = () => {
-        if (!currentPhoto) {
-            Alert.alert('Error', 'No photo to upload.');
-            return;
-        }
-        Alert.alert('Simulated Upload', `Ready to upload photo from: ${'path' in currentPhoto ? currentPhoto.path : currentPhoto.uri}`, [
-            { text: "OK", onPress: handleRetake }
-        ]);
-    };
-
     const handleRetake = () => {
         setFullPreviewUri(null);
         setCurrentPhoto(null);
-        setCaptionText('');
         setCapturedColors(null);
+        setShowSavedColorPopup(false);
         if (captureMode === 'ai' || captureMode === 'expert') {
             setShowSkiaPicker(true);
+        } else {
+            setShowSkiaPicker(false);
         }
     };
 
@@ -306,9 +586,11 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         return <View style={styles.container}><Text style={styles.loadingText}>No camera devices found.</Text></View>;
     }
 
-    const shouldShowColorOverlay = captureMode === 'manual' && selectedColorInfo.id !== DEFAULT_COLOR.id && !showColorPicker;
+    const shouldShowColorOverlay = captureMode === 'manual' && selectedColorInfo.id !== DEFAULT_COLOR.id && !showColorPopup;
     const shouldShowFrame = (captureMode === 'ai' || captureMode === 'expert') && !fullPreviewUri;
     const shouldShowEyeDropper = (captureMode === 'ai' || captureMode === 'expert') && fullPreviewUri;
+    const shouldShowSavedColorButton = captureMode === 'manual' && selectedColorInfo.id !== DEFAULT_COLOR.id && !showColorPopup;
+    const shouldShowModeDropdown = fullPreviewUri && (captureMode === 'ai' || captureMode === 'expert');
 
     const renderColorBlock = (attribute: AttributeColor) => {
 
@@ -402,10 +684,37 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                         placeholderTextColor="rgba(255, 255, 255, 0.7)"
                     /> */}
 
-                    <TouchableOpacity style={[styles.sendButton, { bottom: insets.bottom + 70 }]} onPress={handleUpload}>
+                    {shouldShowModeDropdown && (
+                        <View style={[styles.modeDropdownWrapper, { bottom: insets.bottom + 70 }]}>
+                            <TouchableOpacity style={styles.modeDropdownButton} onPress={() => setShowModeDropdown(prev => !prev)}>
+                                <Text style={styles.modeDropdownText}>{captureMode.toUpperCase()}</Text>
+                                <Ionicons name={showModeDropdown ? "chevron-up" : "chevron-down"} size={20} color="white" />
+                            </TouchableOpacity>
+
+                            {showModeDropdown && (
+                                <View style={styles.modeDropdownList}>
+                                    {['ai', 'expert']
+                                        .filter(mode => mode !== captureMode)
+                                        .map((mode) => (
+                                            <TouchableOpacity
+                                                key={mode}
+                                                style={styles.dropdownItem}
+                                                onPress={() => handleChangeCaptureModePreview(mode as 'ai' | 'expert')}
+                                            >
+                                                <Text style={styles.dropdownItemText}>{mode.toUpperCase()}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.sendButton, { bottom: insets.bottom + 70 }]}
+                        onPress={captureMode === 'manual' ? handleManualTest : handleColorTest}
+                    >
                         <View style={styles.sendButtonContent}>
                             <Text style={styles.buttonText}>SEND</Text>
-                            {/* <Ionicons name="chevron-forward" size={24} color="white" style={styles.sendIcon} /> */}
                         </View>
                     </TouchableOpacity>
                     {capturedColors && (
@@ -415,6 +724,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                             )}
                         </View>
                     )}
+
                 </View>
             )}
 
@@ -465,11 +775,18 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                         >
                             <FontAwesome name="eyedropper" size={24} color="white" />
                         </TouchableOpacity>)}
+                    {captureMode === 'manual' && (
+                        <TouchableOpacity
+                            style={styles.leftControlButton}
+                            onPress={() => setShowSavedColorPopup(true)}
+                        >
+                            <FontAwesome name="tags" size={24} color="white" />
+                        </TouchableOpacity>)}
                 </View>
             )}
 
             {/* Tag Name Container (Hidden in preview and when Popup is open) */}
-            {!showColorPicker && (
+            {!showColorPopup && !(captureMode === 'ai' || captureMode === 'expert') && (
                 <View style={styles.filterTagContainer}>
                     <View style={styles.filterRow}>
                         {/* 1. Tag Name */}
@@ -492,6 +809,11 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                                 </TouchableOpacity>
                             </View>
                         )}
+                        {shouldShowSavedColorButton && (
+                            <TouchableOpacity style={styles.saveColorButton} onPress={handleSaveColor}>
+                                <Ionicons name="bookmark" size={24} color="white" />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
             )}
@@ -511,10 +833,10 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                         ]} />
 
                         {/* Tab Buttons */}
-                        <TouchableOpacity style={[styles.tabButton]} onPress={() => setCaptureMode('manual')}>
+                        <TouchableOpacity style={[styles.tabButton]} onPress={() => handleChangeCaptureMode('manual')}>
                             <Text style={[styles.modeText, captureMode === 'manual' && styles.activeModeText]}>Manual</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.tabButton]} onPress={() => setCaptureMode('ai')}>
+                        <TouchableOpacity style={[styles.tabButton]} onPress={() => handleChangeCaptureMode('ai')}>
                             <Text style={[styles.modeText, captureMode === 'ai' && styles.activeModeText]}>AI</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.tabButton]} onPress={() => setCaptureMode('expert')}>
@@ -539,21 +861,21 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             )}
 
             <ColorPopup
-                showColorPicker={showColorPicker}
+                showColorPicker={showColorPopup}
                 setShowColorPicker={setShowColorPicker}
                 colorFilters={colorFilters}
                 selectedColorInfo={selectedColorInfo}
                 handleColorSelect={handleColorSelect}
             />
             <ColorPickerPopup
-                isVisible={showColorPickerTool}
+                isVisible={showColorPickerPopup}
                 onClose={() => setShowColorPickerTool(false)}
                 onColorSelected={handleColorSelect}
                 initialColorHex={selectedColorInfo.hexCode}
                 colorFilters={colorFilters}
             />
             <PalettePopup
-                showPalettePicker={showPalettePicker}
+                showPalettePicker={showPalettPopup}
                 setShowPalettePicker={setShowPalettePicker}
                 colorFilters={colorFilters}
                 handleColorSelect={handleColorSelect}
@@ -577,6 +899,39 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                     }}
                 />
             )}
+            <ColorPopup
+                showColorPicker={showSavedColorPopup}
+                setShowColorPicker={setShowSavedColorPopup}
+                colorFilters={savedColors}
+                selectedColorInfo={selectedColorInfo}
+                handleColorSelect={handleColorSelect}
+                title="SAVED COLORS"
+                canDelete={true}
+                onDeleteColor={handleDeleteSavedColor}
+            />
+
+            {/* MANUAL RESULT MODAL */}
+            <ManualResultModal
+                isVisible={showManualResultModal}
+                onClose={handleCloseManualModal}
+                resultData={manualResultData}
+                onNavigateToDetail={handleNavigateToManualDetail}
+                currentPhotoUri={fullPreviewUri}
+            />
+
+            <AiTestResultModal
+                isVisible={showAiResultModal}
+                onClose={handleCloseAiModal}
+                resultData={aiResultData}
+                currentPhotoUri={fullPreviewUri}
+                onNavigateToDetail={() => aiResultData && handleNavigateToAiDetail(aiResultData)}
+            />
+
+            <ExpertSuccessModal
+                isVisible={showExpertSuccessModal}
+                onClose={() => setShowExpertSuccessModal(false)}
+            />
+
         </View>
     );
 };
@@ -665,7 +1020,7 @@ const styles = StyleSheet.create({
     },
     sendButton: {
         position: 'absolute',
-        right: 20,
+        right: 30,
         backgroundColor: '#0095F6',
         borderRadius: 25,
         padding: 10,
@@ -774,6 +1129,18 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
     },
+    saveColorButton: {
+        position: 'absolute',
+        right: 20,
+        width: 45,
+        height: 45,
+        borderRadius: 22.5,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'white',
+    },
 
     // =========================================================
     // Styles for Bottom Navigation
@@ -871,6 +1238,48 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(65, 53, 53, 0.6)',
         borderRadius: 10,
         padding: 10,
+    },
+    // =========================================================
+    // Styles for Mode Dropdown (NEW)
+    // =========================================================
+    modeDropdownWrapper: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+    },
+    modeDropdownButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        borderRadius: 20,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+    },
+    modeDropdownText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+        marginRight: 8,
+    },
+    modeDropdownList: {
+        position: 'absolute',
+        top: 45,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        borderRadius: 10,
+        minWidth: 100,
+        alignItems: 'center',
+    },
+    dropdownItem: {
+        paddingVertical: 8,
+        paddingHorizontal: 15,
+        width: '100%',
+        alignItems: 'center',
+    },
+    dropdownItemText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '500',
     },
 });
 

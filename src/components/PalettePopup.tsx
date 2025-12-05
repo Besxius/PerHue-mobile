@@ -40,12 +40,6 @@ const hexToCmyk = (hexCode: string) => {
     };
 };
 
-type DetailedColor = {
-    id: number;
-    name: string;
-    hexCode: string;
-};
-
 interface PalettePopupProps {
     showPalettePicker: boolean;
     setShowPalettePicker: (visible: boolean) => void;

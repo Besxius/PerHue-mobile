@@ -1,7 +1,8 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { LoginResponseData } from '../types/dataModels';
+import { JwtPayload, LoginResponseData } from '../types/dataModels';
+import { jwtDecode } from 'jwt-decode';
 
 const HOST_LAN_IP = '192.168.1.10';
 const HTTP_PORT = '5009';
@@ -15,6 +16,8 @@ const HOST =
 export const API_BASE_URL = `http://${HOST}:${HTTP_PORT}/api`;
 export const AUTH_TOKEN_KEY = 'authToken';
 export const REFRESH_TOKEN_KEY = 'refreshToken';
+export const ROLE_KEY = 'userRole';
+export const USER_NAME_KEY = 'userName';
 
 export const apiClient: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
@@ -46,10 +49,59 @@ export const getRefreshToken = async (): Promise<string | null> => {
     return await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
 };
 
+export const setAuthRole = async (role: string | null): Promise<void> => {
+    if (role) {
+        await AsyncStorage.setItem(ROLE_KEY, role);
+    } else {
+        await AsyncStorage.removeItem(ROLE_KEY);
+    }
+};
+
+export const setUserName = async (name: string | null): Promise<void> => {
+    if (name) {
+        await AsyncStorage.setItem(USER_NAME_KEY, name);
+    } else {
+        await AsyncStorage.removeItem(USER_NAME_KEY);
+    }
+};
+
+export const getAuthRole = async (): Promise<string | null> => {
+    return await AsyncStorage.getItem(ROLE_KEY);
+};
+
+export const getUserName = async (): Promise<string | null> => {
+    return await AsyncStorage.getItem(USER_NAME_KEY);
+};
+
+export const clearAuthData = async (): Promise<void> => {
+    await setAuthToken(null);
+    await setRefreshToken(null);
+    await setAuthRole(null);
+    await setUserName(null);
+};
+
 export const loadAuthToken = async (): Promise<string | null> => {
     const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
     if (storedToken) {
         await setAuthToken(storedToken);
+        try {
+            const decodedPayload = jwtDecode<JwtPayload>(storedToken);
+            const userRole = decodedPayload.role;
+            const userName = decodedPayload.unique_name;
+
+            console.log(`[AUTH] Token Refreshed. New Role: ${userRole}, User: ${userName}`);
+
+            if (userRole) {
+                await setAuthRole(userRole);
+            }
+            if (userName) {
+                await setUserName(userName); // <-- LƯU USER NAME
+            }
+        } catch (e) {
+            console.warn("Could not decode stored JWT. Token might be invalid or expired.", e);
+            await clearAuthData();
+            return null;
+        }
     }
     return storedToken;
 };
@@ -99,7 +151,6 @@ const refreshAuthToken = async (expiredAccessToken: string): Promise<string | nu
                 accessToken: expiredAccessToken,
                 refreshToken: refreshToken
             },
-            // Đảm bảo request này không bị chặn bởi interceptor làm mới token
             { skipAuthRefresh: true } as AxiosRequestConfig
         );
 
@@ -108,6 +159,24 @@ const refreshAuthToken = async (expiredAccessToken: string): Promise<string | nu
 
         if (!newAccessToken) {
             throw new Error('Làm mới thất bại: Không nhận được Access Token mới.');
+        }
+
+        const decodedPayload = jwtDecode<JwtPayload>(newAccessToken);
+        const userRole = decodedPayload.role;
+        const userName = decodedPayload.unique_name;
+
+        console.log(`[AUTH] Token Refreshed. New Role: ${userRole}, User: ${userName}`);
+
+        if (userRole) {
+            await setAuthRole(userRole);
+        } else {
+            console.warn("Lưu ý: Không tìm thấy 'role' trong JWT Payload mới.");
+        }
+
+        if (userName) {
+            await setUserName(userName); // <-- LƯU USER NAME MỚI
+        } else {
+            console.warn("Lưu ý: Không tìm thấy 'unique_name' trong JWT Payload mới.");
         }
 
         // Lưu và thiết lập các token mới

@@ -3,7 +3,7 @@ import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import axios from 'axios';
 import { LoginCredentials, LoginResponseData, RegisterCredentials, SignInResult } from '../types/dataModels';
 import { ApiResponse } from '../types/apiTypes';
-import apiClient, { setAuthToken, setRefreshToken } from './apiClient';
+import apiClient, { clearAuthData, setAuthToken, setRefreshToken } from './apiClient';
 
 const USER_ENDPOINT = '/auth';
 export const login = async (credentials: LoginCredentials): Promise<LoginResponseData> => {
@@ -150,6 +150,10 @@ export async function signInWithGoogle(): Promise<SignInResult> {
             return { success: false, error: 'Account have canceled login' };
         }
 
+        if (error.message.includes('No access token returned')) {
+            await clearAuthData();
+        }
+
         // Xử lý các lỗi khác của Google Sign-in
         let errorMessage = `Lỗi đăng nhập: ${error.message}`;
         if (error.code === 'E_NETWORK_ERROR') {
@@ -171,8 +175,7 @@ export const logout = async (): Promise<void> => {
             console.error('Server Error when logout', error.response?.data?.message || error.message);
         }
     } finally {
-        await setAuthToken(null);
-        await setRefreshToken(null);
+        await clearAuthData();
     }
 };
 

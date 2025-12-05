@@ -13,7 +13,7 @@ import { Entypo, Ionicons } from '@expo/vector-icons';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 // Khai báo kiểu cho các ô màu được chọn
-export type AttributeColor = 'Skin' | 'Hair' | 'Eye' | 'Lip';
+export type AttributeColor = 'Skin' | 'Hair' | 'Eyes' | 'Lips';
 export type SelectedColors = Record<AttributeColor, { name: string, hex: string }>;
 
 interface ColorPickerOverlayProps {
@@ -27,8 +27,8 @@ const DEFAULT_COLOR_HEX = '#FFFFFF';
 export const DEFAULT_SELECTED_COLORS: SelectedColors = {
     Skin: { name: 'Skin', hex: DEFAULT_COLOR_HEX },
     Hair: { name: 'Hair', hex: DEFAULT_COLOR_HEX },
-    Eye: { name: 'Eye', hex: DEFAULT_COLOR_HEX },
-    Lip: { name: 'Lip', hex: DEFAULT_COLOR_HEX },
+    Eyes: { name: 'Eyes', hex: DEFAULT_COLOR_HEX },
+    Lips: { name: 'Lips', hex: DEFAULT_COLOR_HEX },
 };
 // Kích thước vòng chọn màu (Eyedropper)
 const PICKER_SIZE = 60;

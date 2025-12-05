@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Color } from "../types/dataModels";
-import { Modal, ScrollView, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, Text, StyleSheet, Dimensions } from "react-native";
+import { Modal, ScrollView, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, Text, StyleSheet, Dimensions, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 interface ColorPopupProps {
@@ -9,6 +9,9 @@ interface ColorPopupProps {
     colorFilters: Color[];
     selectedColorInfo: Color;
     handleColorSelect: (color: Color) => void;
+    onDeleteColor?: (colorId: number) => void;
+    canDelete?: boolean;
+    title?: string;
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -19,6 +22,9 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
     colorFilters,
     selectedColorInfo,
     handleColorSelect,
+    onDeleteColor,
+    canDelete = false,
+    title = "SELECT COLOR FILTER",
 }) => {
     const [searchText, setSearchText] = useState('');
     const [showColorNames, setShowColorNames] = useState(false);
@@ -34,6 +40,28 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
         );
     }, [colorFilters, searchText]);
 
+    const handleLongPress = (color: Color) => {
+        if (!canDelete || !onDeleteColor) return;
+
+        Alert.alert(
+            "Xác nhận xóa màu",
+            `Bạn có chắc chắn muốn xóa màu "${color.name}" khỏi danh sách đã lưu không?`,
+            [
+                {
+                    text: "Hủy",
+                    style: "cancel"
+                },
+                {
+                    text: "Xóa",
+                    style: "destructive",
+                    onPress: () => {
+                        onDeleteColor(color.id);
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <Modal
             animationType="slide"
@@ -46,7 +74,7 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
                     <TouchableWithoutFeedback>
                         <View style={styles.colorPickerPopupContainer}>
                             <View style={styles.modalHandle} />
-                            <Text style={styles.colorPickerTitle}>SELECT COLOR FILTER</Text>
+                            <Text style={styles.colorPickerTitle}>{title}</Text>
 
                             <View style={styles.headerControlsContainer}>
                                 <View style={styles.searchContainer}>
@@ -89,11 +117,22 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
                                                         { backgroundColor: color.hexCode },
                                                         isSelected && styles.activeColorFilter,
                                                         showColorNames && styles.colorFilterCircleSmall,
+                                                        canDelete && styles.deletableColorItem,
                                                     ]}
                                                     onPress={() => handleColorSelect(color)}
+                                                    onLongPress={canDelete ? () => handleLongPress(color) : undefined}
+                                                    delayLongPress={500}
                                                 >
                                                     {isSelected && <Ionicons name="checkmark" size={24} color="white" />}
                                                 </TouchableOpacity>
+                                                {canDelete && (
+                                                    <TouchableOpacity
+                                                        style={styles.deleteIconOverlay}
+                                                        onPress={canDelete ? () => handleLongPress(color) : undefined}
+                                                    >
+                                                        <Ionicons name="close" size={14} color="red" />
+                                                    </TouchableOpacity>
+                                                )}
                                                 {showColorNames && (
                                                     <Text style={styles.colorNameText} numberOfLines={1}>
                                                         {color.name}
@@ -234,6 +273,22 @@ const styles = StyleSheet.create({
     },
     activeColorFilter: {
         borderColor: 'white',
+    },
+
+    deletableColorItem: {
+        // Viền màu đỏ nhạt khi có thể xóa, báo hiệu long-press functionality
+        borderWidth: 1,
+        borderColor: 'rgba(255, 0, 0, 0.5)',
+    },
+
+    deleteIconOverlay: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        borderRadius: 10,
+        padding: 2,
+        zIndex: 10,
     },
 
     // Styles for color name
