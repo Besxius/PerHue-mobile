@@ -9,16 +9,16 @@ import {
     Alert,
     Modal,
     TouchableWithoutFeedback,
-    Linking, // Import Linking cho Deep Link Listener
+    Linking,
     Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, AntDesign, MaterialCommunityIcons } from '@expo/vector-icons';
-// Giả định các import API và Types này đã tồn tại
 import { PaymentCallbackParams, ServicePackage } from '../types/dataModels';
 import { getServicePackage } from '../api/dataApi';
 import WebView from 'react-native-webview';
 import { getPaymentLink, getPaymentSuccess, getPaymentCancel } from '../api/paymentApi';
+import Toast from 'react-native-toast-message';
 
 interface PackageUI extends ServicePackage {
     isAITest: boolean;
@@ -44,50 +44,37 @@ const formatPrice = (price: number): string => {
 interface PaymentModalProps {
     visible: boolean;
     packageDetails: PackageUI | null;
-    onClose: (refetchData?: boolean) => void; // Thêm tham số refetchData
-    onDeepLinkDetected: (url: string) => void; // Thêm prop để báo Deep Link đã được phát hiện
+    onClose: (refetchData?: boolean) => void;
+    onDeepLinkDetected: (url: string) => void;
 }
 
 
-// =========================================================
-// PAYMENT MODAL COMPONENT
-// =========================================================
 const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, onClose, onDeepLinkDetected }) => {
-    // =========================================================
-    // HOOKS
-    // =========================================================
     const [paymentLink, setPaymentLink] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isWebViewOpen, setIsWebViewOpen] = useState(false);
     const [isLoadingWebView, setIsLoadingWebView] = useState(true);
 
-    const APP_SCHEME = 'perhue'; // Deep Link Schema
-
-    // Hàm xử lý Deep Link và gọi API xác nhận
+    const APP_SCHEME = 'perhue';
     const handleDeepLinkProcessing = useCallback(async (url: string) => {
         console.log('Processing Deep Link:', url);
 
-        // Ngăn chặn gọi API nếu không có package
         if (!packageDetails) return;
 
-        // Tách URL để lấy path và Query String
         const urlParts = url.split('?');
         const fullPath = urlParts[0].replace(`${APP_SCHEME}://`, '');
         const isSuccess = fullPath.includes('success');
 
-        // ✨ BƯỚC 1: Lọc bỏ các Deep Link không liên quan đến thanh toán (ví dụ: expo-development-client)
         if (!fullPath.startsWith('payment/')) {
             console.log('Deep Link bị bỏ qua do không phải kết quả thanh toán.');
             return;
         }
 
-        // Đóng WebView nếu nó còn mở (quan trọng để ứng dụng hiển thị)
         setIsWebViewOpen(false);
 
         let params: PaymentCallbackParams = { code: '', id: '', cancel: false, status: '', orderCode: '', servicePackageId: 0 };
 
         try {
-            // Sử dụng URLSearchParams an toàn hơn
             const query = new URLSearchParams(urlParts[1]);
 
             params = {
@@ -101,7 +88,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
 
             console.log('Parsed Callback Params:', params);
 
-            // ✨ BƯỚC 2: Kiểm tra tính hợp lệ tối thiểu của tham số trước khi gọi API
             if (!params.code && !params.id && !params.orderCode) {
                 throw new Error("Tham số Deep Link không hợp lệ hoặc bị thiếu.");
             }
@@ -109,15 +95,33 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
             let apiResult;
             if (isSuccess) {
                 apiResult = await getPaymentSuccess(params);
-                Alert.alert('Thành Công', apiResult.message || 'Thanh toán thành công. Dịch vụ đã được kích hoạt!', [{ text: 'OK', onPress: () => onClose(true) }]);
+                Toast.show({
+                    type: 'success',
+                    text1: 'Payment Successful!',
+                    text2: apiResult.message || 'Service activated successfully.',
+                    visibilityTime: 4000,
+                });
+                onClose(true);
             } else {
                 apiResult = await getPaymentCancel(params);
-                Alert.alert('Đã Hủy', apiResult.message || 'Giao dịch đã bị hủy hoặc không thành công.', [{ text: 'OK', onPress: () => onClose(false) }]);
+                Toast.show({
+                    type: 'error',
+                    text1: 'Payment Failed or Cancelled',
+                    text2: apiResult.message || 'Transaction was cancelled or unsuccessful.',
+                    visibilityTime: 4000,
+                });
+                onClose(false);
             }
 
         } catch (e) {
             console.error('Lỗi khi phân tích hoặc gọi API xử lý Deep Link:', e);
-            Alert.alert('Lỗi Xử Lý', 'Không thể xác nhận kết quả thanh toán. Vui lòng kiểm tra lại trạng thái.', [{ text: 'OK', onPress: () => onClose(false) }]);
+            Toast.show({
+                type: 'error',
+                text1: 'Processing Error',
+                text2: 'Could not confirm payment result. Please check status.',
+                visibilityTime: 4000,
+            });
+            onClose(false);
         }
 
     }, [packageDetails, onClose]);
@@ -152,8 +156,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
         if (!packageDetails) return;
 
         if (packageDetails.price === 0) {
-            Alert.alert('Kích hoạt gói', `Bạn đã kích hoạt gói "${packageDetails.name}" miễn phí.`);
-            onClose(true); // Cần refetch data sau khi kích hoạt miễn phí
+            Toast.show({
+                type: 'info',
+                text1: 'Package Activation',
+                text2: `Successfully activated the free package "${packageDetails.name}".`,
+                visibilityTime: 4000,
+            });
+            onClose(true);
             return;
         }
 
@@ -166,7 +175,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
             setIsWebViewOpen(true);
             setIsLoadingWebView(true);
         } catch (error) {
-            Alert.alert('Lỗi Thanh Toán', 'Không thể tạo đường dẫn thanh toán. Vui lòng thử lại.');
+            Toast.show({
+                type: 'error',
+                text1: 'Checkout Error',
+                text2: 'Could not generate payment link. Please try again.',
+                visibilityTime: 4000,
+            });
             console.error(error);
             onClose(false);
         } finally {
@@ -174,10 +188,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
         }
     }, [packageDetails, onClose]);
 
-    // Lắng nghe sự kiện Deep Link được phát hiện từ bên ngoài (từ App)
     useEffect(() => {
         if (visible) {
-            // Thiết lập listener Deep Link toàn cục (cho trường hợp thoát WebView)
             const handleLinkingEvent = ({ url }: { url: string }) => {
                 if (url && url.startsWith(`${APP_SCHEME}://`)) {
                     console.log('Global Deep Link Detected:', url);
@@ -185,7 +197,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
                 }
             };
 
-            // Xử lý Deep Link khi ứng dụng được mở qua Deep Link
             Linking.getInitialURL().then(url => {
                 if (url && url.startsWith(`${APP_SCHEME}://`)) {
                     handleDeepLinkProcessing(url);
@@ -199,9 +210,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
             };
         }
     }, [visible, handleDeepLinkProcessing]);
-
-    // =========================================================
-    // KẾT THÚC CÁC HOOKS
 
     if (!packageDetails) return null;
 
@@ -256,7 +264,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
                         source={{ uri: paymentLink }}
                         // Sử dụng onShouldStartLoadWithRequest
                         onShouldStartLoadWithRequest={handleShouldStartLoad}
-                        onLoadEnd={() => setIsLoadingWebView(false)} // Ẩn loading khi trang PayOS load xong
+                        onLoadEnd={() => setIsLoadingWebView(false)}
                         startInLoadingState={true}
                         style={{ flex: 1 }}
                     />
@@ -265,7 +273,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
         );
     }
 
-    // Giao diện xác nhận cuối cùng
     return (
         <Modal
             animationType="slide"
@@ -339,9 +346,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
 };
 
 
-// =========================================================
-// PACKAGE SCREEN COMPONENT (Parent)
-// =========================================================
 const PackageItem: React.FC<PackageItemProps> = ({ pkg, style, onPress }) => (
     <TouchableOpacity style={[styles.packageCard, style]} onPress={() => onPress(pkg)}>
         <View style={styles.iconCircle}>
@@ -386,11 +390,8 @@ const PackageScreen: React.FC = () => {
         setIsModalVisible(true);
     };
 
-    // Hàm này sẽ nhận URL Deep Link từ Modal và xử lý
     const handleDeepLinkDetected = useCallback((url: string) => {
-        // Cần đóng Modal nếu Deep Link được kích hoạt từ WebView
         if (url.startsWith('perhue://')) {
-            // Logic xử lý chính đã nằm trong Modal, nhưng ta đóng Modal ở đây.
             setIsModalVisible(false);
         }
     }, []);
@@ -399,14 +400,12 @@ const PackageScreen: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            // Giả định getServicePackage() hoạt động và trả về data
             const data: ServicePackage[] = await getServicePackage();
 
             const mappedData: PackageUI[] = data.map((pkg, index) => ({
                 ...pkg,
                 isAITest: pkg.name.toLowerCase().includes('test') || pkg.name.toLowerCase().includes('freemium'),
                 isExpert: pkg.name.toLowerCase().includes('expert') || pkg.name.toLowerCase().includes('suggestion'),
-                // Giả định gói 0đ là gói đã được kích hoạt/kiểm tra
                 isChecked: pkg.price === 0,
             }));
 
@@ -424,7 +423,6 @@ const PackageScreen: React.FC = () => {
         fetchServicePackages();
     }, [fetchServicePackages]);
 
-    // Hàm đóng Modal và tùy chọn tải lại dữ liệu
     const handleModalClose = useCallback((refetchData = false) => {
         setIsModalVisible(false);
         setSelectedPackage(null);
@@ -560,7 +558,6 @@ const styles = StyleSheet.create({
     scrollViewContent: { paddingVertical: 10, paddingHorizontal: 10 },
     cardRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
 
-    // Package Item Styles
     packageCard: { alignItems: 'center', marginBottom: 30, maxWidth: '50%', paddingHorizontal: 5 },
     iconCircle: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: BLUE_COLOR, alignItems: 'center', justifyContent: 'center', marginBottom: 10, position: 'relative' },
     circleNumber: { fontSize: 14, fontWeight: 'bold', color: BLUE_COLOR, textAlign: 'center' },
@@ -580,7 +577,7 @@ const modalStyles = StyleSheet.create({
         backgroundColor: 'white',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        maxHeight: '80%', // Giới hạn chiều cao
+        maxHeight: '80%',
         paddingTop: 10,
     },
     header: {
@@ -640,7 +637,6 @@ const modalStyles = StyleSheet.create({
         marginBottom: 10,
     },
 
-    // THÊM Styles cho thông báo
     infoBox: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -658,7 +654,6 @@ const modalStyles = StyleSheet.create({
         color: '#333',
     },
 
-    // THÊM Styles cho Header của WebView
     webViewHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -680,7 +675,6 @@ const modalStyles = StyleSheet.create({
         padding: 20,
         borderTopWidth: 1,
         borderTopColor: '#eee',
-        // Đảm bảo footer không bị che bởi phím ảo Android
         paddingBottom: Platform.OS === 'android' ? 20 : 0,
     },
     cancelBtn: {

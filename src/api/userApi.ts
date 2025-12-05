@@ -1,11 +1,12 @@
 import axios from 'axios';
-import { AiTestResponse, ExpertTestResponse, ManualTestResult, UserInfo, UserSubscriptionInformation, VerificationPayload } from '../types/dataModels';
+import { AiTestResponse, ExpertTestResponse, ManualTestResult, ReportPayload, ReportResponse, UserInfo, UserSubscriptionInformation, VerificationPayload } from '../types/dataModels';
 import apiClient, { setAuthToken } from './apiClient';
 
 const USER_ENDPOINT = '/users';
 const TEST_INFO_ENDPOINT = '/testinformation';
 const VERIFICATION_ENDPOINT = '/verification';
 const SUBSCRIPTION_ENDPOINT = '/usersubscriptions';
+const REPORT_ENDPOINT = '/reports';
 
 export const loadUserInfo = async (): Promise<UserInfo> => {
     try {
@@ -233,4 +234,21 @@ export const getUserSubscriptionInformations = async (): Promise<UserSubscriptio
     }
 };
 
+export const submitReport = async (data: ReportPayload): Promise<ReportResponse> => {
+    const url = REPORT_ENDPOINT;
+
+    try {
+        const response = await apiClient.post<ReportResponse>(url, data);
+
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('Error submitting report:', error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || 'Failed to submit report.');
+        } else {
+            console.error('An unexpected error occurred while submitting report:', error);
+            throw new Error('An unexpected error occurred.');
+        }
+    }
+};
 

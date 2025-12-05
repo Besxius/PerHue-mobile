@@ -18,9 +18,12 @@ import ExpertDetailScreen from '../screens/ExpertDetailScreen';
 import { ExpertInfo } from '../types/dataModels';
 import ManualTestResultDetailScreen from '../screens/ManualTestResultDetailScreen';
 import VerifyExpertScreen from '../screens/VerifyExpertScreen';
-import UserSubscriptionScreen from '../screens/UserSubscriptionScreen';
 import AiTestResultDetailScreen from '../screens/AiTestResultDetailScreen';
 import CreateExpertTestResponse from '../screens/CreateExpertTestResponse';
+import MySubscriptionScreen from '../screens/MySubscriptionScreen';
+import MyPaymentHistoryScreen from '../screens/MyPaymentHistoryScreen';
+import TermAndPoliciesScreen from '../screens/TermAndPoliciesScreen';
+import HelpAndSupportScreen from '../screens/HelpAndSupportScreen';
 
 // 1. Kiểu cho Bottom Tab Routes (Giữ nguyên)
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
@@ -37,10 +40,13 @@ export type RootStackParamList = {
   UserScreen: undefined;
   ExpertDetailScreen: { expert: ExpertInfo };
   VerifyExpertScreen: undefined;
-  UserSubscriptionScreen: undefined;
   ManualTestResultDetailScreen: { id: number };
   CreateExpertTestResponse: { id: number },
   AiTestResultDetailScreen: { id: number };
+  MySubscriptionScreen: undefined;
+  MyPaymentHistoryScreen: undefined;
+  TermAndPoliciesScreen: undefined;
+  HelpAndSupportScreen: undefined;
 };
 
 
@@ -215,11 +221,35 @@ const RootNavigationStack = () => {
             }}
           />
           <RootStack.Screen
-            name="UserSubscriptionScreen"
-            component={UserSubscriptionScreen}
+            name="MySubscriptionScreen"
+            component={MySubscriptionScreen}
             options={{
               headerShown: true,
-              title: 'History subscription'
+              title: 'My subscription'
+            }}
+          />
+          <RootStack.Screen
+            name="MyPaymentHistoryScreen"
+            component={MyPaymentHistoryScreen}
+            options={{
+              headerShown: true,
+              title: 'My Payment History'
+            }}
+          />
+          <RootStack.Screen
+            name="TermAndPoliciesScreen"
+            component={TermAndPoliciesScreen}
+            options={{
+              headerShown: true,
+              title: 'Terms of Service & Privacy Policy'
+            }}
+          />
+          <RootStack.Screen
+            name="HelpAndSupportScreen"
+            component={HelpAndSupportScreen}
+            options={{
+              headerShown: true,
+              title: 'Help & Support'
             }}
           />
         </>
