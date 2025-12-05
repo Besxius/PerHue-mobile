@@ -84,7 +84,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
         // Đóng WebView nếu nó còn mở (quan trọng để ứng dụng hiển thị)
         setIsWebViewOpen(false);
 
-        let params: PaymentCallbackParams = { code: '', id: '', cancel: false, status: '', orderCode: '', packageId: 0 };
+        let params: PaymentCallbackParams = { code: '', id: '', cancel: false, status: '', orderCode: '', servicePackageId: 0 };
 
         try {
             // Sử dụng URLSearchParams an toàn hơn
@@ -96,7 +96,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
                 cancel: query.get('cancel') === 'true',
                 status: query.get('status') || '',
                 orderCode: query.get('orderCode') || '',
-                packageId: packageDetails.id,
+                servicePackageId: packageDetails.id,
             };
 
             console.log('Parsed Callback Params:', params);

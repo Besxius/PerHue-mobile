@@ -14,20 +14,12 @@ import {
     ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { UserInfo } from '../types/dataModels'; // Import kiểu UserInfo
-// ✅ ĐÃ SỬA: Thay đổi import để dùng services/userApi
+import { UserInfo } from '../types/dataModels';
 import { loadUserInfo, uploadProfilePicture } from '../api/userApi';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'; // Dùng react-native-vector-icons nếu có
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ImageLibraryOptions, launchImageLibrary } from 'react-native-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-
-// ⚠️ CHÚ Ý: BẠN CẦN CÀI ĐẶT VÀ BỎ COMMENT IMPORT THƯ VIỆN CHỌN ẢNH THỰC TẾ CỦA BẠN (ví dụ: react-native-image-picker)
-// import * as ImagePicker from 'react-native-image-picker'; 
-
-// **********************************************
-// COMPONENTS ĐƠN GIẢN (Giữ nguyên)
-// **********************************************
 
 // 1. Định nghĩa kiểu dữ liệu (Interface) cho Props
 interface InputProps {
@@ -35,7 +27,7 @@ interface InputProps {
     placeholder: string;
     value: string;
     onChangeText: (text: string) => void;
-    editable?: boolean; // Cho phép khóa các trường không thể chỉnh sửa
+    editable?: boolean;
 }
 
 const CustomInput = ({
@@ -54,17 +46,16 @@ const CustomInput = ({
                 value={value}
                 onChangeText={onChangeText}
                 placeholderTextColor="#888"
-                editable={editable} // Áp dụng thuộc tính editable
+                editable={editable}
             />
         </View>
     </View>
 );
 
-// --- COMPONENT MỚI: Radio Button cho Giới tính ---
 interface GenderInputProps {
     label: string;
-    value: 'Nam' | 'Nữ'; // ✅ ĐÃ SỬA: Khóa giá trị của value
-    onChange: (gender: 'Nam' | 'Nữ') => void; // ✅ ĐÃ SỬA: Khóa kiểu dữ liệu của hàm onChange
+    value: 'Nam' | 'Nữ';
+    onChange: (gender: 'Nam' | 'Nữ') => void;
 }
 
 const GenderInput: React.FC<GenderInputProps> = ({ label, value, onChange }) => (
@@ -88,7 +79,6 @@ const GenderInput: React.FC<GenderInputProps> = ({ label, value, onChange }) => 
 );
 
 
-// --- COMPONENT CẬP NHẬT: Date Input với Picker Logic ---
 const DateInput = ({
     label,
     value,
@@ -136,36 +126,30 @@ const DateInput = ({
             </TouchableOpacity>
 
             {showPicker && (
-                // Bỏ comment khối code này và thêm import để Date Picker hoạt động
                 <DateTimePicker
                     testID="dateTimePicker"
                     value={initialDate}
                     mode="date"
                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                     onChange={onDateChange}
-                    maximumDate={new Date()} // Ngày tối đa là ngày hiện tại
+                    maximumDate={new Date()}
                 />
             )}
         </View>
     );
 };
-// _________________________________________________________________________
-
 
 const UserScreen = () => {
     const insets = useSafeAreaInsets();
-    const TAB_BAR_HEIGHT = 60; // Giả định chiều cao Tab Bar
+    const TAB_BAR_HEIGHT = 60;
 
-    // 1. Dùng state để lưu trữ thông tin người dùng
     const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isUploading, setIsUploading] = useState(false); // Trạng thái tải ảnh
-
-    // 2. Dùng state riêng cho các trường có thể chỉnh sửa
+    const [isUploading, setIsUploading] = useState(false);
     const [fullname, setFullname] = useState('');
     const [phone, setPhone] = useState('');
-    const [gender, setGender] = useState<'Nam' | 'Nữ'>('Nam'); // Đổi thành kiểu string cụ thể
+    const [gender, setGender] = useState<'Nam' | 'Nữ'>('Nam');
     const [dob, setDob] = useState(new Date());
 
     const formatDate = (date: Date) => {
@@ -178,15 +162,10 @@ const UserScreen = () => {
         setLoading(true);
         setError(null);
         try {
-            // ✅ ĐÃ SỬA: Cập nhật đường dẫn import loadUserInfo
-            const data = await loadUserInfo(); // Gọi API
+            const data = await loadUserInfo();
             setUserInfo(data);
-
-            // Gán dữ liệu API vào các state chỉnh sửa
             setFullname(data.fullname || '');
             setPhone(data.phone || '');
-
-            // Xử lý gender (data.gender là boolean: true=Nam, false=Nữ)
             setGender(data.gender ? 'Nam' : 'Nữ');
 
             setDob(data.dob ? new Date(data.dob) : new Date());
@@ -194,7 +173,7 @@ const UserScreen = () => {
         } catch (err: any) {
             console.error('Lỗi tải thông tin:', err);
             setError(err.message || 'Không thể tải thông tin người dùng.');
-            setUserInfo(null); // Xóa dữ liệu cũ nếu lỗi
+            setUserInfo(null);
         } finally {
             setLoading(false);
         }
@@ -205,31 +184,26 @@ const UserScreen = () => {
     }, [fetchUserInfo]);
 
     const handleSaveChanges = () => {
-        // Chuẩn bị dữ liệu để gửi đi
         const updatedData = {
             fullname,
             phone,
-            gender: gender === 'Nam', // Chuyển lại thành boolean cho API
+            gender: gender === 'Nam',
             dob: formatDate(dob),
-            // ... các trường khác
         };
 
         Alert.alert('Chức năng', `Sẵn sàng gửi dữ liệu chỉnh sửa lên API: ${JSON.stringify(updatedData)}`);
-        // TODO: Gọi API PUT/PATCH để cập nhật thông tin người dùng.
     };
 
     // --- HÀM XỬ LÝ UPLOAD ẢNH MỚI (ĐÃ CẬP NHẬT) ---
     const handleUploadProfilePicture = async () => {
 
         // 1. GỌI IMAGE PICKER ĐỂ CHỌN ẢNH
-        // ⚠️ THAY THẾ KHỐI CODE GIẢ LẬP NÀY BẰNG GỌI API THỰC TẾ CỦA THƯ VIỆN CHỌN ẢNH
         const options: ImageLibraryOptions = {
             mediaType: 'photo',
             quality: 0.8,
             selectionLimit: 1,
         };
 
-        // ✅ GỌI THƯ VIỆN THỰC TẾ
         const response = await launchImageLibrary(options);
 
         if (response.didCancel) {
@@ -255,14 +229,12 @@ const UserScreen = () => {
         // 2. GỌI API UPLOAD
         setIsUploading(true);
         try {
-            // ✅ GỌI API CẬP NHẬT VỚI THÔNG TIN FILE THỰC TẾ
             const result = await uploadProfilePicture(
-                fileUri, // Gửi URI đã xử lý
+                fileUri,
                 asset.type,
                 asset.fileName
             );
 
-            // Sau khi upload thành công, server trả về { url: newImageUrl }
             setUserInfo(prev => prev ? { ...prev, profilepicture: result.url } : null);
 
             Alert.alert('Thành công', 'Ảnh đại diện đã được cập nhật!');
@@ -274,7 +246,6 @@ const UserScreen = () => {
         }
     };
 
-    // 3. Xử lý trạng thái Loading và Error
     if (loading) {
         return (
             <View style={[styles.flexContainer, styles.center]}>
@@ -295,7 +266,6 @@ const UserScreen = () => {
         );
     }
 
-    // Hiển thị UI chính nếu có dữ liệu
     return (
         <View style={styles.flexContainer}>
             <StatusBar barStyle="dark-content" />
@@ -334,20 +304,17 @@ const UserScreen = () => {
                             {isUploading ? (
                                 <ActivityIndicator size="small" color="#fff" />
                             ) : (
-                                // ✅ DÙNG ICON CHUẨN CỦA MÓDULE (pencil-circle)
                                 <MaterialCommunityIcons name="pencil-circle" size={30} color="#4285F4" style={{ backgroundColor: '#fff', borderRadius: 15 }} />
                             )}
                         </TouchableOpacity>
                     </View>
 
-                    {/* Input Fields */}
                     <View style={styles.inputSection}>
-                        {/* Trường không được chỉnh sửa (Hiển thị Email) */}
                         <CustomInput
                             label="Email"
                             placeholder="Email"
                             value={userInfo?.email || 'N/A'}
-                            onChangeText={() => { }} // Không cho phép chỉnh sửa
+                            onChangeText={() => { }}
                             editable={false}
                         />
                         <CustomInput
@@ -358,18 +325,14 @@ const UserScreen = () => {
                             editable={false}
                         />
 
-                        {/* Trường có thể chỉnh sửa */}
                         <CustomInput label="Fullname" placeholder="Nhập Họ & Tên" value={fullname} onChangeText={setFullname} />
                         <CustomInput label="Phone" placeholder="Nhập Số điện thoại" value={phone} onChangeText={setPhone} />
 
-                        {/* TRƯỜNG GIỚI TÍNH MỚI: Radio Button */}
                         <GenderInput label="Gender" value={gender} onChange={setGender} />
 
-                        {/* TRƯỜNG NGÀY SINH MỚI: Date Picker */}
                         <DateInput label="Date of Birth (DOB)" value={formatDate(dob)} onChangeDate={setDob} />
                     </View>
 
-                    {/* Nút Save (đặt trong ScrollView để đảm bảo scroll được) */}
                     <View style={styles.buttonWrapperScrolling}>
                         <TouchableOpacity
                             style={styles.saveButton}

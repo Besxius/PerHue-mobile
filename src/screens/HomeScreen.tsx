@@ -10,7 +10,7 @@ import {
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CustomHeader from '../components/CustomHeader';
@@ -19,6 +19,7 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { ExpertInfo } from '../types/dataModels';
 import { getExpertListRanked } from '../api/expertApi';
+import { getUserName } from '../api/apiClient';
 
 const { width } = Dimensions.get('window');
 
@@ -38,9 +39,25 @@ const colorTypeStyleImages = [
   { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
 ];
 
+const useUserName = () => {
+  const [userName, setUserName] = useState<string>('User');
+  useEffect(() => {
+    const loadName = async () => {
+      const name = await getUserName();
+      if (name) {
+        const firstName = name.split(' ')[0];
+        setUserName(firstName);
+      }
+    };
+    loadName();
+  }, []);
+  return userName;
+};
+
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabName>('home');
+  const userName = useUserName();
 
   const [expertList, setExpertList] = useState<ExpertInfo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -62,7 +79,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     };
 
     fetchExperts();
-  }, []); // [] đảm bảo chỉ chạy một lần khi mount
+  }, []);
 
   const handleTabPress = (tab: TabName) => {
     setActiveTab(tab);
@@ -77,8 +94,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   const navigateToExpertDetail = (expert: ExpertInfo) => {
-    // Sử dụng tên route 'ExpertDetailScreen' và truyền object expert qua params
     navigation.navigate('ExpertDetailScreen', { expert: expert });
+  };
+  const navigateToUserScreen = () => {
+    navigation.navigate('UserScreen');
   };
 
   return (
@@ -94,15 +113,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onNavigateToNotification={navigateToNotificationScreen}
         />
 
-        <TouchableOpacity style={styles.announcementCard}>
+        <TouchableOpacity
+          style={styles.welcomeCard} // Dùng style mới hoặc sửa announcementCard
+          onPress={navigateToUserScreen}
+        >
           <View>
-            <Text style={styles.announcementTitle}>Announcement</Text>
-            <Text style={styles.announcementBody} numberOfLines={2}>
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas
-              hendrerit luctus libero ac vulputate.
+            <Text style={styles.welcomeTitle}>Welcome, {userName}!</Text>
+            <Text style={styles.welcomeBody} numberOfLines={2}>
+              Access your profile information within the system.
             </Text>
           </View>
-          <Ionicons name="arrow-forward" size={24} color="white" style={styles.announcementArrow} />
+          <Ionicons name="arrow-forward" size={24} color="#3B82F6" style={styles.welcomeArrow} />
         </TouchableOpacity>
 
         {/* Hiển thị danh sách Famous Experts */}
@@ -131,7 +152,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </ScrollView>
         )}
 
-        <Text style={styles.sectionTitle}>My Orders</Text>
+        {/* <Text style={styles.sectionTitle}>My Orders</Text>
         <View style={styles.orderTabs}>
           <TouchableOpacity style={styles.orderTabActive}>
             <Text style={styles.orderTabTextActive}>Sent</Text>
@@ -140,7 +161,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={styles.orderTabTextInactive}>To Review</Text>
             <View style={styles.reviewDot} />
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         <Text style={styles.sectionTitle}>Some color type style</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorStyleScroll}>
@@ -172,31 +193,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  announcementCard: {
+  welcomeCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#444',
+    backgroundColor: '#E6EEFF', // Nền xanh nhạt
     borderRadius: 15,
     padding: 15,
     marginHorizontal: 20,
     marginBottom: 30,
+    borderLeftWidth: 5, // Thêm thanh màu xanh
+    borderLeftColor: '#3B82F6',
   },
-  announcementTitle: {
-    color: 'white',
+  welcomeTitle: {
+    color: '#3B82F6',
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 18,
     marginBottom: 4,
   },
-  announcementBody: {
-    color: '#ccc',
+  welcomeBody: {
+    color: '#555',
     fontSize: 14,
     width: width - 120,
   },
-  announcementArrow: {
+  welcomeArrow: {
     backgroundColor: '#3B82F6',
     borderRadius: 50,
     padding: 5,
+    color: 'white',
   },
   sectionTitle: {
     fontSize: 20,

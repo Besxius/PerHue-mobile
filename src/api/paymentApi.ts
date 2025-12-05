@@ -2,7 +2,7 @@ import axios from 'axios';
 import { ExpertInfo, PaymentCallbackParams, UserInfo } from '../types/dataModels';
 import apiClient from './apiClient';
 
-const USER_ENDPOINT = '/usersubscriptions';
+const USER_SUBSCRIPTION_ENDPOINT = '/usersubscriptions';
 
 const BASE_RETURN_URL = 'perhue://payment/success';
 const BASE_CANCEL_URL = 'perhue://payment/cancel';
@@ -11,7 +11,7 @@ export const getPaymentLink = async (subscriptionId: number): Promise<string> =>
     const encodedReturnUrl = encodeURIComponent(BASE_RETURN_URL);
     const encodedCancelUrl = encodeURIComponent(BASE_CANCEL_URL);
 
-    const paymentUrl = `${USER_ENDPOINT}/subscription/${subscriptionId}?returnUrl=${encodedReturnUrl}&cancelUrl=${encodedCancelUrl}`;
+    const paymentUrl = `${USER_SUBSCRIPTION_ENDPOINT}/subscription/${subscriptionId}?returnUrl=${encodedReturnUrl}&cancelUrl=${encodedCancelUrl}`;
 
     try {
         const response = await apiClient.post(paymentUrl);
@@ -37,10 +37,11 @@ export const getPaymentLink = async (subscriptionId: number): Promise<string> =>
 
 export const getPaymentSuccess = async (params: PaymentCallbackParams): Promise<any> => {
     // Xây dựng Query String từ các tham số
-    const queryString = `code=${params.code}&id=${params.id}&cancel=${params.cancel}&status=${params.status}&orderCode=${params.orderCode}&packageId=${params.packageId}`;
+    const queryString = `code=${params.code}&id=${params.id}&cancel=${params.cancel}&status=${params.status}&orderCode=${params.orderCode}&servicePackageId=${params.servicePackageId}`;
 
     // Endpoint Backend cần được gọi
-    const apiUrl = `${USER_ENDPOINT}/subscription/success?${queryString}`;
+    const apiUrl = `${USER_SUBSCRIPTION_ENDPOINT}/subscription/success?${queryString}`;
+    console.log('success url', apiUrl)
 
     try {
         // Sử dụng phương thức GET/POST tùy thuộc vào cấu hình Backend của bạn (Backend đang dùng GET)
@@ -61,10 +62,11 @@ export const getPaymentSuccess = async (params: PaymentCallbackParams): Promise<
  */
 export const getPaymentCancel = async (params: PaymentCallbackParams): Promise<any> => {
     // Xây dựng Query String từ các tham số
-    const queryString = `code=${params.code}&id=${params.id}&cancel=${params.cancel}&status=${params.status}&orderCode=${params.orderCode}&packageId=${params.packageId}`;
+    const queryString = `code=${params.code}&id=${params.id}&cancel=${params.cancel}&status=${params.status}&orderCode=${params.orderCode}&servicePackageId=${params.servicePackageId}`;
 
     // Endpoint Backend cần được gọi
-    const apiUrl = `${USER_ENDPOINT}/subscription/cancel?${queryString}`;
+    const apiUrl = `${USER_SUBSCRIPTION_ENDPOINT}/subscription/cancel?${queryString}`;
+    console.log('success url', apiUrl)
 
     try {
         // Sử dụng phương thức GET/POST tùy thuộc vào cấu hình Backend của bạn (Backend đang dùng GET)

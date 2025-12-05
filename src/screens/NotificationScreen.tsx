@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -7,85 +7,224 @@ import Animated, {
     interpolate,
     Extrapolate,
 } from 'react-native-reanimated';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Toast from 'react-native-toast-message';
+
+// --- Imports từ API và Types ---
+import { Notification } from '../types/dataModels';
+// Đảm bảo bạn đã import markNotificationAsRead
+import { getNotifications, markAllNotificationAsRead, markNotificationAsRead } from '../api/notificationApi';
 
 const { width } = Dimensions.get('window');
 const PADDING_HORIZONTAL = 16;
 const CONTAINER_WIDTH = width - PADDING_HORIZONTAL * 2;
+const TAB_GAP = 30;
 
-// --- Dữ liệu mô phỏng ---
-// Thêm nhiều mục hơn để đảm bảo cuộn được
-const dailyNotifications = [
-    { id: '1', type: 'Thank You, Mom!', message: "You're doing an amazing job today!...", time: 'Oct 22, 2025 • 10:30 AM', iconPlaceholder: '✨', iconBgColor: '#FFFBEA' },
-    { id: '2', type: "Today's Health Tip", message: 'Remember to stay hydrated! Aim for 8-10 glasses...', time: 'Oct 22, 2025 • 8:30 AM', iconPlaceholder: '💖', iconBgColor: '#FFF0F5' },
-    { id: '3', type: 'Nutrition Reminder', message: 'Include foods rich in iron and folate in your meals...', time: 'Oct 22, 2025 • 7:00 AM', iconPlaceholder: '🍏', iconBgColor: '#F0FFF0' },
-    { id: '4', type: 'Medication Check', message: 'Time for your prenatal vitamin. Don\'t forget to log it.', time: 'Oct 22, 2025 • 6:30 AM', iconPlaceholder: '💊', iconBgColor: '#F2E6FF' },
-    { id: '5', type: 'Sleep Goal', message: 'Aim for 7-9 hours of sleep tonight for optimal rest.', time: 'Oct 21, 2025 • 10:00 PM', iconPlaceholder: '😴', iconBgColor: '#E6F9FF' },
-    { id: '6', type: 'Appointment', message: 'Confirm your next check-up with your doctor tomorrow.', time: 'Oct 21, 2025 • 4:00 PM', iconPlaceholder: '🏥', iconBgColor: '#FFE6E6' },
-    { id: '7', type: 'Relax Time', message: 'Take 10 minutes for yourself. Try a short guided meditation.', time: 'Oct 21, 2025 • 2:00 PM', iconPlaceholder: '🧘', iconBgColor: '#E6FFE6' },
-];
+// Định nghĩa Tab Key
+type NotificationTab = 'currentMonth' | 'allTime';
 
-const monthlyUpdates = [
-    { id: 'm1', type: 'Month 7 Milestone', message: 'Review your third-trimester checklist and appointments...', time: 'Oct 1, 2025 • 9:00 AM', iconPlaceholder: '🗓️', iconBgColor: '#E6F7FF' },
-    { id: 'm2', type: 'Birth Plan Workshop', message: 'A reminder about the upcoming birth plan virtual session...', time: 'Sep 15, 2025 • 2:00 PM', iconPlaceholder: '👶', iconBgColor: '#FAF0E6' },
-    { id: 'm3', type: 'Financial Planning', message: 'Start budgeting for post-delivery expenses and leave.', time: 'Sep 1, 2025 • 10:00 AM', iconPlaceholder: '💰', iconBgColor: '#FFFBEA' },
-    { id: 'm4', type: 'Baby Shower Invite', message: 'RSVP for the baby shower on November 5th.', time: 'Aug 20, 2025 • 1:00 PM', iconPlaceholder: '🥳', iconBgColor: '#FFE6FF' },
-    { id: 'm5', type: 'Reading List', message: 'Recommended books on newborn care and parenting.', time: 'Aug 1, 2025 • 11:00 AM', iconPlaceholder: '📚', iconBgColor: '#F0FFF0' },
-];
+// --- Dữ liệu mô phỏng Icon ---
+const getIconProps = (type: string) => {
+    switch (type) {
+        case 'TestRequest': return { iconPlaceholder: '📝', iconBgColor: '#E6F7FF', groupName: 'NEW TEST REQUESTS' };
+        case 'SystemUpdate': return { iconPlaceholder: '⚙️', iconBgColor: '#FFFBEA', groupName: 'SYSTEM UPDATES' };
+        case 'ExpertFeedback': return { iconPlaceholder: '💬', iconBgColor: '#F0FFF0', groupName: 'EXPERT FEEDBACK' };
+        default: return { iconPlaceholder: '🔔', iconBgColor: '#F7F7F7', groupName: 'GENERAL NOTIFICATIONS' };
+    }
+};
 
-// --- Component cho mỗi mục thông báo ---
-const NotificationItem: React.FC<typeof dailyNotifications[0]> = ({ type, message, time, iconPlaceholder, iconBgColor }) => (
-    <View style={styles.notificationCard}>
-        <View style={[styles.iconContainer, { backgroundColor: iconBgColor }]}>
-            <Text style={styles.iconText}>{iconPlaceholder}</Text>
-        </View>
-        <View style={styles.textContainer}>
-            <Text style={styles.typeText}>{type}</Text>
-            <Text style={styles.messageText}>{message.substring(0, 70) + '...'}</Text>
-            <Text style={styles.timeText}>{time}</Text>
-        </View>
-    </View>
-);
-
-// --- Component hiển thị nội dung Tab (Dùng ScrollView) ---
-interface TabContentProps {
-    data: typeof dailyNotifications;
+// --- Component cho mỗi mục thông báo (cập nhật) ---
+interface NotificationItemProps extends Notification {
+    onReadPress: (notificationId: number) => void;
 }
 
-const TabContent: React.FC<TabContentProps> = ({ data }) => (
-    <ScrollView
-        style={styles.tabContent}
-        contentContainerStyle={styles.scrollContentContainer}
-        showsVerticalScrollIndicator={false}
-    >
-        {data.map(notification => (
-            <NotificationItem key={notification.id} {...notification} />
-        ))}
-        <View style={{ height: 40 }} /> {/* Thêm khoảng cách đệm cuối */}
-    </ScrollView>
-);
+const NotificationItem: React.FC<NotificationItemProps> = ({ id, title, content, time, isRead, onReadPress, type }) => {
+    const { iconPlaceholder, iconBgColor } = getIconProps(type);
+
+    const formatTime = (isoTime: string) => {
+        const date = new Date(isoTime);
+        return date.toLocaleDateString() + ' • ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    return (
+        // Bọc nội dung trong TouchableOpacity và gọi handler
+        <TouchableOpacity
+            style={[styles.notificationCard, isRead && styles.readCard]}
+            onPress={() => onReadPress(id)}
+            activeOpacity={isRead ? 0.8 : 0.6}
+        >
+            <View style={[styles.iconContainer, { backgroundColor: iconBgColor }]}>
+                <Text style={styles.iconText}>{iconPlaceholder}</Text>
+            </View>
+            <View style={styles.textContainer}>
+                <Text style={[styles.typeText, isRead && styles.readText]}>{title}</Text>
+                <Text style={[styles.messageText, isRead && styles.readText]}>{content}</Text>
+                <Text style={[styles.timeText, isRead && styles.readText]}>{formatTime(time)}</Text>
+            </View>
+        </TouchableOpacity>
+    );
+};
+const groupNotificationsByType = (data: Notification[]) => {
+    return data.reduce((acc, notification) => {
+        const type = notification.type;
+        if (!acc[type]) {
+            acc[type] = [];
+        }
+        acc[type].push(notification);
+        return acc;
+    }, {} as Record<string, Notification[]>);
+};
+// --- Component hiển thị nội dung Tab (Dùng ScrollView) ---
+interface TabContentProps {
+    data: Notification[];
+    isLoading: boolean;
+    onNotificationPress: (id: number) => void;
+}
+
+const TabContent: React.FC<TabContentProps> = ({ data, isLoading, onNotificationPress }) => {
+    const groupedData = useMemo(() => groupNotificationsByType(data), [data]);
+    const notificationTypes = Object.keys(groupedData);
+
+    if (isLoading) {
+        return (
+            <View style={[styles.tabContent, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color="#0000ff" />
+            </View>
+        );
+    }
+
+    if (data.length === 0) {
+        return (
+            <View style={[styles.tabContent, styles.loadingContainer]}>
+                <Text style={styles.emptyText}>No notifications found.</Text>
+            </View>
+        );
+    }
+
+    return (
+        <ScrollView
+            style={styles.tabContent}
+            contentContainerStyle={styles.scrollContentContainer}
+            showsVerticalScrollIndicator={false}
+        >
+            {/* Sắp xếp tiêu đề nhóm theo thứ tự ưu tiên (Tùy chọn) */}
+            {notificationTypes.map(type => (
+                <View key={type} style={styles.notificationGroup}>
+                    {/* Tiêu đề nhóm (Lấy tên nhóm đã định nghĩa trong getIconProps) */}
+                    <Text style={styles.groupTitle}>{getIconProps(type).groupName}</Text>
+
+                    {/* Danh sách thông báo trong nhóm */}
+                    {groupedData[type].map(notification => (
+                        <NotificationItem
+                            key={notification.id}
+                            {...notification}
+                            onReadPress={onNotificationPress}
+                        />
+                    ))}
+                </View>
+            ))}
+            <View style={{ height: 40 }} />
+        </ScrollView>
+    );
+};
 
 // --- Component chính cho màn hình ---
 const NotificationScreen: React.FC = () => {
-    const [activeTabIndex, setActiveTabIndex] = useState(0);
+    const [activeTab, setActiveTab] = useState<NotificationTab>('currentMonth');
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [showUnreadOnly, setShowUnreadOnly] = useState(false); // Trạng thái lọc
+
     const translateX = useSharedValue(0);
 
-    const handleTabPress = (index: number) => {
-        setActiveTabIndex(index);
-        translateX.value = withTiming(-index * CONTAINER_WIDTH, { duration: 300 });
+    // --- Logic API Fetching ---
+    const fetchNotifications = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const data = await getNotifications();
+            setNotifications(data.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())); // Sắp xếp theo thời gian mới nhất
+        } catch (e) {
+            console.error(e);
+            Toast.show({ type: 'error', text1: 'Load Failed', text2: 'Could not load notifications from API.', visibilityTime: 3000 });
+            setNotifications([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchNotifications();
+    }, [fetchNotifications]);
+
+    // --- Logic Xử lý Dữ liệu ---
+    const getMonthStart = (date: Date) => {
+        return new Date(date.getFullYear(), date.getMonth(), 1);
+    };
+
+    const currentMonthData = useMemo(() => {
+        const currentMonthStart = getMonthStart(new Date());
+        return notifications.filter(n => new Date(n.time) >= currentMonthStart);
+    }, [notifications]);
+
+    const allTimeData = notifications; // All notifications
+
+    // Dữ liệu được lọc theo tab và trạng thái chưa đọc
+    const filteredCurrentMonth = currentMonthData.filter(n => showUnreadOnly ? !n.isRead : true);
+    const filteredAllTime = allTimeData.filter(n => showUnreadOnly ? !n.isRead : true);
+
+    // Dữ liệu được hiển thị trên Tab hiện tại
+    const activeData = activeTab === 'currentMonth' ? filteredCurrentMonth : filteredAllTime;
+
+    // --- Handler khi nhấn vào thông báo ---
+    const handleNotificationPress = useCallback(async (notificationId: number) => {
+        const notification = notifications.find(n => n.id === notificationId);
+
+        // 1. Kiểm tra xem thông báo đã đọc chưa
+        if (notification?.isRead) {
+            return;
+        }
+
+        // 2. Cập nhật trạng thái cục bộ (UI phản hồi ngay lập tức)
+        setNotifications(prev => prev.map(n =>
+            n.id === notificationId ? { ...n, isRead: true } : n
+        ));
+
+        // 3. Gọi API để cập nhật trên server (chạy ngầm)
+        try {
+            await markNotificationAsRead(notificationId);
+        } catch (e) {
+            // Nếu API thất bại, đảo ngược trạng thái UI và hiển thị Toast
+            setNotifications(prev => prev.map(n =>
+                n.id === notificationId ? { ...n, isRead: false } : n
+            ));
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to mark as read on server.', visibilityTime: 3000 });
+        }
+    }, [notifications]);
+
+    // --- Logic Tab Animation ---
+    const handleTabPress = (tab: NotificationTab) => {
+        setActiveTab(tab);
+        const index = tab === 'currentMonth' ? 0 : 1;
+        translateX.value = withTiming(-index * (CONTAINER_WIDTH + TAB_GAP), { duration: 300 });
     };
 
     const animatedContentStyle = useAnimatedStyle(() => {
         return {
+            width: (CONTAINER_WIDTH * 2) + TAB_GAP,
+            flexDirection: 'row',
+            gap: TAB_GAP,
             transform: [{ translateX: translateX.value }],
-            width: CONTAINER_WIDTH * 2,
         };
     });
 
     const animatedIndicatorStyle = useAnimatedStyle(() => {
+        const index = activeTab === 'currentMonth' ? 0 : 1;
+
         const indicatorTranslate = interpolate(
             translateX.value,
             [0, -CONTAINER_WIDTH],
-            [0, (CONTAINER_WIDTH / 2) + 10], // Vị trí cuối của indicator
+            [0, (CONTAINER_WIDTH / 2) + 10],
             Extrapolate.CLAMP
         );
 
@@ -94,22 +233,44 @@ const NotificationScreen: React.FC = () => {
         };
     });
 
+    // --- Logic Đánh dấu Tất cả đã đọc ---
+    const handleMarkAllRead = async () => {
+        if (notifications.every(n => n.isRead)) {
+            Toast.show({ type: 'info', text1: 'Info', text2: 'All notifications are already marked as read.', visibilityTime: 2000 });
+            return;
+        }
+
+        try {
+            // Giả định hàm markAllNotificationAsRead không nhận tham số
+            await markAllNotificationAsRead();
+
+            // Cập nhật trạng thái local
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+            setShowUnreadOnly(false); // Tắt bộ lọc sau khi đọc tất cả
+
+            Toast.show({ type: 'success', text1: 'Success', text2: 'All notifications marked as read.', visibilityTime: 3000 });
+        } catch (e) {
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to mark all as read.', visibilityTime: 3000 });
+        }
+    };
+
     return (
         <View style={styles.container}>
+
             {/* Thanh Tab - Tab Bar */}
             <View style={styles.tabBarContainer}>
                 <View style={styles.tabBar}>
                     <TouchableOpacity
                         style={styles.tabButton}
-                        onPress={() => handleTabPress(0)}
+                        onPress={() => handleTabPress('currentMonth')}
                     >
-                        <Text style={activeTabIndex === 0 ? styles.activeTabText : styles.tabText}>Daily Notifications</Text>
+                        <Text style={activeTab === 'currentMonth' ? styles.activeTabText : styles.tabText}>Current Month</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.tabButton}
-                        onPress={() => handleTabPress(1)}
+                        onPress={() => handleTabPress('allTime')}
                     >
-                        <Text style={activeTabIndex === 1 ? styles.activeTabText : styles.tabText}>Monthly Updates</Text>
+                        <Text style={activeTab === 'allTime' ? styles.activeTabText : styles.tabText}>All Time</Text>
                     </TouchableOpacity>
 
                     {/* Thanh chỉ báo hoạt ảnh */}
@@ -117,11 +278,48 @@ const NotificationScreen: React.FC = () => {
                 </View>
             </View>
 
+            {/* Thanh điều khiển (Đọc tất cả và Lọc) */}
+            <View style={styles.controlBar}>
+                {/* Nút Đọc tất cả */}
+                <TouchableOpacity onPress={handleMarkAllRead} style={styles.controlButton}>
+                    <Ionicons name="checkmark-done-circle-outline" size={20} color="#000" />
+                    <Text style={styles.controlText}>Read All</Text>
+                </TouchableOpacity>
+
+                {/* Nút Lọc chưa đọc */}
+                <TouchableOpacity
+                    onPress={() => setShowUnreadOnly(prev => !prev)}
+                    style={[
+                        styles.controlButton,
+                        showUnreadOnly && styles.activeControlButton
+                    ]}
+                >
+                    <FontAwesome
+                        name={showUnreadOnly ? "filter" : "filter"}
+                        size={20}
+                        color={showUnreadOnly ? "#fff" : "#000"}
+                    />
+                    <Text style={[styles.controlText, showUnreadOnly && { color: '#fff' }]}>
+                        {showUnreadOnly ? 'Unread' : 'Unread'}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
             {/* Vùng chứa nội dung tab */}
             <View style={styles.contentWrapper}>
                 <Animated.View style={[styles.animatedContent, animatedContentStyle]}>
-                    <TabContent data={dailyNotifications} />
-                    <TabContent data={monthlyUpdates} />
+
+                    <TabContent
+                        data={filteredCurrentMonth}
+                        isLoading={isLoading}
+                        onNotificationPress={handleNotificationPress}
+                    />
+
+                    <TabContent
+                        data={filteredAllTime}
+                        isLoading={isLoading}
+                        onNotificationPress={handleNotificationPress}
+                    />
                 </Animated.View>
             </View>
         </View>
@@ -135,10 +333,20 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         paddingTop: 10,
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyText: {
+        fontSize: 16,
+        color: '#888',
+        marginTop: 20,
+    },
     // --- Tab Bar Styles ---
     tabBarContainer: {
         paddingHorizontal: PADDING_HORIZONTAL,
-        marginBottom: 20,
+        marginBottom: 10,
     },
     tabBar: {
         flexDirection: 'row',
@@ -176,23 +384,62 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#000',
     },
+    // --- Grouping Styles (UPDATED) ---
+    notificationGroup: {
+        marginBottom: 20,
+    },
+    groupTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 10,
+    },
+    // --- Control Bar Styles ---
+    controlBar: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        paddingHorizontal: PADDING_HORIZONTAL,
+        marginBottom: 20,
+        gap: 10,
+    },
+    controlButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f0',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#ccc',
+    },
+    activeControlButton: {
+        backgroundColor: '#000',
+        borderColor: '#000',
+    },
+    controlText: {
+        marginLeft: 5,
+        fontSize: 13,
+        fontWeight: '500',
+        color: '#000',
+    },
     // --- Animated Content Styles ---
     contentWrapper: {
-        flex: 1, // Chiếm hết phần còn lại của màn hình
+        flex: 1,
         overflow: 'hidden',
         paddingHorizontal: PADDING_HORIZONTAL,
     },
     animatedContent: {
         flexDirection: 'row',
+        gap: 0,
     },
     tabContent: {
         width: CONTAINER_WIDTH,
-        flex: 1, // Rất quan trọng cho ScrollView
+        flex: 1,
     },
     scrollContentContainer: {
-        // Không cần paddingBottom nếu đã có View đệm cuối
+        // ...
     },
-    // --- Notification Card Styles (Giữ nguyên) ---
+    // --- Notification Card Styles ---
     notificationCard: {
         flexDirection: 'row',
         backgroundColor: '#fff',
@@ -201,6 +448,13 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         borderWidth: 1,
         borderColor: '#eee',
+    },
+    readCard: {
+        opacity: 0.6,
+        backgroundColor: '#FAFAFA',
+    },
+    readText: {
+        color: '#A0A0A0',
     },
     iconContainer: {
         width: 48,

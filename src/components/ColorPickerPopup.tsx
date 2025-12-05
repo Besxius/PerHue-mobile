@@ -386,7 +386,7 @@ const colorPickerToolStyles = StyleSheet.create({
     modalContentInner: {
         flex: 1,
         alignItems: 'flex-start',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         width: '100%',
         paddingHorizontal: 20,
     },

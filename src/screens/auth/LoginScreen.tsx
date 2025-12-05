@@ -39,15 +39,19 @@ const isValidPassword = (password: string): boolean => {
 
 // 3. Phone Number Validation (Simple: 8-15 digits)
 const isValidPhone = (phone: string): boolean => {
-    const phoneRegex = /^\d{8,15}$/;
+    const phoneRegex = /^\d{8,10}$/;
     return phoneRegex.test(phone);
 };
 
 // 4. Date formatting
 const formatDate = (date: Date): string => {
     if (!date || isNaN(date.getTime())) return '';
-    // Format YYYY-MM-DD
-    return date.toISOString().split('T')[0];
+
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
 };
 
 const LoginScreen: React.FC = () => {
@@ -92,7 +96,6 @@ const LoginScreen: React.FC = () => {
 
     // --- Date Picker Logic ---
     const onDateChange = (event: any, selectedDate?: Date) => {
-        // Dismiss picker on Android after selection
         if (Platform.OS === 'android') {
             setShowDatePicker(false);
         }
@@ -189,7 +192,7 @@ const LoginScreen: React.FC = () => {
             phone: phoneNo,
             gender: gender,
             dob: formatDate(dob), // Use Date format function
-            profilepicture: profilePicture || undefined, // Use selected URI, or undefined if empty
+            profilepicture: profilePicture || '', // Use selected URI, or undefined if empty
         };
 
         console.log('Calling Register API with:', credentials);
