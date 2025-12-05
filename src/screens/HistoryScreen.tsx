@@ -221,6 +221,18 @@ const transformExpertHistory = (historyItem: ExpertRequestHistoryItem): BaseHist
     };
 };
 
+const filterHistory = async (statusFilter: string) => {
+    // Luôn tải toàn bộ lịch sử (vì không có API riêng cho từng trạng thái)
+    const results = await getRequestHistory();
+
+    // Lọc theo Expert Status hoặc Status chung
+    const filtered = results.filter(item =>
+        (item.expertStatus && item.expertStatus.toLowerCase() === statusFilter.toLowerCase()) ||
+        (item.status && item.status.toLowerCase() === statusFilter.toLowerCase())
+    );
+    return filtered.map(transformExpertHistory);
+};
+
 const EXPERT_TABS: TabConfig[] = [
     {
         name: 'Requests',
@@ -237,11 +249,18 @@ const EXPERT_TABS: TabConfig[] = [
         }
     },
     {
-        // THÊM TAB LỊCH SỬ MỚI
+        name: 'Completed',
+        apiFetcher: () => filterHistory('completed'),
+    },
+    {
+        name: 'Expired',
+        apiFetcher: () => filterHistory('expired'),
+    },
+    {
         name: 'History',
         apiFetcher: async () => {
-            const results = await getRequestHistory(); // GỌI API MỚI
-            return results.map(transformExpertHistory); // DÙNG HÀM TRANSFORM MỚI
+            const results = await getRequestHistory();
+            return results.map(transformExpertHistory);
         }
     },
 ];
@@ -333,14 +352,16 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
                 if (item.buttonText === 'Response Now') {
                     navigation.navigate('CreateExpertTestResponse' as any, { id: item.id });
                     return;
-                } else {
-                    navigation.navigate('ExpertReviewDetailScreen' as any, { id: item.id });
-                    return;
                 }
             }
 
-            if (activeTab?.name === 'Review' || activeTab?.name === 'History') {
+            if (activeTab?.name === 'Review') {
                 navigation.navigate('ExpertReviewDetailScreen' as any, { id: item.id });
+                return;
+            }
+
+            if (['History', 'Completed', 'Expired'].includes(activeTab?.name || '')) {
+                navigation.navigate('CreateExpertTestResponse' as any, { id: item.id });
                 return;
             }
         }

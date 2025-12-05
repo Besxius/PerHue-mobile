@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { getRequestById, createResponse } from '../api/expertApi';
-import { ExpertRequest, CreateResponseRequest, ColorType, Color } from '../types/dataModels';
+import { getRequestById, createResponse, updateExpertResponse } from '../api/expertApi';
+import { ExpertRequest, CreateResponseRequest, ColorType, Color, ExpertTestResponse, UpdateResponsePayload } from '../types/dataModels';
 import Toast from 'react-native-toast-message';
 import { getColorType } from '../api/capsulePaletteApi';
 import ColorPickerPopup from '../components/ColorPickerPopup';
@@ -72,10 +72,6 @@ const useResources = () => {
 };
 
 
-// =========================================================
-// COMPONENT HỖ TRỢ: HIỂN THỊ MÀU SẮC CỦA KHÁCH HÀNG (SKIN/HAIR/EYES/LIPS)
-// =========================================================
-
 interface ColorDetailDisplayProps {
     skinColor: string;
     hairColor: string;
@@ -111,10 +107,6 @@ const ColorDetailDisplay: FC<ColorDetailDisplayProps> = ({ skinColor, hairColor,
     );
 };
 
-// =========================================================
-// COMPONENT HỖ TRỢ: HIỂN THỊ MÀU ĐÃ CHỌN (KÈM NÚT XÓA)
-// =========================================================
-
 interface SelectedColorsDisplayProps {
     colors: Color[];
     onRemove: (colorId: number) => void;
@@ -145,41 +137,52 @@ const SelectedColorsDisplay: FC<SelectedColorsDisplayProps> = ({ colors, onRemov
 };
 
 
-// =========================================================
-// COMPONENT CHÍNH
-// =========================================================
-
 const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, navigation }) => {
-    const insets = useSafeAreaInsets(); // <-- SỬ DỤNG HOOK INSETS
+    const insets = useSafeAreaInsets();
 
     const testRequestId = route.params.id;
     const { colorTypes, colorFilters, isLoadingResources } = useResources();
 
-    // --- State quản lý dữ liệu Client Request ---
     const [clientRequest, setClientRequest] = useState<ExpertRequest | null>(null);
     const [isLoadingRequest, setIsLoadingRequest] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [responsesHistory, setResponsesHistory] = useState<ExpertTestResponse[]>([]);
 
-    // --- State Form ---
     const [note, setNote] = useState('');
     const [bestColorsList, setBestColorsList] = useState<Color[]>([]); // Lưu object Color
     const [worstColorsList, setWorstColorsList] = useState<Color[]>([]); // Lưu object Color
     const [colorTypeId, setColorTypeId] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // --- State cho Color Picker Modal ---
     const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
     const [pickerMode, setPickerMode] = useState<ColorPickerMode>(null);
     const [initialPickerHex, setInitialPickerHex] = useState('#4C7BE2');
 
-    // --- Logic đồng bộ hóa chuỗi HEX cho API ---
+    const hasExistingResponse = useMemo(() => responsesHistory.length > 0, [responsesHistory]);
+
     const updateColorStrings = useCallback((bestList: Color[], worstList: Color[]) => {
         const bestHex = bestList.map(c => c.hexCode).join(',');
         const worstHex = worstList.map(c => c.hexCode).join(',');
         return { bestHex, worstHex };
     }, []);
 
-    // --- Xử lý mở Color Picker ---
+    const hexStringToColorList = useCallback((hexString: string, colorFilters: Color[]): Color[] => {
+        if (!hexString) return [];
+        const hexCodes = hexString.split(',').map(h => h.trim().toUpperCase());
+
+        // Tạo danh sách Color objects: ưu tiên match với filters, nếu không thì tạo tạm thời
+        return hexCodes.map((hex, index) => {
+            const matchedColor = colorFilters.find(f => f.hexCode.toUpperCase() === hex);
+            return matchedColor || {
+                id: Date.now() + index, // Dùng ID tạm thời
+                name: hex,
+                hexCode: hex
+            };
+        });
+    }, []);
+
+
+
     const handleColorFieldPress = (mode: ColorPickerMode) => {
         setPickerMode(mode);
         const currentList = mode === 'BEST' ? bestColorsList : worstColorsList;
@@ -192,7 +195,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         setIsColorPickerVisible(true);
     };
 
-    // --- Xử lý khi màu được chọn từ Modal ---
     const handleColorAdded = useCallback((color: Color) => {
         if (!pickerMode) return;
 
@@ -216,7 +218,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
     }, [pickerMode]);
 
-    // --- Xử lý xóa màu ---
     const handleRemoveColor = useCallback((colorId: number, mode: 'Best' | 'Worst') => {
         if (mode === 'Best') {
             setBestColorsList(prev => prev.filter(c => c.id !== colorId));
@@ -225,26 +226,42 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         }
     }, []);
 
-    // --- Hàm tải dữ liệu Client Request ---
     const fetchClientRequest = useCallback(async () => {
         setIsLoadingRequest(true);
         setError(null);
         try {
             const data = await getRequestById(testRequestId);
-            setClientRequest(data);
+            setClientRequest(data.testRequest);
+            setResponsesHistory(data.responses || []);
+
+            if (data.responses && data.responses.length > 0) {
+                const latestResponse = data.responses[data.responses.length - 1];
+
+                setNote(latestResponse.note || '');
+                setColorTypeId(latestResponse.colorTypeId || null);
+
+                // Chuyển đổi màu HEX string thành Color List
+                const initialBest = hexStringToColorList(latestResponse.bestColor || '', colorFilters);
+                const initialWorst = hexStringToColorList(latestResponse.worstColor || '', colorFilters);
+
+                setBestColorsList(initialBest);
+                setWorstColorsList(initialWorst);
+            }
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
             setError(`Failed to load request: ${errorMessage}`);
         } finally {
             setIsLoadingRequest(false);
         }
-    }, [testRequestId]);
+    }, [testRequestId, hexStringToColorList, colorFilters]);
 
     useEffect(() => {
-        fetchClientRequest();
-    }, [fetchClientRequest]);
+        if (!isLoadingResources) {
+            fetchClientRequest();
+        }
+    }, [fetchClientRequest, isLoadingResources]);
 
-    // --- Hàm Submit Response ---
+
     const handleSubmit = useCallback(async () => {
         const { bestHex, worstHex } = updateColorStrings(bestColorsList, worstColorsList);
 
@@ -258,20 +275,44 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         const payload: CreateResponseRequest = {
             testRequestId: testRequestId,
             note: note.trim(),
-            bestColor: bestHex, // Chuỗi HEXs cách nhau bằng dấu phẩy
-            worstColor: worstHex, // Chuỗi HEXs cách nhau bằng dấu phẩy
+            bestColor: bestHex,
+            worstColor: worstHex,
             colorTypeId: colorTypeId,
         };
 
-        try {
-            await createResponse(payload);
+        const commonPayload: UpdateResponsePayload = {
+            note: note.trim(),
+            bestColor: bestHex,
+            worstColor: worstHex,
+            colorTypeId: colorTypeId,
+        }
 
-            Toast.show({
-                type: 'success',
-                text1: 'Success!',
-                text2: 'Response sent successfully and the request status has been updated.',
-                visibilityTime: 4000,
-            });
+        try {
+            if (hasExistingResponse) {
+                const updatePayload: UpdateResponsePayload = commonPayload;
+                await updateExpertResponse(testRequestId, updatePayload);
+
+                Toast.show({
+                    type: 'success',
+                    text1: 'Update Successful!',
+                    text2: 'Your analysis has been successfully updated.',
+                    visibilityTime: 4000,
+                });
+
+            } else {
+                const createPayload: CreateResponseRequest = {
+                    ...payload,
+                    testRequestId: testRequestId,
+                };
+                await createResponse(createPayload);
+
+                Toast.show({
+                    type: 'success',
+                    text1: 'Response Sent!',
+                    text2: 'Your analysis has been successfully submitted.',
+                    visibilityTime: 4000,
+                });
+            }
 
             navigation.goBack();
 
@@ -281,7 +322,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         } finally {
             setIsSubmitting(false);
         }
-    }, [testRequestId, note, bestColorsList, worstColorsList, colorTypeId, navigation, updateColorStrings]);
+    }, [testRequestId, note, bestColorsList, worstColorsList, colorTypeId, navigation, updateColorStrings, hasExistingResponse]);
 
     const isLoading = isLoadingRequest || isLoadingResources;
 
@@ -306,29 +347,24 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         );
     }
 
-    // Lấy ảnh đầu tiên của client
     const clientPictureUri = clientRequest.pictures?.[0]?.source;
 
     // --- Render Form ---
     return (
-        // Sử dụng insets.top cho padding trên cùng (nếu cần)
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <ScrollView
                 contentContainerStyle={[
                     styles.scrollViewContent,
-                    // Sử dụng insets.bottom để thêm khoảng đệm dưới cùng cho ScrollView
                     { paddingBottom: styles.scrollViewContent.paddingBottom + insets.bottom }
                 ]}
             >
 
-                {/* --- Thông tin Request của Client --- */}
                 <View style={styles.clientInfoCard}>
                     <Text style={styles.cardTitle}>Client Request Details #{clientRequest.id}</Text>
                     {clientPictureUri && (
                         <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
                     )}
 
-                    {/* Hiển thị bảng màu của Client */}
                     <ColorDetailDisplay
                         skinColor={clientRequest.skinColor}
                         hairColor={clientRequest.hairColor}
@@ -339,10 +375,8 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     <Text style={styles.dateTimeText}>Received on: {new Date(clientRequest.createdDate).toLocaleDateString()}</Text>
                 </View>
 
-                {/* --- Form Response --- */}
                 <Text style={styles.sectionHeader}>Expert Response Form</Text>
 
-                {/* Color Type Selection (Dữ liệu thực tế) */}
                 <Text style={styles.label}>Color Type Assignment *</Text>
                 <View style={styles.colorTypeSelectorContainer}>
                     {colorTypes.map((type) => (
@@ -429,7 +463,9 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     {isSubmitting ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
-                        <Text style={styles.submitButtonText}>Submit Response</Text>
+                        <Text style={styles.submitButtonText}>
+                            {hasExistingResponse ? 'Update Response' : 'Submit Response'}
+                        </Text>
                     )}
                 </TouchableOpacity>
             </View>

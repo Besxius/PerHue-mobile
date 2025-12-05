@@ -10,21 +10,20 @@ import Animated, {
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
-
-// --- Imports từ API và Types ---
 import { Notification } from '../types/dataModels';
-// Đảm bảo bạn đã import markNotificationAsRead
 import { getNotifications, markAllNotificationAsRead, markNotificationAsRead } from '../api/notificationApi';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
+
+type NotificationScreenProps = NativeStackScreenProps<RootStackParamList, 'NotificationScreen'>;
 
 const { width } = Dimensions.get('window');
 const PADDING_HORIZONTAL = 16;
 const CONTAINER_WIDTH = width - PADDING_HORIZONTAL * 2;
 const TAB_GAP = 30;
 
-// Định nghĩa Tab Key
 type NotificationTab = 'currentMonth' | 'allTime';
 
-// --- Dữ liệu mô phỏng Icon ---
 const getIconProps = (type: string) => {
     switch (type) {
         case 'TestRequest': return { iconPlaceholder: '📝', iconBgColor: '#E6F7FF', groupName: 'NEW TEST REQUESTS' };
@@ -34,7 +33,6 @@ const getIconProps = (type: string) => {
     }
 };
 
-// --- Component cho mỗi mục thông báo (cập nhật) ---
 interface NotificationItemProps extends Notification {
     onReadPress: (notificationId: number) => void;
 }
@@ -48,7 +46,6 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ id, title, content,
     };
 
     return (
-        // Bọc nội dung trong TouchableOpacity và gọi handler
         <TouchableOpacity
             style={[styles.notificationCard, isRead && styles.readCard]}
             onPress={() => onReadPress(id)}
@@ -75,7 +72,6 @@ const groupNotificationsByType = (data: Notification[]) => {
         return acc;
     }, {} as Record<string, Notification[]>);
 };
-// --- Component hiển thị nội dung Tab (Dùng ScrollView) ---
 interface TabContentProps {
     data: Notification[];
     isLoading: boolean;
@@ -86,59 +82,50 @@ const TabContent: React.FC<TabContentProps> = ({ data, isLoading, onNotification
     const groupedData = useMemo(() => groupNotificationsByType(data), [data]);
     const notificationTypes = Object.keys(groupedData);
 
-    if (isLoading) {
-        return (
-            <View style={[styles.tabContent, styles.loadingContainer]}>
-                <ActivityIndicator size="large" color="#0000ff" />
-            </View>
-        );
-    }
-
-    if (data.length === 0) {
-        return (
-            <View style={[styles.tabContent, styles.loadingContainer]}>
-                <Text style={styles.emptyText}>No notifications found.</Text>
-            </View>
-        );
-    }
-
+    // Dùng view bên ngoài ScrollView để giữ kích thước CONTAINER_WIDTH
     return (
-        <ScrollView
-            style={styles.tabContent}
-            contentContainerStyle={styles.scrollContentContainer}
-            showsVerticalScrollIndicator={false}
-        >
-            {/* Sắp xếp tiêu đề nhóm theo thứ tự ưu tiên (Tùy chọn) */}
-            {notificationTypes.map(type => (
-                <View key={type} style={styles.notificationGroup}>
-                    {/* Tiêu đề nhóm (Lấy tên nhóm đã định nghĩa trong getIconProps) */}
-                    <Text style={styles.groupTitle}>{getIconProps(type).groupName}</Text>
-
-                    {/* Danh sách thông báo trong nhóm */}
-                    {groupedData[type].map(notification => (
-                        <NotificationItem
-                            key={notification.id}
-                            {...notification}
-                            onReadPress={onNotificationPress}
-                        />
-                    ))}
+        <View style={styles.tabContent}>
+            {isLoading ? (
+                <View style={[styles.loadingContainer]}>
+                    <ActivityIndicator size="large" color="#0000ff" />
                 </View>
-            ))}
-            <View style={{ height: 40 }} />
-        </ScrollView>
+            ) : data.length === 0 ? (
+                <View style={[styles.loadingContainer]}>
+                    <Text style={styles.emptyText}>No notifications found.</Text>
+                </View>
+            ) : (
+                <ScrollView
+                    contentContainerStyle={styles.scrollContentContainer}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {notificationTypes.map(type => (
+                        <View key={type} style={styles.notificationGroup}>
+                            <Text style={styles.groupTitle}>{getIconProps(type).groupName}</Text>
+
+                            {groupedData[type].map(notification => (
+                                <NotificationItem
+                                    key={notification.id}
+                                    {...notification}
+                                    onReadPress={onNotificationPress}
+                                />
+                            ))}
+                        </View>
+                    ))}
+                    <View style={{ height: 40 }} />
+                </ScrollView>
+            )}
+        </View>
     );
 };
 
-// --- Component chính cho màn hình ---
-const NotificationScreen: React.FC = () => {
+const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) => {
     const [activeTab, setActiveTab] = useState<NotificationTab>('currentMonth');
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [showUnreadOnly, setShowUnreadOnly] = useState(false); // Trạng thái lọc
+    const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
     const translateX = useSharedValue(0);
 
-    // --- Logic API Fetching ---
     const fetchNotifications = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -157,7 +144,6 @@ const NotificationScreen: React.FC = () => {
         fetchNotifications();
     }, [fetchNotifications]);
 
-    // --- Logic Xử lý Dữ liệu ---
     const getMonthStart = (date: Date) => {
         return new Date(date.getFullYear(), date.getMonth(), 1);
     };
@@ -167,42 +153,51 @@ const NotificationScreen: React.FC = () => {
         return notifications.filter(n => new Date(n.time) >= currentMonthStart);
     }, [notifications]);
 
-    const allTimeData = notifications; // All notifications
+    const allTimeData = notifications;
 
-    // Dữ liệu được lọc theo tab và trạng thái chưa đọc
     const filteredCurrentMonth = currentMonthData.filter(n => showUnreadOnly ? !n.isRead : true);
     const filteredAllTime = allTimeData.filter(n => showUnreadOnly ? !n.isRead : true);
 
-    // Dữ liệu được hiển thị trên Tab hiện tại
     const activeData = activeTab === 'currentMonth' ? filteredCurrentMonth : filteredAllTime;
 
-    // --- Handler khi nhấn vào thông báo ---
+    const navigateToResponseScreen = useCallback((testRequestId: number) => {
+        navigation.navigate('CreateExpertTestResponse' as any, { id: testRequestId });
+    }, [navigation]);
+
     const handleNotificationPress = useCallback(async (notificationId: number) => {
         const notification = notifications.find(n => n.id === notificationId);
 
-        // 1. Kiểm tra xem thông báo đã đọc chưa
-        if (notification?.isRead) {
-            return;
+        if (!notification) return;
+
+        // Lấy ID cần thiết cho điều hướng
+        const requestId = notification.testRequestId; // <-- SỬ DỤNG testRequestId
+
+        // 1. Xử lý logic điều hướng ngay (vì người dùng muốn xem chi tiết)
+        if (notification.type === 'TestRequest' && requestId) {
+            navigateToResponseScreen(requestId);
         }
 
-        // 2. Cập nhật trạng thái cục bộ (UI phản hồi ngay lập tức)
-        setNotifications(prev => prev.map(n =>
-            n.id === notificationId ? { ...n, isRead: true } : n
-        ));
+        // 2. Nếu thông báo chưa đọc, đánh dấu đã đọc (chạy ngầm)
+        if (!notification.isRead) {
 
-        // 3. Gọi API để cập nhật trên server (chạy ngầm)
-        try {
-            await markNotificationAsRead(notificationId);
-        } catch (e) {
-            // Nếu API thất bại, đảo ngược trạng thái UI và hiển thị Toast
+            // Cập nhật trạng thái cục bộ
             setNotifications(prev => prev.map(n =>
-                n.id === notificationId ? { ...n, isRead: false } : n
+                n.id === notificationId ? { ...n, isRead: true } : n
             ));
-            Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to mark as read on server.', visibilityTime: 3000 });
-        }
-    }, [notifications]);
 
-    // --- Logic Tab Animation ---
+            // Gọi API
+            try {
+                await markNotificationAsRead(notificationId);
+            } catch (e) {
+                // Nếu API thất bại, đảo ngược trạng thái UI và hiển thị Toast
+                setNotifications(prev => prev.map(n =>
+                    n.id === notificationId ? { ...n, isRead: false } : n
+                ));
+                Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to mark as read on server.', visibilityTime: 3000 });
+            }
+        }
+    }, [notifications, navigateToResponseScreen]);
+
     const handleTabPress = (tab: NotificationTab) => {
         setActiveTab(tab);
         const index = tab === 'currentMonth' ? 0 : 1;
@@ -233,7 +228,6 @@ const NotificationScreen: React.FC = () => {
         };
     });
 
-    // --- Logic Đánh dấu Tất cả đã đọc ---
     const handleMarkAllRead = async () => {
         if (notifications.every(n => n.isRead)) {
             Toast.show({ type: 'info', text1: 'Info', text2: 'All notifications are already marked as read.', visibilityTime: 2000 });
@@ -241,10 +235,8 @@ const NotificationScreen: React.FC = () => {
         }
 
         try {
-            // Giả định hàm markAllNotificationAsRead không nhận tham số
             await markAllNotificationAsRead();
 
-            // Cập nhật trạng thái local
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
             setShowUnreadOnly(false); // Tắt bộ lọc sau khi đọc tất cả
 

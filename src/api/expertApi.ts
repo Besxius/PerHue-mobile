@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { CreateResponseRequest, ExpertInfo, ExpertRequest, ExpertRequestHistoryItem, ExpertTestResponse, ReviewTestRequest, UserInfo, VoteForReviewRequest } from '../types/dataModels';
+import { CreateResponseRequest, ExpertInfo, ExpertRequest, ExpertRequestDetailResponse, ExpertRequestHistoryItem, ExpertTestResponse, ReviewTestRequest, UpdateResponsePayload, UserInfo, VoteForReviewRequest } from '../types/dataModels';
 import apiClient from './apiClient';
 
 const EXPERT_ENDPOINT = '/experts';
@@ -55,12 +55,12 @@ export const getRequests = async (): Promise<ExpertRequest[]> => {
     }
 };
 
-export const getRequestById = async (id: number): Promise<ExpertRequest> => {
+export const getRequestById = async (id: number): Promise<ExpertRequestDetailResponse> => {
     // Xây dựng URL: /api/experts/requests/{id}
     const url = `${EXPERT_ENDPOINT}/requests/${id}`;
 
     try {
-        const response = await apiClient.get<ExpertRequest>(url);
+        const response = await apiClient.get<ExpertRequestDetailResponse>(url);
 
         // API trả về trực tiếp đối tượng ExpertRequest
         return response.data;
@@ -71,6 +71,28 @@ export const getRequestById = async (id: number): Promise<ExpertRequest> => {
             throw new Error(error.response?.data?.message || `Failed to fetch expert request ID ${id}.`);
         } else {
             console.error(`An unexpected error occurred while fetching expert request ID ${id}:`, error);
+            throw new Error('An unexpected error occurred.');
+        }
+    }
+};
+
+export const updateExpertResponse = async (
+    testRequestId: number,
+    data: UpdateResponsePayload
+): Promise<ExpertTestResponse> => {
+
+    const url = `${EXPERT_ENDPOINT}/response/${testRequestId}`;
+
+    try {
+        const response = await apiClient.put<ExpertTestResponse>(url, data);
+
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error(`Error submitting expert response for ID ${testRequestId}:`, error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || `Failed to submit response for request ID ${testRequestId}.`);
+        } else {
+            console.error(`An unexpected error occurred while submitting expert response for ID ${testRequestId}:`, error);
             throw new Error('An unexpected error occurred.');
         }
     }

@@ -209,9 +209,9 @@ export interface ExpertRequest {
     eyesColor: string;
     lipsColor: string;
     skinColor: string;
-    status: string; // Ví dụ: "Pending"
-    createdDate: string; // ISO DateTime string
-    typeOfTest: string; // Ví dụ: "Expert"
+    status: string;
+    createdDate: string;
+    typeOfTest: string;
     userAccountId: number;
     aiPictures: RequestPicture[];
     pictures: RequestPicture[];
@@ -220,8 +220,8 @@ export interface ExpertRequest {
 export interface CreateResponseRequest {
     testRequestId: number;
     note: string;
-    bestColor: string; // Chuỗi các mã màu HEX, cách nhau bằng dấu phẩy
-    worstColor: string; // Chuỗi các mã màu HEX, cách nhau bằng dấu phẩy
+    bestColor: string;
+    worstColor: string;
     colorTypeId: number;
 }
 
@@ -398,4 +398,15 @@ export interface ReportResponse {
     result: ReportResult;
     message: string;
     success: boolean;
+}
+export interface ExpertRequestDetailResponse {
+    testRequest: ExpertRequest;
+    responses: ExpertTestResponse[];
+}
+
+export interface UpdateResponsePayload {
+    bestColor: string;
+    worstColor: string;
+    colorTypeId: number;
+    note: string;
 }
