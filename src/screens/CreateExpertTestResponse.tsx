@@ -12,7 +12,6 @@ import {
     Dimensions,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-// import { RootStackParamList } from '../navigation/AppNavigator'; // Đảm bảo import này đã tồn tại
 import { getRequestById, createResponse, updateExpertResponse } from '../api/expertApi';
 import { ExpertRequest, CreateResponseRequest, ColorType, Color, ExpertTestResponse, UpdateResponsePayload } from '../types/dataModels';
 import Toast from 'react-native-toast-message';
@@ -22,7 +21,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getColorsByType, getCorlorListSpectrum } from '../api/colorApi';
 import { FontAwesome } from '@expo/vector-icons';
 
-// Khai báo lại RootStackParamList tối thiểu để code chạy độc lập
 type RootStackParamList = {
     CreateExpertTestResponse: {
         id: number;
@@ -33,19 +31,15 @@ type RootStackParamList = {
         imageUri: string;
         testRequestId: number;
     };
-    // Thêm các route khác của bạn ở đây
 };
 
-// Định nghĩa kiểu Props của màn hình
 type CreateResponseScreenProps = NativeStackScreenProps<
     RootStackParamList,
     'CreateExpertTestResponse'
 >;
 
-// Định nghĩa Color Picker Mode
 type ColorPickerMode = 'BEST' | 'WORST' | null;
 
-// Lấy kích thước màn hình
 const { width } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
 
@@ -311,11 +305,8 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         }
     }, [testRequestId, hexStringToColorList, colorFiltersSpectrum]);
 
-    // --- useEffect Lắng nghe tham số route để cập nhật màu ---
     useEffect(() => {
-        // Chỉ cập nhật nếu có dữ liệu mới từ ColorTestOnImageScreen
         if (initialBestColors || initialWorstColors) {
-            // Lọc các màu trùng lặp trước khi set state
             if (initialBestColors) {
                 setBestColorsList(prev => {
                     const existingHexes = new Set(prev.map(c => c.hexCode.toUpperCase()));
@@ -437,11 +428,10 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
         navigation.navigate('ColorTestOnImageScreen', {
             imageUri: clientPictureUri,
-            testRequestId: testRequestId, // Truyền ID để màn hình test có thể navigate ngược lại
+            testRequestId: testRequestId,
         });
     }, [navigation, clientPictureUri, testRequestId]);
 
-    // --- Render Loading/Error ---
     if (isLoading) {
         return (
             <View style={styles.centered}>
@@ -462,7 +452,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         );
     }
 
-    // --- Render Form ---
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <ScrollView
@@ -478,7 +467,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                         <View style={styles.clientImageContainer}>
                             <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
 
-                            {/* NÚT CAMERA/TEST MÀU */}
                             <TouchableOpacity
                                 style={styles.colorTestButton}
                                 onPress={handleNavigateToColorTestOnImage}
@@ -520,7 +508,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     ))}
                 </View>
 
-                {/* Note */}
                 <Text style={styles.label}>Expert Note *</Text>
                 <TextInput
                     style={styles.textArea}
@@ -532,7 +519,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     editable={!isSubmitting}
                 />
 
-                {/* Best Colors (BUTTON & LIST) */}
                 <Text style={styles.label}>Best Colors (Click to add color) *</Text>
                 <SelectedColorsDisplay
                     colors={bestColorsList}
@@ -546,7 +532,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     <Text style={styles.addColorButtonText}>+ Add Best Color</Text>
                 </TouchableOpacity>
 
-                {/* Worst Colors (BUTTON & LIST) */}
                 <Text style={styles.label}>Worst Colors (Click to add color) *</Text>
                 <SelectedColorsDisplay
                     colors={worstColorsList}
@@ -563,7 +548,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 <View style={{ height: 30 }} />
             </ScrollView>
 
-            {/* --- Submit Button --- */}
             <View
                 style={[
                     styles.footer,
@@ -596,7 +580,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 </TouchableOpacity>
             </View>
 
-            {/* --- Color Picker Modal --- */}
             {isColorPickerVisible && (
                 <ColorPickerPopup
                     isVisible={isColorPickerVisible}
@@ -612,10 +595,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 };
 
 export default CreateExpertTestResponse;
-
-// =========================================================
-// STYLES (Không thay đổi)
-// =========================================================
 
 const styles = StyleSheet.create({
     container: {
@@ -893,7 +872,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     submitButtonDisabled: {
-        backgroundColor: '#727272ff',
+        backgroundColor: '#90ee90',
     },
     submitButtonText: {
         color: '#fff',

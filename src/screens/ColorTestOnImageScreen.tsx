@@ -17,21 +17,16 @@ import {
     Color,
     ColorType,
     CapsulePaletteModel,
-    // Bỏ ImageFile và ManualColorTestResponse nếu không dùng API
 } from '../types/dataModels';
-import { getCorlorListSpectrum } from '../api/colorApi';
+import { getColorsByType, getCorlorListSpectrum } from '../api/colorApi';
 import ColorPopup from '../components/ColorPopup';
 import ColorPickerPopup from '../components/ColorPickerPopup';
 import PalettePopup from '../components/PalettePopup';
 import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
-// Bỏ ManualResultModal và manualColorTest vì chuyển sang màn hình khác
-// import ManualResultModal from '../components/ManualResultModal';
-// import { manualColorTest } from '../api/colorTestApi'; 
+import { Foundation, MaterialIcons } from '@expo/vector-icons';
 
-// Get screen dimensions
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Default color value
 const DEFAULT_COLOR: Color = { id: 0, name: 'Default Transparent', hexCode: 'transparent' };
 
 // Define dimensions for the color overlay mask
@@ -226,21 +221,11 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
             return;
         }
 
-        // --- CHUYỂN HƯỚNG VÀ TRUYỀN DỮ LIỆU ---
-        // Sử dụng navigate để quay lại màn hình trước đó và truyền data
-        // Nếu bạn muốn quay lại màn hình CreateExpertTestResponse, cần dùng navigation.navigate
-        // Đảm bảo tên route là chính xác trong RootStackParamList
         navigation.navigate('CreateExpertTestResponse', {
             id: testRequestId,
             initialBestColors: bestColors,
             initialWorstColors: worstColors,
         });
-
-        // Nếu không cần truyền testRequestId, chỉ cần:
-        // navigation.navigate('CreateExpertTestResponse', { 
-        //     initialBestColors: bestColors,
-        //     initialWorstColors: worstColors,
-        // });
 
         Toast.show({
             type: 'success',
@@ -254,8 +239,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
         setActiveColorListMode(mode);
         setShowSavedColorPopup(true);
     };
-
-    // --- Component Logic for Rendering ---
 
     const renderSavedColorTags = (mode: ColorListMode) => {
         const colors = mode === 'best' ? bestColors : worstColors;
@@ -331,7 +314,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                             opacity="1"
                         />
                     </Svg>
-                    {/* Frame removed for cleaner code, keep styles commented if needed */}
                 </View>
             )}
 
@@ -340,7 +322,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                 <TouchableOpacity style={styles.topControlButton} onPress={handleGoBack}>
                     <Ionicons name="arrow-back" size={30} color="white" />
                 </TouchableOpacity>
-                <Text style={styles.screenTitle}>Draping Test (Manual)</Text>
                 <View style={styles.topControlButtonPlaceholder} />
             </View>
 
@@ -377,7 +358,7 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                     style={[styles.leftControlButton, { backgroundColor: 'rgba(76, 175, 80, 0.7)' }]}
                     onPress={() => handleShowSavedColorPopup('best')}
                 >
-                    <Ionicons name="star" size={24} color="white" />
+                    <MaterialIcons name="thumb-up" size={24} color="white" />
                 </TouchableOpacity>
 
                 {/* --- WORST COLOR LIST (Open Manager Popup) --- */}
@@ -385,7 +366,7 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                     style={[styles.leftControlButton, { backgroundColor: 'rgba(244, 67, 54, 0.7)' }]}
                     onPress={() => handleShowSavedColorPopup('worst')}
                 >
-                    <Ionicons name="remove" size={24} color="white" />
+                    <MaterialIcons name="thumb-down" size={24} color="white" />
                 </TouchableOpacity>
             </View>
 
@@ -436,10 +417,13 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
             <ColorPopup
                 showColorPicker={showColorPopup}
                 setShowColorPicker={setShowColorPicker}
-                colorFilters={colorFilters}
+                allColorFilters={colorFilters}
                 selectedColorInfo={selectedColorInfo}
                 handleColorSelect={handleColorSelect}
                 title="SELECT COLOR SPECTRUM"
+                showTabs={true}
+                getColorTypeApi={getColorType}
+                getColorsByTypeApi={getColorsByType}
             />
             <ColorPickerPopup
                 isVisible={showColorPickerPopup}
@@ -464,7 +448,7 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
             <ColorPopup
                 showColorPicker={showSavedColorPopup}
                 setShowColorPicker={setShowSavedColorPopup}
-                colorFilters={activeColorList}
+                allColorFilters={activeColorList}
                 selectedColorInfo={selectedColorInfo}
                 handleColorSelect={handleColorSelect}
                 title={`${activeColorListMode.toUpperCase()} COLORS`}
@@ -508,6 +492,8 @@ const styles = StyleSheet.create({
     },
     topControlButton: {
         padding: 5,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        borderRadius: 25,
     },
     topControlButtonPlaceholder: {
         width: 30,
@@ -517,7 +503,7 @@ const styles = StyleSheet.create({
         right: 15,
         alignItems: 'center',
         zIndex: 3,
-        backgroundColor: 'rgba(0, 0, 0, 0.2)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
         borderRadius: 25,
         paddingVertical: 10,
         paddingHorizontal: 5,

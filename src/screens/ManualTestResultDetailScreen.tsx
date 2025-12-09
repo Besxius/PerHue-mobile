@@ -1,40 +1,58 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image, Dimensions, Alert, Platform } from 'react-native';
+import {
+    View,
+    Text,
+    ScrollView,
+    StyleSheet,
+    ActivityIndicator,
+    Image,
+    Dimensions,
+    Alert,
+    TouchableOpacity
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CapsulePalette from '../components/CapsulePalette';
 import { ManualTestResult } from '../types/dataModels';
 import { getManualTestResultById } from '../api/userApi';
+import { RootStackParamList } from '../navigation/AppNavigator';
 
-type ManualTestResultDetailRouteProp = {
-    params: {
-        id: number;
-    };
-};
-
-interface ManualTestResultDetailScreenProps {
-    route: ManualTestResultDetailRouteProp;
-}
+type Props = NativeStackScreenProps<RootStackParamList, 'ManualTestResultDetailScreen'>;
 
 const { width } = Dimensions.get('window');
+const BLUE_COLOR = '#4C7BE2';
 
+// --- Helper Functions ---
+// Hàm xác định màu chữ (đen/trắng) dựa trên độ sáng màu nền
+const getContrastTextColor = (hex: string) => {
+    // Đảm bảo hex có độ dài chuẩn (vd: #RRGGBB)
+    const cleanHex = hex.replace('#', '');
+    if (cleanHex.length !== 6) return '#FFFFFF';
+
+    const r = parseInt(cleanHex.substr(0, 2), 16);
+    const g = parseInt(cleanHex.substr(2, 2), 16);
+    const b = parseInt(cleanHex.substr(4, 2), 16);
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return (yiq >= 128) ? '#000000' : '#FFFFFF';
+};
+
+// Helper Component: Color Box Display
 const ColorBoxDisplay: React.FC<{ colorsString: string, title: string }> = ({ colorsString, title }) => {
     const colorCodes = colorsString ? colorsString.split(',').map(c => c.trim()).filter(c => c.length > 0) : [];
 
-    if (colorCodes.length === 0) {
-        return (
-            <View style={styles.colorSection}>
-                <Text style={styles.sectionTitle}>{title}</Text>
-                <Text style={styles.noDataText}>Không có dữ liệu màu.</Text>
-            </View>
-        );
-    }
+    if (colorCodes.length === 0) return null;
 
     return (
-        <View style={styles.colorSection}>
-            <Text style={styles.sectionTitle}>{title} ({colorCodes.length} màu)</Text>
-            <View style={styles.colorContainer}>
+        <View style={styles.card}>
+            <Text style={styles.cardTitle}>{title} ({colorCodes.length})</Text>
+            <View style={styles.colorGrid}>
                 {colorCodes.map((hex, index) => (
                     <View key={index} style={[styles.colorBox, { backgroundColor: hex }]}>
-                        <Text style={styles.colorHexText}>{hex}</Text>
+                        {/* Áp dụng màu chữ tương phản */}
+                        <Text style={[styles.colorHexText, { color: getContrastTextColor(hex) }]}>
+                            {hex.toUpperCase()}
+                        </Text>
                     </View>
                 ))}
             </View>
@@ -42,9 +60,9 @@ const ColorBoxDisplay: React.FC<{ colorsString: string, title: string }> = ({ co
     );
 };
 
-// Component chính
-const ManualTestResultDetailScreen: React.FC<ManualTestResultDetailScreenProps> = ({ route }) => {
+const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     const { id } = route.params;
+    const insets = useSafeAreaInsets();
 
     const [result, setResult] = useState<ManualTestResult | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -63,7 +81,7 @@ const ManualTestResultDetailScreen: React.FC<ManualTestResultDetailScreenProps> 
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Unknown error while loading data.';
             setError(errorMessage);
-            Alert.alert("Data loading error", errorMessage);
+            Alert.alert("Data Loading Error", errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -76,8 +94,8 @@ const ManualTestResultDetailScreen: React.FC<ManualTestResultDetailScreenProps> 
     if (isLoading) {
         return (
             <View style={styles.centered}>
-                <ActivityIndicator size="large" color="#4285F4" />
-                <Text>Loading result details...</Text>
+                <ActivityIndicator size="large" color={BLUE_COLOR} />
+                <Text style={styles.loadingText}>Loading result...</Text>
             </View>
         );
     }
@@ -85,22 +103,22 @@ const ManualTestResultDetailScreen: React.FC<ManualTestResultDetailScreenProps> 
     if (error || !result) {
         return (
             <View style={styles.centered}>
-                <Text style={styles.errorText}>An error occurred: {error}</Text>
-                <Text style={styles.errorText}>ID: {id}</Text>
+                <Text style={styles.errorText}>Error: {error}</Text>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButtonCenter}>
+                    <Text style={styles.backButtonText}>Go Back</Text>
+                </TouchableOpacity>
             </View>
         );
     }
 
-    // 4. Logic Xử lý Dữ liệu
+    // Data processing
     const colorType = result.colorType?.name || 'Undetermined';
     const profilePictureUri = result.picture;
 
+    // Filter valid Capsule Palettes (must have 4 colors)
     const validCapsulePalettes = result.capsulePalettes
         .map(palette => {
-            const colorsArray = palette.colors
-                .slice(0, 4)
-                .map(c => c.hexCode);
-
+            const colorsArray = palette.colors.slice(0, 4).map(c => c.hexCode);
             if (colorsArray.length === 4) {
                 return {
                     id: palette.id,
@@ -109,215 +127,282 @@ const ManualTestResultDetailScreen: React.FC<ManualTestResultDetailScreenProps> 
             }
             return null;
         })
-        .filter((palette): palette is { id: number, colors: [string, string, string, string] } => palette !== null);
-
+        .filter((p): p is { id: number, colors: [string, string, string, string] } => p !== null);
 
     return (
-        <ScrollView style={styles.container}>
-
-            <View style={styles.header}>
-                <Text style={styles.title}>Test Result #{result.id}</Text>
-                <Text style={styles.userInfoText}>Send date: {new Date(result.createdDate).toLocaleDateString()}</Text>
-                <View style={styles.colorTypeBadge}>
-                    <Text style={styles.colorTypeText}>Color Type: </Text>
-                    <Text style={styles.colorTypeLarge}>{colorType}</Text>
-                </View>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+            {/* Custom Header */}
+            <View style={styles.headerBar}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+                    <Ionicons name="arrow-back" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Test Result #{result.id}</Text>
+                <View style={styles.headerButton} />
             </View>
 
-            {/* 2. Thông tin cơ bản */}
-            {/* <View style={styles.infoSection}>
-            </View> */}
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-            <View style={styles.divider} />
-
-            {/* 3. Hình ảnh (Nếu có) */}
-            {profilePictureUri && (
-                <View style={styles.imageContainer}>
-                    <Text style={styles.sectionTitle}>Your picture</Text>
-                    <Image
-                        source={{ uri: profilePictureUri }}
-                        style={styles.picture}
-                        resizeMode="contain"
-                    />
-                </View>
-            )}
-
-            <View style={styles.divider} />
-
-            {/* 4. ChosenColor và SuggestedColor (Hiển thị ô vuông màu) */}
-            <ColorBoxDisplay
-                colorsString={result.chosenColor}
-                title="Màu Đã Chọn (Chosen Colors)"
-            />
-
-            <ColorBoxDisplay
-                colorsString={result.suggestedColor}
-                title="Màu Gợi Ý (Suggested Colors)"
-            />
-
-            <View style={styles.divider} />
-
-            {/* 5. Capsule Palettes */}
-            <View style={styles.capsuleSection}>
-                <Text style={styles.sectionTitle}>Các Capsule Palettes ({validCapsulePalettes.length} hợp lệ)</Text>
-                {validCapsulePalettes.length > 0 ? (
-                    <View style={styles.capsuleGrid}>
-                        {validCapsulePalettes.map((palette) => (
-                            <CapsulePalette
-                                key={palette.id}
-                                colors={palette.colors}
-                                isSelected={palette.id === selectedCapsuleId}
-                                onSelect={() => setSelectedCapsuleId(palette.id)}
-                            />
-                        ))}
+                {/* 1. Result Summary (Date & Color Type) */}
+                <View style={styles.summaryCard}>
+                    <View style={styles.rowBetween}>
+                        <Text style={styles.label}>Time:</Text>
+                        {/* Cập nhật hiển thị cả ngày và giờ */}
+                        <Text style={styles.value}>
+                            {new Date(result.createdDate).toLocaleString('vi-VN')}
+                        </Text>
                     </View>
-                ) : (
-                    <Text style={styles.noDataText}>Không tìm thấy Capsule Palette hợp lệ nào (phải có 4 màu).</Text>
+                    <View style={styles.divider} />
+                    <View style={styles.resultRow}>
+                        <Text style={styles.resultLabel}>Your Color Type:</Text>
+                        <View style={styles.badge}>
+                            <Text style={styles.badgeText}>{colorType}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* 2. Uploaded Image */}
+                {profilePictureUri && (
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Analyzed Image</Text>
+                        <View style={styles.imageWrapper}>
+                            <Image
+                                source={{ uri: profilePictureUri }}
+                                style={styles.resultImage}
+                                resizeMode="contain"
+                            />
+                        </View>
+                    </View>
                 )}
-            </View>
 
-            <View style={{ height: 50 }} />
+                {/* 3. Chosen & Suggested Colors */}
+                <ColorBoxDisplay
+                    colorsString={result.chosenColor}
+                    title="Chosen Colors"
+                />
 
-        </ScrollView>
+                <ColorBoxDisplay
+                    colorsString={result.suggestedColor}
+                    title="Suggested Colors"
+                />
+
+                {/* 4. Capsule Palettes */}
+                <View style={styles.sectionContainer}>
+                    <Text style={styles.sectionHeader}>Suggested Capsule Palettes ({validCapsulePalettes.length})</Text>
+                    {validCapsulePalettes.length > 0 ? (
+                        <View style={styles.capsuleGrid}>
+                            {validCapsulePalettes.map((palette) => (
+                                <CapsulePalette
+                                    key={palette.id}
+                                    colors={palette.colors}
+                                    isSelected={palette.id === selectedCapsuleId}
+                                    onSelect={() => setSelectedCapsuleId(palette.id)}
+                                />
+                            ))}
+                        </View>
+                    ) : (
+                        <Text style={styles.noDataText}>No matching palettes found.</Text>
+                    )}
+                </View>
+
+                <View style={{ height: 30 }} />
+            </ScrollView>
+        </View>
     );
 };
 
-export default ManualTestResultDetailScreen;
-
-// 5. Stylesheets
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f5f5f5',
+    },
+    // Header Styles
+    headerBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    headerButton: {
+        width: 40,
+        alignItems: 'flex-start',
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        flex: 1,
+        textAlign: 'center',
+    },
+    // Content Styles
+    scrollContent: {
         padding: 15,
     },
     centered: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: '#fff',
+    },
+    loadingText: {
+        marginTop: 10,
+        color: '#666',
     },
     errorText: {
         color: 'red',
-        marginTop: 10,
+        fontSize: 16,
         textAlign: 'center',
+        marginBottom: 20,
     },
-    noDataText: {
-        color: '#666',
-        textAlign: 'center',
+    backButtonCenter: {
         padding: 10,
         backgroundColor: '#eee',
-        borderRadius: 5,
-        marginTop: 10,
+        borderRadius: 8,
+    },
+    backButtonText: {
+        color: '#333',
+        fontWeight: '600',
     },
 
-    // Header
-    header: {
-        alignItems: 'center',
-        marginBottom: 20,
-        paddingBottom: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
+    // Cards
+    summaryCard: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 15,
+        marginBottom: 15,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
     },
-    title: {
-        fontSize: 24,
+    card: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 15,
+        marginBottom: 15,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
+    },
+
+    // Rows & Typography
+    rowBetween: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    label: {
+        fontSize: 14,
+        color: '#666',
+    },
+    value: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#333',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#f0f0f0',
+        marginVertical: 10,
+    },
+    resultRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    resultLabel: {
+        fontSize: 16,
         fontWeight: 'bold',
         color: '#333',
     },
-    colorTypeBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 10,
-        paddingHorizontal: 15,
-        paddingVertical: 5,
-        backgroundColor: '#e6f0ff', // Light blue background
+    badge: {
+        backgroundColor: '#E3F2FD',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 20,
-        ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-            android: { elevation: 2 },
-        }),
     },
-    colorTypeText: {
-        fontSize: 16,
-        color: '#4285F4',
-        fontWeight: '500',
-    },
-    colorTypeLarge: {
-        fontSize: 18,
+    badgeText: {
+        color: BLUE_COLOR,
         fontWeight: 'bold',
-        color: '#1a73e8', // Stronger blue
-    },
-
-    // General Sections
-    divider: {
-        height: 1,
-        backgroundColor: '#eee',
-        marginVertical: 15,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#555',
-        marginBottom: 10,
-    },
-    infoSection: {
-        marginBottom: 15,
-    },
-    userInfoText: {
-        fontSize: 14,
-        color: '#666',
-        lineHeight: 22,
+        fontSize: 16,
     },
 
     // Image
-    imageContainer: {
+    imageWrapper: {
         alignItems: 'center',
-        marginBottom: 15,
+        backgroundColor: '#f9f9f9',
+        borderRadius: 8,
+        overflow: 'hidden',
     },
-    picture: {
-        width: width - 30,
+    resultImage: {
+        width: '100%',
         height: 300,
-        borderRadius: 10,
-        backgroundColor: '#ccc',
+        borderRadius: 8,
     },
 
-    // Colors
-    colorSection: {
-        marginBottom: 15,
-    },
-    colorContainer: {
+    // Colors Grid
+    colorGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 10, // Khoảng cách giữa các box
+        gap: 10,
     },
     colorBox: {
         width: 60,
         height: 60,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#ddd',
-        justifyContent: 'flex-end',
+        borderColor: 'rgba(0,0,0,0.1)',
+        justifyContent: 'center',
         alignItems: 'center',
-        paddingBottom: 2,
-        ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-            android: { elevation: 2 },
-        }),
+        // Shadow để nổi bật nếu màu trắng
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 1,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 1.00,
+        elevation: 1,
     },
     colorHexText: {
         fontSize: 10,
-        color: '#fff',
-        textShadowColor: 'rgba(0, 0, 0, 0.75)',
-        textShadowOffset: { width: 1, height: 1 },
-        textShadowRadius: 2,
+        fontWeight: 'bold',
+        // Màu chữ sẽ được override bởi inline style từ hàm getContrastTextColor
     },
 
-    // Capsules
-    capsuleSection: {
-        marginBottom: 20,
+    // Capsule Section
+    sectionContainer: {
+        marginTop: 10,
+    },
+    sectionHeader: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: BLUE_COLOR,
+        marginBottom: 15,
     },
     capsuleGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
     },
+    noDataText: {
+        textAlign: 'center',
+        color: '#888',
+        fontStyle: 'italic',
+        marginTop: 10,
+    }
 });
+
+export default ManualTestResultDetailScreen;
