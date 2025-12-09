@@ -10,6 +10,7 @@ import {
     Image,
     Dimensions,
     Animated,
+    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,7 +29,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Entypo from '@expo/vector-icons/Entypo';
 import Svg, { Rect, Mask, Defs, Ellipse } from 'react-native-svg';
 import { ColorTestRequest, CapsulePaletteModel, Color, ColorType, ImageFile, ManualColorTestResponse, AiColorTestResponse } from '../types/dataModels';
-import { getCorlorListSpectrum } from '../api/colorApi';
+import { getColorsByType, getCorlorListSpectrum } from '../api/colorApi';
+import { getAuthRole } from '../api/apiClient'; // <--- 1. Import getAuthRole
 import ColorPopup from '../components/ColorPopup';
 import ColorPickerPopup from '../components/ColorPickerPopup';
 import PalettePopup from '../components/PalettePopup';
@@ -89,6 +91,11 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const [captureMode, setCaptureMode] = useState<CaptureMode>('manual');
 
+    // Add Loading State
+    const [isLoading, setIsLoading] = useState(false);
+    // 2. Add isUserExpert State
+    const [isUserExpert, setIsUserExpert] = useState(false);
+
     const [showLeftControls, setShowLeftControls] = useState(true);
 
     const [showColorPickerPopup, setShowColorPickerTool] = useState(false);
@@ -119,6 +126,19 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     const [showExpertSuccessModal, setShowExpertSuccessModal] = useState(false);
 
     const highlightAnim = useRef(new Animated.Value(TAB_POSITIONS.manual)).current;
+
+    // 3. Load Role
+    useEffect(() => {
+        const checkRole = async () => {
+            const role = await getAuthRole();
+            if (role === 'Expert') {
+                setIsUserExpert(true);
+            } else {
+                setIsUserExpert(false);
+            }
+        };
+        checkRole();
+    }, []);
 
     const loadPalettesByTypeId = useCallback(async (colorTypeId: number, seasonName: string) => {
         setIsLoadingPalettes(true);
@@ -221,18 +241,20 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         setCaptureMode(newMode);
         setShowModeDropdown(false);
     };
+
     const handleSaveColor = () => {
         if (selectedColorInfo.id !== DEFAULT_COLOR.id) {
-            // Kiểm tra xem màu đã tồn tại chưa (có thể dùng id hoặc hexCode để so sánh)
             const exists = savedColors.some(c => c.id === selectedColorInfo.id || c.hexCode === selectedColorInfo.hexCode);
 
             if (!exists) {
-                // Tạo một bản sao mới của màu để gán ID tạm thời nếu cần (đảm bảo mỗi màu có ID duy nhất)
                 const colorToSave: Color = {
                     ...selectedColorInfo,
                     id: selectedColorInfo.id === 0 ? Date.now() : selectedColorInfo.id
                 };
                 setSavedColors(prev => [colorToSave, ...prev]);
+
+                setSelectedColorInfo(DEFAULT_COLOR);
+
                 Toast.show({
                     type: 'success',
                     text1: 'Thành công',
@@ -241,7 +263,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 });
             } else {
                 Toast.show({
-                    type: 'info', // Hoặc type: 'warning'
+                    type: 'info',
                     text1: 'Thông báo',
                     text2: `Màu "${selectedColorInfo.name}" đã được lưu trước đó.`,
                     visibilityTime: 2000,
@@ -260,7 +282,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     const handleDeleteSavedColor = (colorId: number) => {
         setSavedColors(prevColors => {
             const updatedColors = prevColors.filter(color => color.id !== colorId);
-            // Nếu màu bị xóa đang là màu được chọn hiện tại, reset về DEFAULT_COLOR
             if (selectedColorInfo.id === colorId) {
                 setSelectedColorInfo(DEFAULT_COLOR);
             }
@@ -292,16 +313,11 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
         if (isPhotoFile(currentPhoto)) {
             const path = currentPhoto.path;
-
             const fileName = path.substring(path.lastIndexOf('/') + 1) || defaultFileName;
             const fileExtension = fileName.split('.').pop()?.toLowerCase();
-
             let mimeType = defaultMimeType;
-            if (fileExtension === 'png') {
-                mimeType = 'image/png';
-            } else if (fileExtension === 'heic') {
-                mimeType = 'image/heic';
-            }
+            if (fileExtension === 'png') mimeType = 'image/png';
+            else if (fileExtension === 'heic') mimeType = 'image/heic';
 
             imageFileForApi = {
                 uri: `file://${path}`,
@@ -317,49 +333,35 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 name: fileName,
             };
         } else {
-            Toast.show({ type: 'error', text1: 'Error', text2: 'Invalid photo data. Cannot format for API.', visibilityTime: 3000 });
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Invalid photo data.', visibilityTime: 3000 });
             return;
         }
 
-        Toast.show({ type: 'info', text1: 'Processing', text2: 'Uploading photo and colors to the server...', visibilityTime: 3000 });
-
+        setIsLoading(true);
         try {
-            // 3. Gọi API với định dạng đầu vào đã chuẩn hóa (string[] và ImageFile)
-            // Lưu ý: Đảm bảo hàm manualColorTest đã được định nghĩa để nhận (string[], ImageFile)
             const result: ManualColorTestResponse = await manualColorTest(SelectedColors, imageFileForApi);
-
             setManualResultData(result);
             setShowManualResultModal(true);
-
-            // Tùy chọn: Reset trạng thái camera sau khi gửi thành công
-            // handleRetake(); 
-
         } catch (error) {
             console.error('Error calling manualColorTest API:', error);
-
-            // Xử lý lỗi với Type Narrowing cho Axios (đảm bảo import axios)
-            let errorMessage = 'Failed to retrieve color analysis results.';
-
-            console.error('Error calling manualColorTest API:', error);
-
             Toast.show({
                 type: 'error',
                 text1: 'API Error',
-                text2: errorMessage,
+                text2: 'Failed to retrieve color analysis results.',
                 visibilityTime: 4000
             });
+        } finally {
+            setIsLoading(false);
         }
     };
 
     const handleNavigateToManualDetail = () => {
         if (manualResultData && fullPreviewUri) {
-            setShowManualResultModal(false); // Đóng modal
+            setShowManualResultModal(false);
             navigation.navigate('ManualResultDetail', {
-                resultData: manualResultData, // Truyền data theo cấu trúc mới
+                resultData: manualResultData,
                 currentPhotoUri: fullPreviewUri
             });
-            // Tùy chọn: Reset trạng thái camera để chụp tiếp
-            // handleRetake(); 
         } else {
             Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không có dữ liệu chi tiết.', visibilityTime: 2000 });
         }
@@ -367,7 +369,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const handleCloseManualModal = () => {
         setShowManualResultModal(false);
-        setManualResultData(null); // Reset dữ liệu khi đóng
+        setManualResultData(null);
     };
 
     const handleColorTest = async () => {
@@ -399,11 +401,8 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             const fileName = path.substring(path.lastIndexOf('/') + 1) || defaultFileName;
             const fileExtension = fileName.split('.').pop()?.toLowerCase();
             let mimeType = defaultMimeType;
-            if (fileExtension === 'png') {
-                mimeType = 'image/png';
-            } else if (fileExtension === 'heic') {
-                mimeType = 'image/heic';
-            }
+            if (fileExtension === 'png') mimeType = 'image/png';
+            else if (fileExtension === 'heic') mimeType = 'image/heic';
 
             imageFileForApi = {
                 uri: `file://${path}`,
@@ -423,7 +422,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             return;
         }
 
-        // 3. Chuẩn bị tham số cho API
         const aiTestParams: ColorTestRequest = {
             imageFile: imageFileForApi,
             hairColor: capturedColors.Hair.hex,
@@ -432,43 +430,33 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             skinColor: capturedColors.Skin.hex,
         };
 
-        Toast.show({ type: 'info', text1: 'Processing', text2: `Sending image and color to AI Test mode ${captureMode.toUpperCase()}...`, visibilityTime: 3000 });
-
-
-        // 4. Gọi API aiColorTest
+        setIsLoading(true);
         try {
             if (captureMode === 'ai') {
                 const result = await aiColorTest(aiTestParams);
-
                 setAiResultData(result);
                 setShowAiResultModal(true);
             } else {
-                const result = await expertColorTest(aiTestParams);
-
+                await expertColorTest(aiTestParams);
                 setShowExpertSuccessModal(true);
-
-                handleRetake()
+                handleRetake();
             }
-
-
         } catch (error) {
             console.error(`Error calling ${captureMode.toUpperCase()} API:`, error);
-
-            let errorMessage = `Thử nghiệm AI thất bại. Vui lòng thử lại.`;
-
             Toast.show({
                 type: 'error',
                 text1: 'Lỗi API',
-                text2: errorMessage,
+                text2: 'Thử nghiệm AI thất bại. Vui lòng thử lại.',
                 visibilityTime: 4000
             });
+        } finally {
+            setIsLoading(false);
         }
     };
 
     const handleNavigateToAiDetail = (result: AiColorTestResponse) => {
         if (fullPreviewUri) {
-            setShowAiResultModal(false); // Đóng modal
-            // Bạn cần đảm bảo đã cấu hình route 'AiResultDetail' trong AppNavigator
+            setShowAiResultModal(false);
             navigation.navigate('AiResultDetail', {
                 resultData: result,
                 currentPhotoUri: fullPreviewUri
@@ -480,7 +468,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const handleCloseAiModal = () => {
         setShowAiResultModal(false);
-        setAiResultData(null); // Reset dữ liệu khi đóng
+        setAiResultData(null);
     };
 
     useEffect(() => {
@@ -593,7 +581,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     const shouldShowModeDropdown = fullPreviewUri && (captureMode === 'ai' || captureMode === 'expert');
 
     const renderColorBlock = (attribute: AttributeColor) => {
-
         return (
             <TouchableOpacity
                 key={attribute}
@@ -613,6 +600,14 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
+            {/* Loading Overlay */}
+            {isLoading && (
+                <View style={styles.loadingOverlayApi}>
+                    <ActivityIndicator size="large" color="#4C7BE2" />
+                    <Text style={{ color: 'white', marginTop: 10, fontWeight: 'bold' }}>Processing...</Text>
+                </View>
+            )}
+
             <Camera
                 ref={cameraRef}
                 style={StyleSheet.absoluteFill}
@@ -664,6 +659,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             {/* Preview Area (If photo taken) */}
             {fullPreviewUri && (
                 <View style={styles.previewContainer}>
+
                     <Image source={{ uri: fullPreviewUri }} style={styles.previewImage} />
 
                     <View style={[styles.topControls, { paddingTop: insets.top + 10, justifyContent: 'space-between', paddingHorizontal: 15 }]}>
@@ -675,14 +671,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                             <Entypo name={showLeftControls ? "chevron-up" : "chevron-down"} size={30} color="white" />
                         </TouchableOpacity>
                     </View>
-
-                    {/* <TextInput
-                        style={styles.captionInput}
-                        value={captionText}
-                        onChangeText={setCaptionText}
-                        placeholder="Add a caption..."
-                        placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                    /> */}
 
                     {shouldShowModeDropdown && (
                         <View style={[styles.modeDropdownWrapper, { bottom: insets.bottom + 70 }]}>
@@ -785,11 +773,10 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 </View>
             )}
 
-            {/* Tag Name Container (Hidden in preview and when Popup is open) */}
+            {/* Tag Name Container */}
             {!showColorPopup && !(captureMode === 'ai' || captureMode === 'expert') && (
                 <View style={styles.filterTagContainer}>
                     <View style={styles.filterRow}>
-                        {/* 1. Tag Name */}
                         {selectedColorInfo.id !== DEFAULT_COLOR.id && (
                             <View style={styles.tagNameBox}>
                                 <TouchableOpacity
@@ -818,31 +805,34 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 </View>
             )}
 
-            {/* Bottom Navigation Bar and Modes (Hidden in preview) */}
+            {/* Bottom Navigation Bar and Modes */}
             {!fullPreviewUri && (
                 <View style={[styles.bottomNavigationWrapper, { paddingBottom: insets.bottom }]}>
-                    <View style={[styles.captureModeSelector, { width: TAB_AREA_WIDTH, alignSelf: 'center' }]}>
 
-                        <Animated.View style={[
-                            styles.modeHighlight,
-                            {
-                                transform: [{
-                                    translateX: highlightAnim
-                                }]
-                            }
-                        ]} />
+                    {/* 4. Conditional Rendering for Tab Selector based on Role */}
+                    {!isUserExpert && (
+                        <View style={[styles.captureModeSelector, { width: TAB_AREA_WIDTH, alignSelf: 'center' }]}>
 
-                        {/* Tab Buttons */}
-                        <TouchableOpacity style={[styles.tabButton]} onPress={() => handleChangeCaptureMode('manual')}>
-                            <Text style={[styles.modeText, captureMode === 'manual' && styles.activeModeText]}>Manual</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.tabButton]} onPress={() => handleChangeCaptureMode('ai')}>
-                            <Text style={[styles.modeText, captureMode === 'ai' && styles.activeModeText]}>AI</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.tabButton]} onPress={() => setCaptureMode('expert')}>
-                            <Text style={[styles.modeText, captureMode === 'expert' && styles.activeModeText]}>Expert</Text>
-                        </TouchableOpacity>
-                    </View>
+                            <Animated.View style={[
+                                styles.modeHighlight,
+                                {
+                                    transform: [{
+                                        translateX: highlightAnim
+                                    }]
+                                }
+                            ]} />
+
+                            <TouchableOpacity style={[styles.tabButton]} onPress={() => handleChangeCaptureMode('manual')}>
+                                <Text style={[styles.modeText, captureMode === 'manual' && styles.activeModeText]}>Manual</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.tabButton]} onPress={() => handleChangeCaptureMode('ai')}>
+                                <Text style={[styles.modeText, captureMode === 'ai' && styles.activeModeText]}>AI</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.tabButton]} onPress={() => setCaptureMode('expert')}>
+                                <Text style={[styles.modeText, captureMode === 'expert' && styles.activeModeText]}>Expert</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
 
                     <View style={styles.mainControlsRow}>
                         <TouchableOpacity style={styles.smallIconContainer} onPress={handleLaunchLibrary}>
@@ -863,9 +853,12 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             <ColorPopup
                 showColorPicker={showColorPopup}
                 setShowColorPicker={setShowColorPicker}
-                colorFilters={colorFilters}
+                allColorFilters={colorFilters}
                 selectedColorInfo={selectedColorInfo}
                 handleColorSelect={handleColorSelect}
+                showTabs={true}
+                getColorTypeApi={getColorType}
+                getColorsByTypeApi={getColorsByType}
             />
             <ColorPickerPopup
                 isVisible={showColorPickerPopup}
@@ -902,7 +895,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             <ColorPopup
                 showColorPicker={showSavedColorPopup}
                 setShowColorPicker={setShowSavedColorPopup}
-                colorFilters={savedColors}
+                allColorFilters={savedColors}
                 selectedColorInfo={selectedColorInfo}
                 handleColorSelect={handleColorSelect}
                 title="SAVED COLORS"
@@ -910,7 +903,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 onDeleteColor={handleDeleteSavedColor}
             />
 
-            {/* MANUAL RESULT MODAL */}
             <ManualResultModal
                 isVisible={showManualResultModal}
                 onClose={handleCloseManualModal}
@@ -939,6 +931,15 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     loadingText: { color: '#fff', textAlign: 'center', marginTop: screenHeight / 2 },
+
+    // Style cho Loading Overlay API
+    loadingOverlayApi: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999,
+    },
 
     invertedColorFrame: {
         position: 'absolute',
@@ -1179,7 +1180,6 @@ const styles = StyleSheet.create({
         color: 'rgba(255, 255, 255, 0.6)',
         fontSize: 16,
         fontWeight: 'bold',
-        // marginHorizontal: 15,
     },
     activeModeText: {
         color: 'white',
@@ -1233,7 +1233,6 @@ const styles = StyleSheet.create({
     },
     paletteContainer: {
         position: 'absolute',
-        // bottom: 150, // Đã chuyển sang inline style
         right: 20,
         backgroundColor: 'rgba(65, 53, 53, 0.6)',
         borderRadius: 10,

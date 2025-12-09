@@ -230,7 +230,7 @@ export interface ExpertTestResponse {
     testRequestId: number;
     expertId: number;
     note: string;
-    createdDate: string; // ISO 8601 DateTime string
+    createdDate: string;
     rating: number | null;
     bestColor: string;
     worstColor: string;
@@ -239,10 +239,15 @@ export interface ExpertTestResponse {
     colorTypeName: string | null;
 }
 
-export interface ReviewTestRequest {
-    expertTestRequestId: number; // The ID of the task assigned to the expert
+export interface ExpertTestDetailResponse {
     testRequest: ExpertRequest;
-    previousResponses: ExpertTestResponse[]; // IEnumerable trong C# ánh xạ thành Array trong TS
+    responses: ExpertTestResponse[];
+}
+
+export interface ReviewTestRequest {
+    expertTestRequestId: number;
+    testRequest: ExpertRequest;
+    previousResponses: ExpertTestResponse[];
 }
 
 export interface VoteForReviewRequest {

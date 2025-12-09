@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AiTestResponse, ExpertTestResponse, ManualTestResult, ReportPayload, ReportResponse, UserInfo, UserSubscriptionInformation, VerificationPayload } from '../types/dataModels';
+import { AiTestResponse, ExpertTestDetailResponse, ExpertTestResponse, ManualTestResult, ReportPayload, ReportResponse, UserInfo, UserSubscriptionInformation, VerificationPayload } from '../types/dataModels';
 import apiClient, { setAuthToken } from './apiClient';
 
 const USER_ENDPOINT = '/users';
@@ -212,6 +212,49 @@ export const getExpertTestResults = async (): Promise<ExpertTestResponse[]> => {
             throw new Error(error.response?.data?.message || 'Failed to fetch expert test history.');
         } else {
             console.error('An unexpected error occurred while fetching expert test history:', error);
+            throw new Error('An unexpected error occurred.');
+        }
+    }
+};
+
+export const getExpertTestResultsById = async (id: number): Promise<ExpertTestDetailResponse> => {
+    const url = `${TEST_INFO_ENDPOINT}/expert-test/${id}`;
+
+    try {
+        const response = await apiClient.get<ExpertTestDetailResponse>(url);
+
+        return response.data;
+
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error(`Error fetching expert test results for ID ${id}:`, error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || `Failed to fetch expert test results for ID ${id}.`);
+        } else {
+            console.error(`An unexpected error occurred while fetching expert test results for ID ${id}:`, error);
+            throw new Error('An unexpected error occurred.');
+        }
+    }
+};
+
+export const rateExpertTest = async (
+    testResponseId: number,
+    rating: number
+): Promise<{ testResponseId: number; rating: number }> => {
+    const url = '/testresults/expert-test/rate';
+
+    try {
+        const response = await apiClient.post<{ testResponseId: number; rating: number }>(url, {
+            testResponseId,
+            rating,
+        });
+
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('Error submitting expert test rating:', error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || 'Failed to submit rating.');
+        } else {
+            console.error('An unexpected error occurred while submitting expert test rating:', error);
             throw new Error('An unexpected error occurred.');
         }
     }

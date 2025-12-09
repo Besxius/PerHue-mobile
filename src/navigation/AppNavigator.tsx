@@ -25,6 +25,7 @@ import MyPaymentHistoryScreen from '../screens/MyPaymentHistoryScreen';
 import TermAndPoliciesScreen from '../screens/TermAndPoliciesScreen';
 import HelpAndSupportScreen from '../screens/HelpAndSupportScreen';
 import ColorTestOnImageScreen from '../screens/ColorTestOnImageScreen';
+import ExpertTestResponseDetailScreen from '../screens/ExpertTestResponseDetailScreen';
 
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
 export type TabName = 'home' | 'capsule' | 'camera' | 'history' | 'menu';
@@ -46,9 +47,10 @@ export type RootStackParamList = {
   MyPaymentHistoryScreen: undefined;
   TermAndPoliciesScreen: undefined;
   HelpAndSupportScreen: undefined;
+  ExpertTestResponseDetailScreen: { id: number };
   ColorTestOnImageScreen: {
     imageUri: string;
-    colorTestRequestId?: number;
+    testRequestId?: number;
   };
 };
 
@@ -194,7 +196,7 @@ const RootNavigationStack = () => {
             name="ManualTestResultDetailScreen"
             component={ManualTestResultDetailScreen}
             options={{
-              headerShown: true,
+              headerShown: false,
               title: 'Manual Test Result'
             }}
           />
@@ -258,6 +260,14 @@ const RootNavigationStack = () => {
           <RootStack.Screen
             name="ColorTestOnImageScreen"
             component={ColorTestOnImageScreen}
+            options={{
+              headerShown: false,
+              title: 'Image Expert Color Test'
+            }}
+          />
+          <RootStack.Screen
+            name="ExpertTestResponseDetailScreen"
+            component={ExpertTestResponseDetailScreen}
             options={{
               headerShown: false,
               title: 'Image Expert Color Test'

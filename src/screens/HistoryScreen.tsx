@@ -194,11 +194,9 @@ const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem =
 const transformExpertHistory = (historyItem: ExpertRequestHistoryItem): BaseHistoryItem => {
     const id = historyItem.id;
 
-    // Lấy Ảnh (Ưu tiên ảnh từ request của user)
     const pictureUrl = historyItem.pictures?.[0]?.source;
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
 
-    // Tạo subTitle từ Expert Status và Assignment Date
     const statusText = historyItem.expertStatus || historyItem.status;
     const assignmentDate = new Date(historyItem.assignmentDate).toLocaleDateString('vi-VN');
     const subTitle = `Assigned: ${assignmentDate}`;
@@ -222,10 +220,8 @@ const transformExpertHistory = (historyItem: ExpertRequestHistoryItem): BaseHist
 };
 
 const filterHistory = async (statusFilter: string) => {
-    // Luôn tải toàn bộ lịch sử (vì không có API riêng cho từng trạng thái)
     const results = await getRequestHistory();
 
-    // Lọc theo Expert Status hoặc Status chung
     const filtered = results.filter(item =>
         (item.expertStatus && item.expertStatus.toLowerCase() === statusFilter.toLowerCase()) ||
         (item.status && item.status.toLowerCase() === statusFilter.toLowerCase())
@@ -366,20 +362,23 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
             }
         }
 
-        // Xử lý cho vai trò User (CẬP NHẬT Ở ĐÂY)
         if (activeTab?.name === 'Manual Test' && item.buttonText === 'View Detail') {
             navigation.navigate('ManualTestResultDetailScreen', { id: item.id });
             return;
         }
 
-        // THÊM: Xử lý cho AI Test
         if (activeTab?.name === 'AI Test' && item.buttonText === 'View Detail') {
             navigation.navigate('AiTestResultDetailScreen', { id: item.id });
             return;
         }
 
+        if (activeTab?.name === 'Expert Suggestion') {
+            navigation.navigate('ExpertTestResponseDetailScreen', { id: item.id });
+            return;
+        }
+
         console.log(`Default action for tab ${activeTab?.name}`);
-    }, [activeTab, navigation]);
+    }, [activeTab, navigation, userRole]);
 
 
     const renderHistoryItem: ListRenderItem<BaseHistoryItem> = useCallback(({ item }) => {
@@ -470,7 +469,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#fff',
     },
-    // --- New Loading/Empty Styles ---
     loadingOverlay: {
         justifyContent: 'center',
         alignItems: 'center',
