@@ -26,7 +26,7 @@ import AntDesign from '@expo/vector-icons/AntDesign';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Entypo from '@expo/vector-icons/Entypo';
-import Svg, { Rect, Mask, Circle, Defs, Ellipse } from 'react-native-svg';
+import Svg, { Rect, Mask, Defs, Ellipse } from 'react-native-svg';
 import { ColorTestRequest, CapsulePaletteModel, Color, ColorType, ImageFile, ManualColorTestResponse, AiColorTestResponse } from '../types/dataModels';
 import { getCorlorListSpectrum } from '../api/colorApi';
 import ColorPopup from '../components/ColorPopup';

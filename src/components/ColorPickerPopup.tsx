@@ -30,6 +30,7 @@ export interface ColorPickerPopupProps {
     onColorSelected: (color: Color) => void;
     initialColorHex: string;
     colorFilters?: Color[];
+    colorTitle?: string;
 }
 
 type ColorFormat = 'HEX' | 'RGB' | 'CMYK';
@@ -82,7 +83,8 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
     onClose,
     onColorSelected,
     initialColorHex,
-    colorFilters
+    colorFilters,
+    colorTitle
 }) => {
     const insets = useSafeAreaInsets();
     const MODAL_HEIGHT = screenHeight * 0.8;
@@ -311,7 +313,13 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
                             {/* --- Saved Colors (Color Filters) --- */}
                             <View style={colorPickerToolStyles.savedColorsSection}>
                                 <Text style={colorPickerToolStyles.savedColorsTitle}>
-                                    {colorFilters && colorFilters.length > 0 ? "PerHue Color" : "Suggest Colors"}
+                                    {colorTitle
+                                        ? colorTitle
+                                        : (colorFilters && colorFilters.length > 0
+                                            ? "PerHue Color"
+                                            : "Suggest Colors"
+                                        )
+                                    }
                                 </Text>
                                 <ScrollView
                                     horizontal

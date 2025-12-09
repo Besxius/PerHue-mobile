@@ -68,3 +68,33 @@ export const getColorsPaging = async (
         throw new Error(errorMessage);
     }
 };
+
+export const getColorsByType = async (colorTypeId: number): Promise<Color[]> => {
+    try {
+        if (typeof colorTypeId !== 'number' || colorTypeId <= 0) {
+            throw new Error("Color Type ID không hợp lệ.");
+        }
+
+        const response = await apiClient.get<Color[]>(
+            `${USER_ENDPOINT}/by-type/${colorTypeId}/all`
+        );
+
+        if (response.data && Array.isArray(response.data)) {
+            return response.data;
+        }
+
+        throw new Error("Dữ liệu API màu sắc theo loại trả về không hợp lệ.");
+
+    } catch (error) {
+        let errorMessage = `Không thể tải danh sách màu sắc cho loại ID ${colorTypeId}.`;
+
+        if (axios.isAxiosError(error)) {
+            errorMessage = error.response?.data?.message || error.message;
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+
+        console.error(`Lỗi khi tải danh sách màu sắc theo loại ${colorTypeId}:`, error);
+        throw new Error(errorMessage);
+    }
+};
