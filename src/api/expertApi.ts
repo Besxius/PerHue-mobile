@@ -35,6 +35,24 @@ export const getExpertById = async (expertId: number): Promise<ExpertInfo> => {
     }
 };
 
+export const getExpertInformation = async (): Promise<ExpertInfo> => {
+    try {
+        const response = await apiClient.get<ExpertInfo>(
+            `${EXPERT_ENDPOINT}/information`
+        );
+
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('Error fetching current expert information:', error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || 'Failed to fetch expert information.');
+        } else {
+            console.error('An unexpected error occurred while fetching expert information:', error);
+            throw new Error('An unexpected error occurred.');
+        }
+    }
+};
+
 export const getRequests = async (): Promise<ExpertRequest[]> => {
     const url = `${EXPERT_ENDPOINT}/requests`;
 
@@ -141,7 +159,6 @@ export const sendVoteForReview = async (data: VoteForReviewRequest): Promise<Exp
     } catch (error) {
         if (axios.isAxiosError(error)) {
             console.error('Error sending vote:', error.response?.data || error.message);
-            // Ném lỗi với thông báo chi tiết hơn từ server
             throw new Error(error.response?.data?.message || 'Failed to send vote for review.');
         } else {
             console.error('An unexpected error occurred while sending vote:', error);

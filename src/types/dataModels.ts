@@ -92,6 +92,22 @@ export interface VerificationPayload {
     facebookAccount: string;
     linkedInAccount: string;
     instagramAccount: string;
+    Photo: ImageFile[];
+    PhotoType: string[];
+}
+
+export interface VerificationModelPhotoPayload {
+    id: number;
+    email: string;
+    nickname: string;
+    specialization: string;
+    bio: string;
+    yearsOfExperience: number;
+    languages: string;
+    certification: string;
+    facebookAccount: string;
+    linkedInAccount: string;
+    instagramAccount: string;
     photoAndTypes: Array<{
         photo: string; // Giả định là URL/Base64 string
         type: string; // Ví dụ: "ID_FRONT", "ID_BACK", "CERTIFICATE"
@@ -278,15 +294,28 @@ export interface AiTestResult {
     avoidedColor: string[];
 }
 
+export interface AiTestResultModel {
+    id: number;
+    note: string;
+    suggestedColor: string;
+    avoidedColor: string;
+    colorTypeId: number;
+    suggestedColorsBySystem: Color[];
+    suggestedCapsulePalletesBySystem: CapsulePalette[];
+}
+
 export interface AiTestResponse {
-    testRequestId: number;
+    id: number;
+    hairColor: string;
+    eyesColor: string;
+    lipsColor: string;
+    skinColor: string;
     status: string;
-    createdDate: string; // DateTime
-    userAccountId: number | null;
-    fullname: string | null;
+    createdDate: string;
     typeOfTest: string;
+    fullname: string;
     imageUrl: string;
-    result: AiTestResult;
+    newAiTestResultResponseModel: AiTestResultModel;
 }
 
 export interface ExpertTestResponse {

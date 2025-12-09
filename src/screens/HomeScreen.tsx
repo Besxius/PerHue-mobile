@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,19 +9,47 @@ import {
   Dimensions,
   StatusBar,
   ActivityIndicator,
+  FlatList,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+  ViewStyle,
+  ImageSourcePropType,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useVideoPlayer, VideoView } from 'expo-video';
+
 import CustomHeader from '../components/CustomHeader';
-import { RootStackParamList, TabName, TabRouteName } from '../navigation/AppNavigator';
+import { RootStackParamList, TabRouteName } from '../navigation/AppNavigator';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { ExpertInfo } from '../types/dataModels';
 import { getExpertListRanked } from '../api/expertApi';
-import { getAuthRole, getUserName } from '../api/apiClient';
+import { getUserName } from '../api/apiClient';
 
 const { width } = Dimensions.get('window');
+// Chiều rộng hiển thị sát viền (trừ 10px mỗi bên)
+const DISPLAY_WIDTH = width - 20;
+
+// --- ASSETS IMPORT ---
+const PICTURES_GROUP_1 = [
+  require('../assets/picture/1.png'),
+  require('../assets/picture/2.png'),
+  require('../assets/picture/3.png'),
+  require('../assets/picture/4.png'),
+];
+
+const PICTURES_GROUP_2 = [
+  require('../assets/picture/5.png'),
+  require('../assets/picture/6.png'),
+  require('../assets/picture/7.png'),
+];
+
+const VIDEOS = [
+  require('../assets/video/radiant-skin.mp4'),
+  require('../assets/video/status-colors.mp4'),
+];
 
 export type TabParamList = Record<TabRouteName, undefined>;
 type HomeScreenProps = CompositeScreenProps<
@@ -30,14 +58,6 @@ type HomeScreenProps = CompositeScreenProps<
 >;
 
 const DEFAULT_AVATAR_URI = 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400';
-const DEFAULT_FALLBACK_URI = 'https://via.placeholder.com/400x600.png?text=No+Image';
-
-const colorTypeStyleImages = [
-  { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
-  { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
-  { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
-  { uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400', label: '' },
-];
 
 const useUserName = () => {
   const [userName, setUserName] = useState<string>('User');
@@ -48,16 +68,119 @@ const useUserName = () => {
         const firstName = name.split(' ')[0];
         setUserName(firstName);
       }
-
     };
     loadName();
   }, []);
   return userName;
 };
 
+// --- COMPONENT: HÌNH ẢNH TỰ ĐỘNG TÍNH CHIỀU CAO (GIỮ NGUYÊN TỪ LẦN TRƯỚC) ---
+const DynamicImageItem = ({ source }: { source: ImageSourcePropType }) => {
+  const { width: originalWidth, height: originalHeight } = Image.resolveAssetSource(source);
+  // Tính chiều cao dựa trên tỉ lệ ảnh gốc để vừa khít chiều rộng
+  const dynamicHeight = DISPLAY_WIDTH * (originalHeight / originalWidth);
+
+  return (
+    <View style={{ width: width, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{
+        width: DISPLAY_WIDTH,
+        height: dynamicHeight,
+        borderRadius: 15,
+        overflow: 'hidden',
+        backgroundColor: '#f0f0f0'
+      }}>
+        <Image
+          source={source}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="contain"
+        />
+      </View>
+    </View>
+  );
+};
+
+// --- COMPONENT: CAROUSEL ---
+interface CarouselProps {
+  data: any[];
+}
+
+const AutoScrollingCarousel: React.FC<CarouselProps> = ({ data }) => {
+  const flatListRef = useRef<FlatList>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (data.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => {
+        const nextIndex = prevIndex === data.length - 1 ? 0 : prevIndex + 1;
+        flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+        return nextIndex;
+      });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [data.length]);
+
+  const onMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const index = Math.round(event.nativeEvent.contentOffset.x / width);
+    setCurrentIndex(index);
+  };
+
+  return (
+    <View style={{ marginBottom: 20 }}>
+      <FlatList
+        ref={flatListRef}
+        data={data}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(_, index) => index.toString()}
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        renderItem={({ item }) => <DynamicImageItem source={item} />}
+      />
+      <View style={styles.paginationContainer}>
+        {data.map((_, index) => (
+          <View
+            key={index}
+            style={[
+              styles.dot,
+              { backgroundColor: index === currentIndex ? '#3B82F6' : '#E5E7EB' }
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+};
+
+// --- COMPONENT: VIDEO PLAYER ITEM (ĐÃ SỬA LỖI MẤT VIDEO) ---
+interface VideoPlayerProps {
+  source: any;
+  style?: ViewStyle;
+}
+
+const VideoPlayerItem: React.FC<VideoPlayerProps> = ({ source, style }) => {
+  const player = useVideoPlayer(source, (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  return (
+    <View style={[styles.videoContainer, style]}>
+      <VideoView
+        style={styles.video}
+        player={player}
+        nativeControls={false}
+        // 'cover' giúp lấp đầy khung hình, loại bỏ viền đen
+        contentFit="cover"
+      />
+    </View>
+  );
+};
+
+// --- MAIN SCREEN ---
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<TabName>('home');
   const userName = useUserName();
 
   const [expertList, setExpertList] = useState<ExpertInfo[]>([]);
@@ -72,33 +195,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         setExpertList(experts);
         setError(null);
       } catch (e) {
-        console.error('Error fetching ranked experts:', e);
-        setError('Không thể tải danh sách chuyên gia. Vui lòng thử lại.');
+        console.error('Error fetching experts:', e);
+        setError('Không thể tải danh sách chuyên gia.');
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchExperts();
   }, []);
 
-  const handleTabPress = (tab: TabName) => {
-    setActiveTab(tab);
-    console.log(`Chuyển đến tab: ${tab}`);
-  };
-
-  const navigateToPackageScreen = () => {
-    navigation.navigate('PackageScreen');
-  };
-  const navigateToNotificationScreen = () => {
-    navigation.navigate("NotificationScreen");
-  };
-
   const navigateToExpertDetail = (expert: ExpertInfo) => {
     navigation.navigate('ExpertDetailScreen', { expert: expert });
-  };
-  const navigateToUserScreen = () => {
-    navigation.navigate('UserScreen');
   };
 
   return (
@@ -110,29 +217,47 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         contentContainerStyle={{ paddingBottom: 60 + insets.bottom + 20 }}
       >
         <CustomHeader
-          onNavigateToPackage={navigateToPackageScreen}
-          onNavigateToNotification={navigateToNotificationScreen}
+          onNavigateToPackage={() => navigation.navigate('PackageScreen')}
+          onNavigateToNotification={() => navigation.navigate("NotificationScreen")}
         />
 
-        <TouchableOpacity
-          style={styles.welcomeCard} // Dùng style mới hoặc sửa announcementCard
-          onPress={navigateToUserScreen}
-        >
+        <View style={styles.welcomeContainer}>
           <View>
-            <Text style={styles.welcomeTitle}>Welcome, {userName}!</Text>
-            <Text style={styles.welcomeBody} numberOfLines={2}>
-              Access your profile information within the system.
-            </Text>
+            <Text style={styles.greetingText}>Hello,</Text>
+            <Text style={styles.userNameText}>{userName}</Text>
+            <Text style={styles.subGreetingText}>Ready to find your best colors?</Text>
           </View>
-          <Ionicons name="arrow-forward" size={24} color="#3B82F6" style={styles.welcomeArrow} />
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('UserScreen')} style={styles.profileLinkButton}>
+            <Ionicons name="arrow-forward-circle-outline" size={32} color="#000000ff" />
+          </TouchableOpacity>
+        </View>
 
-        {/* Hiển thị danh sách Famous Experts */}
-        <Text style={styles.sectionTitle}>Famous Experts</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Featured Styles</Text>
+          <Text style={styles.sectionSubtitle}>Discover the latest trends</Text>
+        </View>
+        <AutoScrollingCarousel data={PICTURES_GROUP_1} />
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Style Inspiration</Text>
+        </View>
+        <VideoPlayerItem
+          source={VIDEOS[0]}
+          style={{ height: 700 }}
+        />
+
+        {/* --- SECTION 3: TOP EXPERTS --- */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Top Experts</Text>
+          <TouchableOpacity>
+            <Text style={styles.seeAllText}>See All</Text>
+          </TouchableOpacity>
+        </View>
+
         {isLoading ? (
           <ActivityIndicator size="large" color="#3B82F6" style={styles.loadingIndicator} />
         ) : error ? (
-          <Text style={styles.errorText}>Lỗi: {error}</Text>
+          <Text style={styles.errorText}>{error}</Text>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentlyViewedScroll}>
             {expertList.map((expert) => (
@@ -141,48 +266,34 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 style={styles.expertAvatarContainer}
                 onPress={() => navigateToExpertDetail(expert)}
               >
-                <Image
-                  source={{
-                    uri: expert.profilePicture || DEFAULT_AVATAR_URI
-                  }}
-                  style={styles.recentlyViewedImage}
-                />
+                <View style={styles.avatarBorder}>
+                  <Image
+                    source={{ uri: expert.profilePicture || DEFAULT_AVATAR_URI }}
+                    style={styles.recentlyViewedImage}
+                  />
+                </View>
                 <Text style={styles.expertName} numberOfLines={1}>{expert.nickname}</Text>
+                <Text style={styles.expertRole} numberOfLines={1}>{expert.specialization}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         )}
 
-        {/* <Text style={styles.sectionTitle}>My Orders</Text>
-        <View style={styles.orderTabs}>
-          <TouchableOpacity style={styles.orderTabActive}>
-            <Text style={styles.orderTabTextActive}>Sent</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.orderTabInactive}>
-            <Text style={styles.orderTabTextInactive}>To Review</Text>
-            <View style={styles.reviewDot} />
-          </TouchableOpacity>
-        </View> */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trend Collection</Text>
+        </View>
+        <AutoScrollingCarousel data={PICTURES_GROUP_2} />
 
-        <Text style={styles.sectionTitle}>Some color type style</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorStyleScroll}>
-          {colorTypeStyleImages.map((imageItem, index) => (
-            <TouchableOpacity key={index} style={styles.videoCard}>
-              <Image
-                source={{ uri: imageItem.uri || DEFAULT_FALLBACK_URI }}
-                style={styles.videoThumbnail}
-              />
-              {imageItem.label === 'Live' && (
-                <View style={styles.liveBadge}>
-                  <Text style={styles.liveBadgeText}>Live</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>How colors affect to you?</Text>
+        </View>
+        <VideoPlayerItem
+          source={VIDEOS[1]}
+          style={{ height: 250 }}
+        />
+
         <View style={{ height: 30 }} />
       </ScrollView>
-
     </View>
   );
 };
@@ -194,41 +305,56 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  welcomeCard: {
+  welcomeContainer: {
+    paddingHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 20,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#E6EEFF', // Nền xanh nhạt
-    borderRadius: 15,
-    padding: 15,
-    marginHorizontal: 20,
-    marginBottom: 30,
-    borderLeftWidth: 5, // Thêm thanh màu xanh
-    borderLeftColor: '#3B82F6',
+    alignItems: 'center',
   },
-  welcomeTitle: {
-    color: '#3B82F6',
-    fontWeight: 'bold',
-    fontSize: 18,
-    marginBottom: 4,
+  greetingText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
   },
-  welcomeBody: {
-    color: '#555',
+  userNameText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#333',
+    letterSpacing: 0.5,
+  },
+  subGreetingText: {
     fontSize: 14,
-    width: width - 120,
+    color: '#999',
+    marginTop: 2,
   },
-  welcomeArrow: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 50,
+  profileLinkButton: {
     padding: 5,
-    color: 'white',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    marginTop: 15,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    paddingHorizontal: 20,
-    marginBottom: 15,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  seeAllText: {
+    fontSize: 14,
+    color: '#3B82F6',
+    fontWeight: '600',
   },
   loadingIndicator: {
     marginBottom: 30,
@@ -241,103 +367,63 @@ const styles = StyleSheet.create({
   },
   recentlyViewedScroll: {
     paddingLeft: 20,
-    marginBottom: 30,
-    height: 120,
+    marginBottom: 20,
+    height: 140,
   },
   expertAvatarContainer: {
-    width: 80,
+    width: 90,
     marginRight: 15,
     alignItems: 'center',
+  },
+  avatarBorder: {
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    padding: 2,
+    marginBottom: 6,
   },
   recentlyViewedImage: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    borderWidth: 2,
-    borderColor: '#3B82F6',
-    marginBottom: 5,
   },
   expertName: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#333',
     textAlign: 'center',
-    fontWeight: '600',
-    marginTop: 4,
+    fontWeight: '700',
     width: '100%',
   },
-  orderTabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  orderTabActive: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  orderTabTextActive: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  orderTabInactive: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#eee',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  orderTabTextInactive: {
-    color: '#333',
-    fontWeight: 'bold',
-  },
-  reviewDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'red',
-    marginLeft: 5,
-  },
-  colorStyleScroll: {
-    paddingLeft: 20,
-  },
-  videoCard: {
-    width: width / 3 - 25,
-    height: (width / 3 - 25) * 1.5,
-    borderRadius: 15,
-    marginRight: 15,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  videoThumbnail: {
+  expertRole: {
+    fontSize: 11,
+    color: '#888',
+    textAlign: 'center',
     width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
   },
-  playIconOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  paginationContainer: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    marginTop: 10,
   },
-  liveBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: 'red',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 5,
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginHorizontal: 3,
   },
-  liveBadgeText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 12,
+  // --- Video Styles ---
+  videoContainer: {
+    width: DISPLAY_WIDTH,
+    marginHorizontal: 10,
+    borderRadius: 15,
+    overflow: 'hidden',
+    marginBottom: 20,
+    backgroundColor: '#f5f5f5',
+    height: 200,
+  },
+  video: {
+    width: '100%',
+    height: '100%', // VideoView lấp đầy container
   },
 });

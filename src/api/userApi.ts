@@ -14,14 +14,12 @@ export const loadUserInfo = async (): Promise<UserInfo> => {
             `${USER_ENDPOINT}/information`
         );
 
-        // API trả về trực tiếp đối tượng UserInfo
         return response.data;
 
     } catch (error) {
         let errorMessage = 'Không thể tải thông tin người dùng.';
 
         if (axios.isAxiosError(error)) {
-            // Lỗi 401 thường xảy ra nếu token hết hạn/không hợp lệ
             if (error.response?.status === 401) {
                 errorMessage = 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.';
             } else {
@@ -32,7 +30,6 @@ export const loadUserInfo = async (): Promise<UserInfo> => {
         }
 
         console.error('Lỗi khi tải User Info:', error);
-        // Ném ra lỗi để component UI xử lý (ví dụ: đăng xuất người dùng)
         throw new Error(errorMessage);
     }
 };
@@ -44,35 +41,29 @@ export const uploadProfilePicture = async (
 ): Promise<{ url: string }> => {
     const formData = new FormData();
 
-    // Đảm bảo cấu trúc file object chuẩn của React Native được sử dụng đúng cách:
-    // Tên trường: 'file' (theo yêu cầu của API trong ảnh)
     formData.append('file', {
         uri: fileUri,
         type: mimeType,
         name: fileName,
-    } as any); // Vẫn dùng 'as any' vì đây là cách React Native xử lý FormData cho file
+    } as any);
 
     try {
-        // GỌI POST ĐẾN ĐƯỜNG DẪN TUYỆT ĐỐI: /api/users/upload_profile_picture
         const response = await apiClient.post<{ url: string }>(
             `${USER_ENDPOINT}/upload_profile_picture`,
             formData,
             {
                 headers: {
-                    // PHẢI CÓ: Cấu hình Header cho file upload
                     'Content-Type': 'multipart/form-data',
                 },
             }
         );
 
-        // Trả về đối tượng { url: string }
         return response.data;
 
     } catch (error) {
         let errorMessage = 'Lỗi khi upload ảnh đại diện.';
 
         if (axios.isAxiosError(error)) {
-            // Thêm log chi tiết lỗi Axios (rất hữu ích cho gỡ lỗi Network)
             console.error('Chi tiết lỗi Axios:', error.toJSON());
 
             errorMessage = error.response?.data?.message || error.message;
@@ -94,33 +85,70 @@ export const submitVerificationRequest = async (
     payload: VerificationPayload
 ): Promise<void> => {
     const url = VERIFICATION_ENDPOINT;
+    const formData = new FormData();
+
+    formData.append('Id', payload.id.toString());
+    formData.append('Email', payload.email || '');
+    formData.append('Nickname', payload.nickname || '');
+    formData.append('Specialization', payload.specialization || '');
+    formData.append('Bio', payload.bio || '');
+    formData.append('YearsOfExperience', payload.yearsOfExperience.toString());
+    formData.append('Languages', payload.languages || '');
+    formData.append('Certification', payload.certification || '');
+    formData.append('FacebookAccount', payload.facebookAccount || '');
+    formData.append('LinkedInAccount', payload.linkedInAccount || '');
+    formData.append('InstagramAccount', payload.instagramAccount || '');
+
+    if (payload.Photo && payload.Photo.length > 0) {
+        payload.Photo.forEach((file) => {
+            formData.append('Photo', {
+                uri: file.uri,
+                type: file.type,
+                name: file.name,
+            } as any);
+        });
+    }
+
+    if (payload.PhotoType && payload.PhotoType.length > 0) {
+        payload.PhotoType.forEach((type) => {
+            formData.append('PhotoType', type);
+        });
+    }
 
     try {
-        await apiClient.post<void>(url, payload);
-
+        await apiClient.post<void>(url, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
         console.log('Yêu cầu xác minh đã được gửi thành công.');
-
     } catch (error) {
         let errorMessage = 'Lỗi khi gửi yêu cầu xác minh.';
-
         if (axios.isAxiosError(error)) {
-            const serverMessage = error.response?.data?.message;
-            if (serverMessage) {
-                errorMessage = `Lỗi từ server: ${serverMessage}`;
-            } else {
-                errorMessage = error.message;
-            }
-
-            if (!error.response && error.message === 'Network Error') {
-                errorMessage = 'Lỗi mạng: Không thể kết nối đến server.';
-            }
-
+            console.error('API Error Response:', error.response?.data);
+            errorMessage = error.response?.data?.title || error.response?.data?.message || error.message;
         } else if (error instanceof Error) {
             errorMessage = error.message;
         }
-
-        console.error('Lỗi khi gửi yêu cầu xác minh:', error);
         throw new Error(errorMessage);
+    }
+};
+
+export const checkPendingVerification = async (): Promise<{ hasPending: boolean }> => {
+    const url = `${VERIFICATION_ENDPOINT}/pending`;
+
+    try {
+        const response = await apiClient.get<{ hasPending: boolean }>(url);
+
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('Error checking pending verification:', error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || 'Failed to check verification status.');
+        } else {
+            console.error('An unexpected error occurred while checking verification status:', error);
+            throw new Error('An unexpected error occurred.');
+        }
     }
 };
 
@@ -159,7 +187,6 @@ export const getManualTestResultById = async (id: number): Promise<ManualTestRes
         }
     }
 };
-
 export const getAiTestResults = async (): Promise<AiTestResponse[]> => {
     const url = `${TEST_INFO_ENDPOINT}/ai-test/my-history`;
 
@@ -179,18 +206,15 @@ export const getAiTestResults = async (): Promise<AiTestResponse[]> => {
 };
 
 export const getAiTestResultById = async (id: number): Promise<AiTestResponse> => {
-    // Xây dựng URL: /api/testinformation/ai-test/{id}
     const url = `${TEST_INFO_ENDPOINT}/ai-test/${id}`;
 
     try {
         const response = await apiClient.get<AiTestResponse>(url);
 
-        // API trả về trực tiếp đối tượng AiTestResultById
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {
             console.error(`Error fetching AI test result with ID ${id}:`, error.response?.data || error.message);
-            // Ném lỗi với thông báo chi tiết hơn từ server
             throw new Error(error.response?.data?.message || `Failed to fetch AI test result ID ${id}.`);
         } else {
             console.error(`An unexpected error occurred while fetching AI test result ID ${id}:`, error);

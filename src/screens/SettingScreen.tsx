@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -14,29 +14,30 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useAuth } from './auth/AuthContext';
 import { unifiedLogout } from '../api/authApi';
+import { getAuthRole } from '../api/apiClient'; // Import getAuthRole
 import CustomHeader from '../components/CustomHeader';
 
 type SettingScreenProps = NativeStackScreenProps<RootStackParamList, 'Tabs'>;
 
 interface SettingItem {
     id: string;
-    icon: React.ComponentProps<typeof Ionicons>['name'] | React.ComponentProps<typeof MaterialCommunityIcons>['name'] | React.ComponentProps<typeof AntDesign>['name'] | React.ComponentProps<typeof Feather>['name'] | React.ComponentProps<typeof FontAwesome5>['name'];
+    icon: any;
     iconSet: 'Ionicons' | 'MaterialCommunityIcons' | 'Feather' | 'AntDesign' | 'FontAwesome5';
     label: string;
     action: 'navigate' | 'action' | 'logout';
     targetScreen?: keyof RootStackParamList | string;
 }
 
-const SETTINGS_DATA: { title: string; data: SettingItem[] }[] = [
+// Dữ liệu gốc
+const BASE_SETTINGS_DATA: { title: string; data: SettingItem[] }[] = [
     {
         title: 'Account',
         data: [
             { id: '1', icon: 'person-outline', iconSet: 'Ionicons', label: 'Edit profile', action: 'navigate', targetScreen: 'UserScreen' },
             { id: '2', icon: 'signature', iconSet: 'AntDesign', label: 'Become Expert', action: 'navigate', targetScreen: 'VerifyExpertScreen' },
-            { id: '3', icon: 'bell', iconSet: 'Feather', label: 'Notifications', action: 'navigate', targetScreen: 'Notifications' },
+            { id: '3', icon: 'bell', iconSet: 'Feather', label: 'Notifications', action: 'navigate', targetScreen: 'NotificationScreen' },
             { id: '4', icon: 'albums-outline', iconSet: 'Ionicons', label: 'My Subscription', action: 'navigate', targetScreen: 'MySubscriptionScreen' },
             { id: '5', icon: 'card-outline', iconSet: 'Ionicons', label: 'My payment history', action: 'navigate', targetScreen: 'MyPaymentHistoryScreen' },
-            // { id: '5', icon: 'lock-closed-outline', iconSet: 'Ionicons', label: 'Privacy', action: 'navigate', targetScreen: 'Privacy' },
         ],
     },
     {
@@ -46,19 +47,10 @@ const SETTINGS_DATA: { title: string; data: SettingItem[] }[] = [
             { id: '7', icon: 'shield', iconSet: 'Feather', label: 'Terms and Policies', action: 'navigate', targetScreen: 'TermAndPoliciesScreen' },
         ],
     },
-    // {
-    //     title: 'Cache & cellular',
-    //     data: [
-    //         { id: '8', icon: 'trash-can-outline', iconSet: 'MaterialCommunityIcons', label: 'Free up space', action: 'action', targetScreen: 'FreeUpSpace' },
-    //         { id: '9', icon: 'trending-down', iconSet: 'Feather', label: 'Data Saver', action: 'action', targetScreen: 'DataSaver' },
-    //     ],
-    // },
     {
         title: 'Actions',
         data: [
-            // { id: '10', icon: 'flag', iconSet: 'Feather', label: 'Report a problem', action: 'action', targetScreen: 'ReportProblem' },
             { id: '10', icon: 'log-out-outline', iconSet: 'Ionicons', label: 'Log out', action: 'logout', targetScreen: 'LogOut' },
-            // { id: '12', icon: 'account-plus-outline', iconSet: 'MaterialCommunityIcons', label: 'Add account', action: 'action', targetScreen: 'AddAccount' },
         ],
     },
 ];
@@ -69,15 +61,15 @@ const renderIcon = (item: SettingItem) => {
 
     switch (item.iconSet) {
         case 'Ionicons':
-            return <Ionicons name={item.icon as React.ComponentProps<typeof Ionicons>['name']} size={size} color={color} />;
+            return <Ionicons name={item.icon} size={size} color={color} />;
         case 'MaterialCommunityIcons':
-            return <MaterialCommunityIcons name={item.icon as React.ComponentProps<typeof MaterialCommunityIcons>['name']} size={size} color={color} />;
+            return <MaterialCommunityIcons name={item.icon} size={size} color={color} />;
         case 'Feather':
-            return <Feather name={item.icon as React.ComponentProps<typeof Feather>['name']} size={size} color={color} />;
+            return <Feather name={item.icon} size={size} color={color} />;
         case 'AntDesign':
-            return <AntDesign name={item.icon as React.ComponentProps<typeof AntDesign>['name']} size={size} color={color} />;
+            return <AntDesign name={item.icon} size={size} color={color} />;
         case 'FontAwesome5':
-            return <FontAwesome5 name={item.icon as React.ComponentProps<typeof FontAwesome5>['name']} size={size} color={color} />;
+            return <FontAwesome5 name={item.icon} size={size} color={color} />;
         default:
             return <Ionicons name="settings-outline" size={size} color={color} />;
     }
@@ -86,6 +78,16 @@ const renderIcon = (item: SettingItem) => {
 const SettingScreen: React.FC<any> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { setIsLoggedIn } = useAuth();
+    const [userRole, setUserRole] = useState<string | null>(null);
+
+    // Lấy Role khi component mount
+    useEffect(() => {
+        const fetchRole = async () => {
+            const role = await getAuthRole();
+            setUserRole(role);
+        };
+        fetchRole();
+    }, []);
 
     const navigateToPackageScreen = () => {
         navigation.navigate('PackageScreen');
@@ -94,13 +96,39 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
         navigation.navigate("NotificationScreen");
     };
 
+    // Xử lý logic lọc menu dựa trên Role
+    const settingsData = useMemo(() => {
+        // Sao chép sâu dữ liệu gốc để không làm thay đổi biến global
+        const data = JSON.parse(JSON.stringify(BASE_SETTINGS_DATA));
+        const accountSection = data.find((section: any) => section.title === 'Account');
+
+        if (accountSection) {
+            if (userRole === 'Expert') {
+                // 1. Loại bỏ các mục không cần thiết cho Expert
+                accountSection.data = accountSection.data.filter((item: SettingItem) =>
+                    item.label !== 'Become Expert' &&
+                    item.label !== 'My Subscription' &&
+                    item.label !== 'My payment history'
+                );
+
+                // 2. Thêm mục "My Expert Information"
+                accountSection.data.splice(1, 0, {
+                    id: 'expert-info',
+                    icon: 'idcard', // Icon AntDesign
+                    iconSet: 'AntDesign',
+                    label: 'My Expert Information',
+                    action: 'navigate',
+                    targetScreen: 'MyExpertInformationScreen'
+                });
+            }
+        }
+        return data;
+    }, [userRole]);
+
     const handlePress = (item: SettingItem) => {
         if (item.action === 'navigate' && item.targetScreen) {
-            if (navigation.canGoBack()) {
-                navigation.navigate(item.targetScreen as keyof RootStackParamList);
-            } else {
-                console.warn(`Màn hình ${item.targetScreen} không tồn tại hoặc không thể điều hướng.`);
-            }
+            // @ts-ignore
+            navigation.navigate(item.targetScreen);
         } else if (item.action === 'logout') {
             Alert.alert(
                 'Đăng xuất',
@@ -118,7 +146,6 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
                 ]
             );
         } else {
-            console.log(`Action: ${item.label} (${item.targetScreen})`);
             Alert.alert('Chức năng', `Bạn đã nhấn vào: ${item.label}`);
         }
     };
@@ -134,6 +161,9 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
             <Text style={[styles.label, item.action === 'logout' && styles.logoutLabel]}>
                 {item.label}
             </Text>
+            {item.action === 'navigate' && (
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            )}
         </TouchableOpacity>
     );
 
@@ -148,7 +178,7 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
             />
 
             <SectionList
-                sections={SETTINGS_DATA}
+                sections={settingsData}
                 keyExtractor={item => item.id}
                 renderItem={renderItem}
                 showsVerticalScrollIndicator={false}
@@ -156,8 +186,6 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
                     styles.listContent,
                     { paddingBottom: insets.bottom + 100 }
                 ]}
-
-                // Render Section Header (Giữ nguyên)
                 renderSectionHeader={({ section: { title } }) => (
                     <Text style={styles.sectionTitle}>{title}</Text>
                 )}
@@ -170,23 +198,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f9f9f9',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 15,
-        paddingBottom: 15,
-        backgroundColor: '#f9f9f9',
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#eee',
-    },
-    backButton: {
-        paddingRight: 15,
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#333',
     },
     listContent: {
         paddingHorizontal: 15,
@@ -203,10 +214,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 15,
-        paddingHorizontal: 5,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#eee',
+        paddingHorizontal: 15,
+        marginBottom: 8,
+        borderRadius: 12,
         backgroundColor: 'white',
+        // Shadow nhẹ
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     iconWrapper: {
         width: 30,

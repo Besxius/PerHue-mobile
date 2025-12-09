@@ -4,6 +4,7 @@ import apiClient, { API_BASE_URL, setAuthToken } from './apiClient';
 import { PagingResponse } from '../types';
 
 const CAPSULE_PALETTES_ENDPOINT = '/capsulepalettes';
+const COLOR_TYPES_ENDPOINT = '/colortypes'
 
 export const getCapsulePalettePaging = async (
     pageIndex: number,
@@ -93,7 +94,7 @@ export const getCapsulePaletteById = async (
 
 export const getColorType = async (): Promise<ColorType[]> => {
     try {
-        const url = `${API_BASE_URL}/colortypes`;
+        const url = `${COLOR_TYPES_ENDPOINT}`;
         const response = await apiClient.get<ColorType[]>(url);
 
         if (response.data && Array.isArray(response.data)) {
@@ -111,7 +112,38 @@ export const getColorType = async (): Promise<ColorType[]> => {
             errorMessage = error.message;
         }
 
-        console.error('Lỗi khi tải Capsule Palettes theo loại:', error);
+        console.error('Lỗi khi tải danh sách Color Type theo loại:', error);
+        throw new Error(errorMessage);
+    }
+};
+
+export const getColorTypeById = async (id: number): Promise<ColorType> => {
+    try {
+        const url = `${COLOR_TYPES_ENDPOINT}/${id}`;
+
+        const response = await apiClient.get<ColorType>(url);
+
+        if (response.data && typeof response.data.id === 'number' && typeof response.data.name === 'string') {
+            return response.data;
+        }
+
+        if (response.data) {
+            return response.data;
+        }
+
+        throw new Error("Dữ liệu Color Type trả về rỗng hoặc không hợp lệ.");
+
+    } catch (error) {
+        let errorMessage = `Không thể tải Color Type có ID: ${id}`;
+
+        if (axios.isAxiosError(error)) {
+            errorMessage = error.response?.data?.message || error.message;
+            console.error(`API Error ${error.response?.status} at ${error.config?.url}:`, error.response?.data);
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+
+        console.error('Lỗi khi tải Color Type:', error);
         throw new Error(errorMessage);
     }
 };

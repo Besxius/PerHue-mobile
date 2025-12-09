@@ -36,7 +36,6 @@ const SUCCESS_COLOR = '#4CAF50';
 const CARD_MARGIN = 15;
 
 // --- Helper Functions ---
-// Hàm xác định màu chữ (đen/trắng) dựa trên màu nền để dễ đọc
 const getContrastTextColor = (hex: string) => {
     const r = parseInt(hex.substr(1, 2), 16);
     const g = parseInt(hex.substr(3, 2), 16);
@@ -126,7 +125,7 @@ const InteractiveStarRating: FC<InteractiveStarRatingProps> = ({ rating, onRate,
                 >
                     <Ionicons
                         name={star <= currentRating ? "star" : "star-outline"}
-                        size={32} // Tăng kích thước sao để dễ bấm
+                        size={32}
                         color="#FFC300"
                     />
                 </TouchableOpacity>
@@ -144,7 +143,7 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
     const [data, setData] = useState<ExpertTestDetailData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [ratingLoadingMap, setRatingLoadingMap] = useState<Record<number, boolean>>({}); // Quản lý loading cho từng response khi vote
+    const [ratingLoadingMap, setRatingLoadingMap] = useState<Record<number, boolean>>({});
 
     const hexStringToColorList = useCallback((hexString: string): Color[] => {
         if (!hexString) return [];
@@ -176,17 +175,12 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
         fetchData();
     }, [fetchData]);
 
-    // Xử lý vote sao
     const handleRating = async (responseId: number, score: number) => {
-        // Optimistic UI update (Cập nhật giao diện trước khi gọi API để mượt mà hơn)
-        // Tuy nhiên ở đây ta set loading map để an toàn
         setRatingLoadingMap(prev => ({ ...prev, [responseId]: true }));
 
         try {
-            // Gọi API rate
             await rateExpertTest(responseId, score);
 
-            // Cập nhật lại state local sau khi thành công
             if (data) {
                 const updatedResponses = data.responses.map(res =>
                     res.id === responseId ? { ...res, rating: score } : res
@@ -239,18 +233,37 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
         const worstColors = hexStringToColorList(item.worstColor || '');
         const isRating = ratingLoadingMap[item.id] || false;
 
+        // [LOGIC MỚI] Xác định màu nền và nhãn dựa trên Type
+        let cardBackgroundColor = '#fff';
+        let typeLabel = 'Normal Response';
+        let typeColor = BLUE_COLOR;
+
+        if (item.type === 'AI') {
+            cardBackgroundColor = '#E8F5E9'; // Xanh lá nhẹ
+            typeLabel = 'AI Response';
+            typeColor = '#2E7D32'; // Xanh lá đậm hơn cho text
+        } else if (item.type === 'Review') {
+            cardBackgroundColor = '#FFF9C4'; // Vàng nhẹ
+            typeLabel = 'Review Response';
+            typeColor = '#F57F17'; // Cam/Vàng đậm cho text
+        }
+
         return (
-            <View style={styles.responseCard}>
+            <View style={[styles.responseCard, { backgroundColor: cardBackgroundColor }]}>
                 <View style={styles.responseHeaderRow}>
-                    <Text style={styles.responseTitle}>
-                        <Ionicons name="ribbon-outline" size={20} color={BLUE_COLOR} /> Response #{index + 1}
-                    </Text>
+                    <View>
+                        <Text style={styles.responseTitle}>
+                            <Ionicons name="ribbon-outline" size={20} color={typeColor} /> Response #{index + 1}
+                        </Text>
+                        {/* Hiển thị Type */}
+                        <Text style={{ fontSize: 12, color: typeColor, fontWeight: 'bold', marginLeft: 24, marginTop: 2 }}>
+                            {typeLabel}
+                        </Text>
+                    </View>
                     <Text style={styles.dateText}>
                         {new Date(item.createdDate).toLocaleDateString()}
                     </Text>
                 </View>
-
-                {/* Đã xóa Expert ID theo yêu cầu */}
 
                 <View style={styles.resultSummary}>
                     <View style={styles.resultChip}>
@@ -279,17 +292,20 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
                     />
                 </View>
 
-                <View style={styles.ratingSection}>
-                    <Text style={styles.ratingTitle}>Rate this analysis:</Text>
-                    {isRating ? (
-                        <ActivityIndicator size="small" color="#FFC300" style={{ marginVertical: 10 }} />
-                    ) : (
-                        <InteractiveStarRating
-                            rating={item.rating}
-                            onRate={(score) => handleRating(item.id, score)}
-                        />
-                    )}
-                </View>
+                {/* [LOGIC MỚI] Chỉ hiển thị phần đánh giá nếu KHÔNG PHẢI là AI */}
+                {item.type !== 'AI' && (
+                    <View style={styles.ratingSection}>
+                        <Text style={styles.ratingTitle}>Rate this analysis:</Text>
+                        {isRating ? (
+                            <ActivityIndicator size="small" color="#FFC300" style={{ marginVertical: 10 }} />
+                        ) : (
+                            <InteractiveStarRating
+                                rating={item.rating}
+                                onRate={(score) => handleRating(item.id, score)}
+                            />
+                        )}
+                    </View>
+                )}
             </View>
         );
     };
@@ -511,7 +527,7 @@ const styles = StyleSheet.create({
     },
     // Response Card Styles
     responseCard: {
-        backgroundColor: '#fff',
+        // backgroundColor: '#fff', // Removed to support dynamic background
         padding: 15,
         borderRadius: 15,
         marginBottom: 15,
@@ -527,7 +543,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
         paddingBottom: 8,
     },
     responseTitle: {
@@ -546,7 +562,7 @@ const styles = StyleSheet.create({
     resultChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#E3F2FD',
+        backgroundColor: 'rgba(255,255,255,0.6)', // Semi-transparent white
         borderRadius: 5,
         paddingHorizontal: 10,
         paddingVertical: 5,
@@ -562,7 +578,7 @@ const styles = StyleSheet.create({
         marginLeft: 5,
     },
     noteContainer: {
-        backgroundColor: '#fafafa',
+        backgroundColor: 'rgba(255,255,255,0.5)', // Semi-transparent
         padding: 10,
         borderRadius: 8,
         marginBottom: 15,
@@ -601,7 +617,6 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 10,
     },
-    // New Styles for Square Color Box
     colorSquareBox: {
         width: 60,
         height: 60,
@@ -621,12 +636,11 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         textAlign: 'center',
     },
-    // Rating Styles
     ratingSection: {
         alignItems: 'center',
         paddingTop: 10,
         borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
+        borderTopColor: 'rgba(0,0,0,0.05)',
     },
     ratingTitle: {
         fontSize: 14,

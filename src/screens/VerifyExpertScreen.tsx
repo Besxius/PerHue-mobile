@@ -3,16 +3,24 @@ import {
     View,
     Text,
     TextInput,
-    Button,
     StyleSheet,
     ScrollView,
     Alert,
     Modal,
     TouchableOpacity,
-    ActivityIndicator
+    ActivityIndicator,
+    Image,
+    Platform,
+    KeyboardAvoidingView
 } from 'react-native';
-import { UserInfo, VerificationPayload } from '../types/dataModels';
-import { loadUserInfo, submitVerificationRequest } from '../api/userApi';
+import { Asset, launchImageLibrary, ImageLibraryOptions } from 'react-native-image-picker';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { UserInfo, VerificationPayload, ImageFile } from '../types/dataModels';
+import { loadUserInfo, submitVerificationRequest, checkPendingVerification } from '../api/userApi';
+import CustomButton from '../components/CustomButton';
+
+type VerificationImageType = 'ID_FRONT' | 'ID_BACK' | 'CERTIFICATE' | 'FACE_FRONT' | 'FACE_LEFT' | 'FACE_RIGHT';
 
 interface UserInfoState {
     userInfo: UserInfo | null;
@@ -31,83 +39,180 @@ const useCurrentUser = (): UserInfoState => {
         const fetchUserInfo = async () => {
             try {
                 setState(prev => ({ ...prev, isLoading: true, error: null }));
-
                 const data = await loadUserInfo();
-
                 setState({ userInfo: data, isLoading: false, error: null });
             } catch (err) {
                 const error = err instanceof Error ? err : new Error("An unknown error occurred while fetching user info.");
-
                 setState({ userInfo: null, isLoading: false, error: error });
-
-                console.error("Failed to load user info in hook:", error.message);
             }
         };
-
         fetchUserInfo();
     }, []);
 
     return state;
 };
 
+interface ImageUploadBlockProps {
+    label: string;
+    imageAsset: Asset | null;
+    onPress: () => void;
+    onRemove: () => void;
+}
+
+const ImageUploadBlock: React.FC<ImageUploadBlockProps> = ({ label, imageAsset, onPress, onRemove }) => {
+    return (
+        <View style={styles.uploadBlockContainer}>
+            <Text style={styles.uploadLabel}>{label}</Text>
+            <TouchableOpacity onPress={onPress} style={styles.uploadBox} activeOpacity={0.7}>
+                {imageAsset && imageAsset.uri ? (
+                    <>
+                        <Image source={{ uri: imageAsset.uri }} style={styles.previewImage} resizeMode="cover" />
+                        <TouchableOpacity style={styles.removeIcon} onPress={(e) => { e.stopPropagation(); onRemove(); }}>
+                            <Ionicons name="close-circle" size={24} color="red" />
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                    <View style={styles.placeholderContainer}>
+                        <MaterialCommunityIcons name="camera-plus" size={30} color="#888" />
+                        <Text style={styles.placeholderText}>Select Photo</Text>
+                    </View>
+                )}
+            </TouchableOpacity>
+        </View>
+    );
+};
+
 const VerifyExpertScreen: React.FC = () => {
+    const navigation = useNavigation();
     const currentUser = useCurrentUser();
 
-    // --- State cho Form ---
+    // --- State kiểm tra trạng thái Pending ---
+    const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+    const [hasPendingRequest, setHasPendingRequest] = useState(false);
+
+    // --- Form State ---
     const [nickname, setNickname] = useState('');
     const [specialization, setSpecialization] = useState('');
     const [bio, setBio] = useState('');
     const [yearsOfExperience, setYearsOfExperience] = useState('');
+
     const [languages, setLanguages] = useState('');
     const [certification, setCertification] = useState('');
+
     const [facebookAccount, setFacebookAccount] = useState('');
     const [linkedInAccount, setLinkedInAccount] = useState('');
     const [instagramAccount, setInstagramAccount] = useState('');
-    const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
+
+    const [images, setImages] = useState<Record<VerificationImageType, Asset | null>>({
+        ID_FRONT: null,
+        ID_BACK: null,
+        CERTIFICATE: null,
+        FACE_FRONT: null,
+        FACE_LEFT: null,
+        FACE_RIGHT: null,
+    });
 
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
 
-    const handlePhotoUpload = () => {
-        Alert.alert("Note", "Photo upload feature is mocked. Using a temporary URL.");
-        setProfilePhotoUrl('https://api.example.com/uploads/expert-photo-123.jpg');
+    // --- Effect: Kiểm tra trạng thái Pending khi vào màn hình ---
+    useEffect(() => {
+        const verifyStatus = async () => {
+            setIsCheckingStatus(true);
+            try {
+                const status = await checkPendingVerification();
+                if (status && status.hasPending) {
+                    setHasPendingRequest(true);
+                }
+            } catch (error) {
+                console.error("Failed to check pending status:", error);
+            } finally {
+                setIsCheckingStatus(false);
+            }
+        };
+
+        verifyStatus();
+    }, []);
+
+    const handleSelectImage = async (type: VerificationImageType) => {
+        const options: ImageLibraryOptions = {
+            mediaType: 'photo',
+            selectionLimit: 1,
+            quality: 0.8,
+        };
+
+        const result = await launchImageLibrary(options);
+
+        if (result.didCancel) return;
+        if (result.errorCode) {
+            Alert.alert('Error', result.errorMessage || 'Failed to select image.');
+            return;
+        }
+
+        if (result.assets && result.assets.length > 0) {
+            const asset = result.assets[0];
+            setImages(prev => ({ ...prev, [type]: asset }));
+        }
+    };
+
+    const handleRemoveImage = (type: VerificationImageType) => {
+        setImages(prev => ({ ...prev, [type]: null }));
     };
 
     const handleSubmit = async () => {
-        if (!nickname || !specialization || !bio || !yearsOfExperience || !profilePhotoUrl) {
-            Alert.alert('Error', 'Please fill in all required fields and upload a profile photo.');
+        if (!nickname || !specialization || !bio || !yearsOfExperience || !certification) {
+            Alert.alert('Missing Information', 'Please fill in all required text fields (*), including Certification.');
+            return;
+        }
+
+        if (!images.ID_FRONT || !images.ID_BACK || !images.FACE_FRONT) {
+            Alert.alert('Missing Photos', 'Please upload at least your ID cards (Front/Back) and a Front Face photo.');
             return;
         }
 
         setIsLoading(true);
 
-        // Chuẩn bị Payload
-        const payload: VerificationPayload = {
-            id: currentUser.userInfo?.id ?? 0,
-            email: currentUser.userInfo?.email ?? '',
-            nickname: nickname.trim(),
-            specialization: specialization.trim(),
-            bio: bio.trim(),
-            yearsOfExperience: parseInt(yearsOfExperience),
-            languages: languages.trim(),
-            certification: certification.trim(),
-            facebookAccount: facebookAccount.trim(),
-            linkedInAccount: linkedInAccount.trim(),
-            instagramAccount: instagramAccount.trim(),
-            photoAndTypes: [
-                { photo: profilePhotoUrl, type: 'PROFILE' },
-            ],
-        };
-
         try {
-            await submitVerificationRequest(payload);
+            const photoList: ImageFile[] = [];
+            const typeList: string[] = [];
 
+            Object.entries(images).forEach(([key, asset]) => {
+                if (asset && asset.uri) {
+                    const uri = Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri;
+
+                    const imageFile: ImageFile = {
+                        uri: uri,
+                        type: asset.type || 'image/jpeg',
+                        name: asset.fileName || `photo_${key}.jpg`,
+                    };
+
+                    photoList.push(imageFile);
+                    typeList.push(key);
+                }
+            });
+
+            const payload: VerificationPayload = {
+                id: currentUser.userInfo?.id ?? 0,
+                email: currentUser.userInfo?.email ?? '',
+                nickname: nickname.trim(),
+                specialization: specialization.trim(),
+                bio: bio.trim(),
+                yearsOfExperience: parseInt(yearsOfExperience) || 0,
+                languages: languages.trim(),
+                certification: certification.trim(),
+                facebookAccount: facebookAccount.trim(),
+                linkedInAccount: linkedInAccount.trim(),
+                instagramAccount: instagramAccount.trim(),
+                Photo: photoList,
+                PhotoType: typeList,
+            };
+
+            await submitVerificationRequest(payload);
             setIsSuccessModalVisible(true);
 
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred during submission.';
+            const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
             Alert.alert('Submission Failed', errorMessage);
-
         } finally {
             setIsLoading(false);
         }
@@ -115,125 +220,199 @@ const VerifyExpertScreen: React.FC = () => {
 
     const handleCloseModal = () => {
         setIsSuccessModalVisible(false);
+        navigation.goBack(); // Quay lại sau khi đóng modal thành công
     };
 
+    // --- Render Logic ---
 
+    // 1. Hiển thị Loading khi đang kiểm tra trạng thái
+    if (isCheckingStatus) {
+        return (
+            <View style={[styles.container, styles.centerContent]}>
+                <ActivityIndicator size="large" color="#4C7BE2" />
+                <Text style={styles.loadingText}>Checking verification status...</Text>
+            </View>
+        );
+    }
+
+    // 2. Hiển thị màn hình chặn nếu có yêu cầu đang Pending
+    if (hasPendingRequest) {
+        return (
+            <View style={[styles.container, styles.centerContent]}>
+                <Ionicons name="time-outline" size={80} color="#FFC107" style={{ marginBottom: 20 }} />
+                <Text style={styles.pendingTitle}>Verification Pending</Text>
+                <Text style={styles.pendingText}>
+                    You have already submitted a request to become an expert.
+                    {"\n"}Please wait for the administrator to review your application.
+                </Text>
+                <TouchableOpacity style={styles.buttonBack} onPress={() => navigation.goBack()}>
+                    <Text style={styles.textStyle}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    // 3. Hiển thị Form đăng ký nếu chưa có yêu cầu nào
     return (
         <View style={styles.container}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                style={{ flex: 1 }}
+            >
+                <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
 
-            <ScrollView style={styles.scrollView}>
+                    <Text style={styles.headerTitle}>Expert Registration</Text>
+                    <Text style={styles.headerSubtitle}>Please complete the form to verify your profile.</Text>
 
-                {/* --- Required Fields --- */}
-                <Text style={styles.label}>Nickname *</Text>
-                <TextInput
-                    style={styles.input}
-                    value={nickname}
-                    onChangeText={setNickname}
-                    placeholder="e.g., Dr. Jane"
-                />
+                    <View style={styles.section}>
+                        <Text style={styles.sectionHeader}>Personal Information</Text>
 
-                <Text style={styles.label}>Specialization *</Text>
-                <TextInput
-                    style={styles.input}
-                    value={specialization}
-                    onChangeText={setSpecialization}
-                    placeholder="e.g., Dermatology, Cardiology"
-                />
+                        <Text style={styles.label}>Nickname *</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={nickname}
+                            onChangeText={setNickname}
+                            placeholder="Dr. Jane"
+                        />
 
-                <Text style={styles.label}>Years of Experience *</Text>
-                <TextInput
-                    style={styles.input}
-                    value={yearsOfExperience}
-                    onChangeText={text => setYearsOfExperience(text.replace(/[^0-9]/g, ''))}
-                    keyboardType="numeric"
-                    placeholder="e.g., 5"
-                />
+                        <Text style={styles.label}>Specialization *</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={specialization}
+                            onChangeText={setSpecialization}
+                            placeholder="Dermatology, Color Analysis..."
+                        />
 
-                <Text style={styles.label}>Bio (Short Description) *</Text>
-                <TextInput
-                    style={styles.textArea}
-                    value={bio}
-                    onChangeText={setBio}
-                    multiline
-                    numberOfLines={4}
-                    placeholder="Tell us about your background and expertise..."
-                />
+                        <Text style={styles.label}>Years of Experience *</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={yearsOfExperience}
+                            onChangeText={text => setYearsOfExperience(text.replace(/[^0-9]/g, ''))}
+                            keyboardType="numeric"
+                            placeholder="5"
+                        />
 
-                {/* --- Photo Upload --- */}
-                <Text style={styles.label}>Profile Photo *</Text>
-                <View style={styles.photoContainer}>
-                    <Button
-                        title={profilePhotoUrl ? "Change Photo" : "Upload Photo"}
-                        onPress={handlePhotoUpload}
+                        <Text style={styles.label}>Bio *</Text>
+                        <TextInput
+                            style={styles.textArea}
+                            value={bio}
+                            onChangeText={setBio}
+                            multiline
+                            numberOfLines={4}
+                            placeholder="Brief introduction about yourself..."
+                        />
+                    </View>
+
+                    <View style={styles.section}>
+                        <Text style={styles.sectionHeader}>Professional Qualification</Text>
+
+                        <Text style={styles.label}>Languages</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={languages}
+                            onChangeText={setLanguages}
+                            placeholder="e.g., English, Vietnamese"
+                        />
+
+                        <Text style={styles.label}>Certification / License *</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={certification}
+                            onChangeText={setCertification}
+                            placeholder="e.g., Board Certified Dermatologist"
+                        />
+                    </View>
+
+                    <View style={styles.section}>
+                        <Text style={styles.sectionHeader}>Verification Documents</Text>
+                        <Text style={styles.helperText}>Please upload clear photos for verification.</Text>
+
+                        <View style={styles.row}>
+                            <ImageUploadBlock
+                                label="ID Card (Front) *"
+                                imageAsset={images.ID_FRONT}
+                                onPress={() => handleSelectImage('ID_FRONT')}
+                                onRemove={() => handleRemoveImage('ID_FRONT')}
+                            />
+                            <ImageUploadBlock
+                                label="ID Card (Back) *"
+                                imageAsset={images.ID_BACK}
+                                onPress={() => handleSelectImage('ID_BACK')}
+                                onRemove={() => handleRemoveImage('ID_BACK')}
+                            />
+                        </View>
+
+                        <View style={styles.row}>
+                            <ImageUploadBlock
+                                label="Certificate/License"
+                                imageAsset={images.CERTIFICATE}
+                                onPress={() => handleSelectImage('CERTIFICATE')}
+                                onRemove={() => handleRemoveImage('CERTIFICATE')}
+                            />
+                            <View style={{ flex: 1, marginHorizontal: 5 }} />
+                        </View>
+
+                        <Text style={[styles.sectionHeader, { marginTop: 15 }]}>Face Check Photos</Text>
+                        <View style={styles.row}>
+                            <ImageUploadBlock
+                                label="Face Front *"
+                                imageAsset={images.FACE_FRONT}
+                                onPress={() => handleSelectImage('FACE_FRONT')}
+                                onRemove={() => handleRemoveImage('FACE_FRONT')}
+                            />
+                            <ImageUploadBlock
+                                label="Face Left Side"
+                                imageAsset={images.FACE_LEFT}
+                                onPress={() => handleSelectImage('FACE_LEFT')}
+                                onRemove={() => handleRemoveImage('FACE_LEFT')}
+                            />
+                        </View>
+                        <View style={styles.row}>
+                            <ImageUploadBlock
+                                label="Face Right Side"
+                                imageAsset={images.FACE_RIGHT}
+                                onPress={() => handleSelectImage('FACE_RIGHT')}
+                                onRemove={() => handleRemoveImage('FACE_RIGHT')}
+                            />
+                            <View style={{ flex: 1, marginHorizontal: 5 }} />
+                        </View>
+                    </View>
+
+                    <View style={styles.section}>
+                        <Text style={styles.sectionHeader}>Social Media (Optional)</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={facebookAccount}
+                            onChangeText={setFacebookAccount}
+                            placeholder="Facebook URL"
+                        />
+                        <TextInput
+                            style={styles.input}
+                            value={linkedInAccount}
+                            onChangeText={setLinkedInAccount}
+                            placeholder="LinkedIn URL"
+                        />
+                        <TextInput
+                            style={styles.input}
+                            value={instagramAccount}
+                            onChangeText={setInstagramAccount}
+                            placeholder="Instagram URL"
+                        />
+                    </View>
+
+                    <View style={{ height: 30 }} />
+
+                    <CustomButton
+                        title={isLoading ? "Submitting..." : "Submit Application"}
+                        onPress={handleSubmit}
+                        loading={isLoading}
+                        color="#4C7BE2"
                     />
-                    {profilePhotoUrl ? (
-                        <Text style={styles.photoStatus}>✅ Photo uploaded!</Text>
-                    ) : (
-                        <Text style={styles.photoStatus}>Pending upload...</Text>
-                    )}
-                </View>
 
-                {/* --- Optional Fields --- */}
-                <Text style={styles.sectionTitle}>Optional Information</Text>
+                    <View style={{ height: 50 }} />
+                </ScrollView>
+            </KeyboardAvoidingView>
 
-                <Text style={styles.label}>Languages</Text>
-                <TextInput
-                    style={styles.input}
-                    value={languages}
-                    onChangeText={setLanguages}
-                    placeholder="e.g., English, Vietnamese"
-                />
-
-                <Text style={styles.label}>Certification / License</Text>
-                <TextInput
-                    style={styles.input}
-                    value={certification}
-                    onChangeText={setCertification}
-                    placeholder="e.g., Board Certified Dermatologist"
-                />
-
-                <Text style={styles.label}>Facebook Account</Text>
-                <TextInput
-                    style={styles.input}
-                    value={facebookAccount}
-                    onChangeText={setFacebookAccount}
-                    placeholder="https://facebook.com/your-profile"
-                    keyboardType="url"
-                />
-
-                <Text style={styles.label}>LinkedIn Account</Text>
-                <TextInput
-                    style={styles.input}
-                    value={linkedInAccount}
-                    onChangeText={setLinkedInAccount}
-                    placeholder="https://linkedin.com/in/your-profile"
-                    keyboardType="url"
-                />
-
-                <Text style={styles.label}>Instagram Account</Text>
-                <TextInput
-                    style={styles.input}
-                    value={instagramAccount}
-                    onChangeText={setInstagramAccount}
-                    placeholder="https://instagram.com/your-profile"
-                    keyboardType="url"
-                />
-
-                <View style={{ height: 50 }} />
-
-            </ScrollView>
-
-            {/* --- Submit Button --- */}
-            <View style={styles.buttonContainer}>
-                <Button
-                    title={isLoading ? "Submitting..." : "Submit Verification Request"}
-                    onPress={handleSubmit}
-                    disabled={isLoading}
-                />
-            </View>
-
-
-            {/* --- Success Modal --- */}
             <Modal
                 animationType="fade"
                 transparent={true}
@@ -242,15 +421,15 @@ const VerifyExpertScreen: React.FC = () => {
             >
                 <View style={styles.centeredView}>
                     <View style={styles.modalView}>
-                        <Text style={styles.modalTitle}>Registration Successful!</Text>
+                        <Ionicons name="checkmark-circle" size={60} color="#4CAF50" />
+                        <Text style={styles.modalTitle}>Success!</Text>
                         <Text style={styles.modalText}>
-                            Your registration data has been successfully submitted.
-                            Please await review from our system.
+                            Your expert verification request has been submitted successfully.
+                            We will review your information and get back to you soon.
                         </Text>
                         <TouchableOpacity
                             style={styles.buttonClose}
                             onPress={handleCloseModal}
-                            disabled={isLoading} // Ngăn chặn tương tác nếu đang tải
                         >
                             <Text style={styles.textStyle}>OK</Text>
                         </TouchableOpacity>
@@ -258,10 +437,10 @@ const VerifyExpertScreen: React.FC = () => {
                 </View>
             </Modal>
 
-            {/* Loading Overlay (Tùy chọn) */}
             {isLoading && (
                 <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color="#0000ff" />
+                    <ActivityIndicator size="large" color="#4C7BE2" />
+                    <Text style={{ color: 'white', marginTop: 10 }}>Uploading data...</Text>
                 </View>
             )}
         </View>
@@ -272,113 +451,154 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#fff',
-        padding: 15,
+        paddingHorizontal: 20,
+    },
+    centerContent: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     scrollView: {
         flex: 1,
     },
-    title: {
-        fontSize: 24,
+    headerTitle: {
+        fontSize: 26,
         fontWeight: 'bold',
-        marginBottom: 20,
-        textAlign: 'center',
         color: '#333',
+        marginTop: 20,
     },
-    sectionTitle: {
+    headerSubtitle: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 20,
+    },
+    section: {
+        marginBottom: 20,
+    },
+    sectionHeader: {
         fontSize: 18,
         fontWeight: 'bold',
-        marginTop: 15,
-        marginBottom: 5,
-        color: '#555',
+        color: '#4C7BE2',
+        marginBottom: 10,
+        borderLeftWidth: 3,
+        borderLeftColor: '#4C7BE2',
+        paddingLeft: 10,
+    },
+    helperText: {
+        fontSize: 12,
+        color: '#888',
+        marginBottom: 10,
+        fontStyle: 'italic',
     },
     label: {
         fontSize: 14,
         fontWeight: '600',
-        marginTop: 10,
-        marginBottom: 5,
         color: '#333',
+        marginBottom: 5,
+        marginTop: 10,
     },
     input: {
         height: 45,
-        borderColor: '#ccc',
+        borderColor: '#E0E0E0',
         borderWidth: 1,
         borderRadius: 8,
-        paddingHorizontal: 10,
-        marginBottom: 10,
-        backgroundColor: '#f9f9f9',
+        paddingHorizontal: 12,
+        backgroundColor: '#F9F9F9',
+        fontSize: 15,
     },
     textArea: {
-        borderColor: '#ccc',
+        borderColor: '#E0E0E0',
         borderWidth: 1,
         borderRadius: 8,
-        paddingHorizontal: 10,
-        paddingTop: 10,
-        marginBottom: 10,
-        backgroundColor: '#f9f9f9',
+        paddingHorizontal: 12,
+        paddingTop: 12,
+        backgroundColor: '#F9F9F9',
+        fontSize: 15,
         minHeight: 100,
-        textAlignVertical: 'top', // Quan trọng cho Android
+        textAlignVertical: 'top',
     },
-    photoContainer: {
+    row: {
         flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 10,
-        padding: 10,
-        backgroundColor: '#f0f8ff',
-        borderRadius: 8,
     },
-    photoStatus: {
-        color: 'green',
-        fontWeight: 'bold',
+    uploadBlockContainer: {
+        flex: 1,
+        marginHorizontal: 5,
     },
-    buttonContainer: {
-        paddingVertical: 10,
-        borderTopWidth: 1,
-        borderTopColor: '#eee',
+    uploadLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#555',
+        marginBottom: 5,
+        textAlign: 'center',
     },
-    // --- Modal Styles ---
+    uploadBox: {
+        height: 120,
+        backgroundColor: '#F0F4F8',
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#D1D9E6',
+        borderStyle: 'dashed',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    placeholderContainer: {
+        alignItems: 'center',
+    },
+    placeholderText: {
+        fontSize: 12,
+        color: '#888',
+        marginTop: 5,
+    },
+    previewImage: {
+        width: '100%',
+        height: '100%',
+    },
+    removeIcon: {
+        position: 'absolute',
+        top: 5,
+        right: 5,
+        backgroundColor: 'white',
+        borderRadius: 12,
+    },
     centeredView: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)', // Nền tối
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
     },
     modalView: {
         margin: 20,
         backgroundColor: 'white',
         borderRadius: 20,
-        padding: 35,
+        padding: 30,
         alignItems: 'center',
         shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 4,
         elevation: 5,
-        width: '80%',
+        width: '85%',
     },
     modalTitle: {
-        marginBottom: 15,
-        textAlign: 'center',
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
-        color: '#4CAF50', // Màu xanh lá cho thành công
+        color: '#333',
+        marginVertical: 10,
     },
     modalText: {
-        marginBottom: 25,
+        marginBottom: 20,
         textAlign: 'center',
-        fontSize: 16,
-        lineHeight: 22,
-        color: '#333',
+        color: '#666',
+        lineHeight: 20,
     },
     buttonClose: {
-        backgroundColor: '#2196F3',
-        borderRadius: 10,
-        padding: 10,
+        backgroundColor: '#4C7BE2',
+        borderRadius: 25,
+        paddingVertical: 12,
+        paddingHorizontal: 40,
         elevation: 2,
-        minWidth: 100,
     },
     textStyle: {
         color: 'white',
@@ -387,15 +607,37 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     loadingOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.7)',
-        zIndex: 10,
+        zIndex: 1000,
+    },
+    // --- Styles cho Pending View ---
+    pendingTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
+    },
+    pendingText: {
+        fontSize: 16,
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 30,
+        lineHeight: 24,
+        paddingHorizontal: 20,
+    },
+    buttonBack: {
+        backgroundColor: '#333',
+        borderRadius: 25,
+        paddingVertical: 12,
+        paddingHorizontal: 40,
+    },
+    loadingText: {
+        marginTop: 10,
+        color: '#666',
+        fontSize: 16,
     }
 });
 

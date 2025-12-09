@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from 'react-native-toast-message';
 import CustomHeader from '../components/CustomHeader';
 import HistoryItem from "../components/HistoryItem";
-import { getAuthRole } from '../api/apiClient'; // Giả định apiClient được đặt trong thư mục api
+import { getAuthRole } from '../api/apiClient';
 import { getAiTestResults, getExpertTestResults, getManualTestResults } from "../api/userApi";
 import { AiTestResponse, ExpertRequest, ExpertRequestHistoryItem, ExpertTestResponse, ManualTestResult, ReviewTestRequest } from "../types/dataModels";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -22,6 +22,8 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { getRequestHistory, getRequests, getReviewRequests } from "../api/expertApi";
 import { BaseHistoryItem, ImageSource } from "../types";
+import { getColorType, getColorTypeById } from "../api/capsulePaletteApi";
+
 export type RoleInfo = { name: string };
 
 interface TabConfig {
@@ -84,20 +86,30 @@ const transformManualTestResult = (result: ManualTestResult): BaseHistoryItem =>
     };
 };
 
-const transformAiTestResult = (response: AiTestResponse): BaseHistoryItem => {
-    const id = response.testRequestId;
+const transformAiTestResult = (response: AiTestResponse, colorMap: Record<number, string>): BaseHistoryItem => {
+    const id = response.id;
 
-    const imageSource: ImageSource[] = [];
+    const imageSource: ImageSource[] = response.imageUrl ? [{ uri: response.imageUrl }] : [];
 
-    const suggestedColors = response.result?.suggestedColor?.join(', ') || 'N/A';
+    const resultModel = response.newAiTestResultResponseModel;
 
-    const subtitle = `ColorType: ${response.result?.colorType || 'Unknown'}`;
+    const suggestedColors = resultModel?.suggestedColor || 'N/A';
+
+    // Lấy tên ColorType từ bảng tra cứu (colorMap)
+    const colorTypeId = resultModel?.colorTypeId;
+    const colorTypeName = (colorTypeId && colorMap[colorTypeId]) ? colorMap[colorTypeId] : 'Unknown';
+
+    const subtitle = `ColorType: ${colorTypeName}`;
+
+    const dateStr = response.createdDate
+        ? new Date(response.createdDate).toLocaleDateString('vi-VN')
+        : 'N/A';
 
     return {
         id: id,
         title: `#${id} - ${response.typeOfTest || 'AI Test'}`,
         subTitle: subtitle,
-        date: new Date(response.createdDate).toLocaleDateString('vi-VN'),
+        date: dateStr,
         status: response.status || 'N/A',
         imageSources: imageSource,
         buttonText: 'View Detail',
@@ -154,23 +166,19 @@ const transformExpertRequest = (request: ExpertRequest): BaseHistoryItem => {
 };
 
 const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem => {
-    // Sử dụng ID của Test Request thực tế
     const id = reviewReq.testRequest.id;
 
-    // Lấy ảnh từ request ban đầu
     const pictureUrl = reviewReq.testRequest.pictures?.[0]?.source;
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
 
-    // Tính toán số lượng phản hồi trước đó
     const responseCount = reviewReq.previousResponses?.length || 0;
     const isReviewed = responseCount > 0;
 
-    // Trạng thái: Dựa trên status của request, hoặc số lần đã trả lời
     let status = reviewReq.testRequest.status;
     let buttonText = 'View Detail';
 
     if (status === 'Pending') {
-        buttonText = 'Review Now'; // Cần xem xét/trả lời
+        buttonText = 'Review Now';
     } else if (status === 'Completed') {
         status = isReviewed ? 'Reviewed' : 'Completed';
     }
@@ -272,8 +280,22 @@ const USER_TABS: TabConfig[] = [
     {
         name: 'AI Test',
         apiFetcher: async () => {
-            const results = await getAiTestResults();
-            return results.map(transformAiTestResult);
+            // 1. Gọi song song 2 API: Lấy kết quả test và Lấy danh sách ColorType
+            const [results, colorTypes] = await Promise.all([
+                getAiTestResults(),
+                getColorType()
+            ]);
+
+            // 2. Tạo bảng tra cứu (Map): ID -> Name để truy xuất nhanh O(1)
+            const colorMap: Record<number, string> = {};
+            if (colorTypes && Array.isArray(colorTypes)) {
+                colorTypes.forEach(type => {
+                    colorMap[type.id] = type.name;
+                });
+            }
+
+            // 3. Truyền colorMap vào hàm transform
+            return results.map(item => transformAiTestResult(item, colorMap));
         }
     },
     {
@@ -285,10 +307,6 @@ const USER_TABS: TabConfig[] = [
     },
 ];
 
-
-// ======================================================================
-// 4. COMPONENT CHÍNH HISTORY SCREEN
-// ======================================================================
 const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { userRole, isLoadingUser } = useUserRole();
@@ -304,7 +322,6 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
     const [historyData, setHistoryData] = useState<BaseHistoryItem[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(false);
 
-    // 1. Cập nhật tab mặc định khi vai trò hoặc tabs thay đổi
     useEffect(() => {
         if (currentTabs.length > 0 && !activeTab) {
             setActiveTab(currentTabs[0]);
@@ -313,12 +330,9 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
         }
     }, [currentTabs, activeTab]);
 
-
-    // --- Logic Tải Dữ liệu Lịch sử ---
     const loadHistoryData = useCallback(async (fetcher: () => Promise<any[]>, tabName: string) => {
         setIsLoadingData(true);
         try {
-            // Fetcher giờ đã trả về BaseHistoryItem[]
             const data = await fetcher();
             setHistoryData(data as BaseHistoryItem[]);
         } catch (error) {
@@ -330,13 +344,11 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
         }
     }, []);
 
-    // 2. Gọi API khi tab hoạt động thay đổi
     useEffect(() => {
         if (activeTab?.apiFetcher) {
             loadHistoryData(activeTab.apiFetcher, activeTab.name);
         }
     }, [activeTab, loadHistoryData]);
-
 
     const handleNavigate = useCallback((screen: keyof RootStackParamList) => {
         navigation.navigate(screen as any);
@@ -380,12 +392,13 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
         console.log(`Default action for tab ${activeTab?.name}`);
     }, [activeTab, navigation, userRole]);
 
-
     const renderHistoryItem: ListRenderItem<BaseHistoryItem> = useCallback(({ item }) => {
         return <HistoryItem item={item} onPressAction={handleItemAction} />;
     }, [handleItemAction]);
 
-    const keyExtractor = useCallback((item: BaseHistoryItem) => item.id.toString(), []);
+    const keyExtractor = useCallback((item: BaseHistoryItem) => {
+        return (item?.id != null) ? item.id.toString() : `fallback-${Math.random()}`;
+    }, []);
 
     const renderCategoryTab: ListRenderItem<TabConfig> = useCallback(({ item: tab }) => {
         const isActive = activeTab?.name === tab.name;
@@ -410,7 +423,6 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
 
     const categoryKeyExtractor = useCallback((item: TabConfig) => item.name, []);
 
-    // Nếu đang tải vai trò người dùng, hiển thị loading toàn màn hình
     if (isLoadingUser) {
         return <View style={[styles.container, styles.loadingOverlay]}><ActivityIndicator size="large" color="#4C7BE2" /></View>;
     }
@@ -419,17 +431,14 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
         return <View style={[styles.container, styles.loadingOverlay]}><Text style={styles.loadingText}>Configuring...</Text></View>;
     }
 
-
     return (
         <View style={styles.container}>
-            {/* 1. CUSTOM HEADER */}
             <CustomHeader
                 title={userRole === 'Expert' ? "Expert Requests" : "My History"}
                 onNavigateToPackage={() => handleNavigate('PackageScreen')}
                 onNavigateToNotification={() => handleNavigate('NotificationScreen')}
             />
 
-            {/* 2. CATEGORY TABS (Dựa trên Role) */}
             <FlatList
                 data={currentTabs}
                 renderItem={renderCategoryTab}
@@ -440,7 +449,6 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
                 contentContainerStyle={styles.tabBar}
             />
 
-            {/* 3. LIST OF HISTORY ITEMS */}
             {isLoadingData ? (
                 <View style={styles.loadingListContainer}>
                     <ActivityIndicator size="large" color="#4C7BE2" />
@@ -490,7 +498,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#888',
     },
-    // --- Tabs Styles ---
     tabScrollView: {
         height: 60,
         flexGrow: 0,
@@ -520,8 +527,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: '600',
     },
-
-    // --- List Styles ---
     flatList: {
         flex: 1,
         paddingBottom: 20,
@@ -537,8 +542,6 @@ const styles = StyleSheet.create({
         borderBottomColor: '#eee',
         alignItems: 'center',
     },
-
-    // --- History Item/Image Grid Styles (Giữ lại từ code gốc) ---
     imageGrid: { width: 80, height: 80, marginRight: 15, flexDirection: 'row', flexWrap: 'wrap', overflow: 'hidden', borderRadius: 8, },
     gridImage: { width: '50%', height: '50%', },
     fullImage: { width: '100%', height: '100%', borderRadius: 8, },
