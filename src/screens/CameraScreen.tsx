@@ -30,7 +30,7 @@ import Entypo from '@expo/vector-icons/Entypo';
 import Svg, { Rect, Mask, Defs, Ellipse } from 'react-native-svg';
 import { ColorTestRequest, CapsulePaletteModel, Color, ColorType, ImageFile, ManualColorTestResponse, AiColorTestResponse } from '../types/dataModels';
 import { getColorsByType, getCorlorListSpectrum } from '../api/colorApi';
-import { getAuthRole } from '../api/apiClient'; // <--- 1. Import getAuthRole
+import { getAuthRole } from '../api/apiClient';
 import ColorPopup from '../components/ColorPopup';
 import ColorPickerPopup from '../components/ColorPickerPopup';
 import PalettePopup from '../components/PalettePopup';
@@ -42,6 +42,8 @@ import { aiColorTest, expertColorTest, manualColorTest } from '../api/colorTestA
 import ManualResultModal from '../components/ManualResultModal';
 import AiTestResultModal from '../components/AiResultModal';
 import ExpertSuccessModal from '../components/ExpertSuccessModal';
+import { getActiveSubscriptions } from '../api/dataApi';
+import SubscriptionAlertModal from '../components/SubscriptionAlertModal';
 
 // Get screen dimensions
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -83,7 +85,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const [activeDevice, setActiveDevice] = useState<CameraDevice | null>(null);
     const [cameraPosition, setCameraPosition] = useState<CameraPosition>('back');
-    const [hasPermission, setHasPermission] = useState(false);
+    const [hasPermission, setHasPermission] = useState<false | true>(false);
     const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
 
     const [fullPreviewUri, setFullPreviewUri] = useState<string | null>(null);
@@ -124,6 +126,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     const [aiResultData, setAiResultData] = useState<AiColorTestResponse | null>(null);
 
     const [showExpertSuccessModal, setShowExpertSuccessModal] = useState(false);
+    const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
     const highlightAnim = useRef(new Animated.Value(TAB_POSITIONS.manual)).current;
 
@@ -432,6 +435,27 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
         setIsLoading(true);
         try {
+            // [Check Subscription Logic]
+            const activeSubs = await getActiveSubscriptions();
+            const isAiMode = captureMode === 'ai';
+
+            const hasUsage = activeSubs.some(sub => {
+                const name = sub.servicePackage?.name?.toLowerCase() || '';
+                const uses = sub.remainingUses || 0;
+
+                if (isAiMode) {
+                    return (name.includes('ai') || name.includes('test')) && uses > 0;
+                } else {
+                    return (name.includes('expert') || name.includes('suggestion')) && uses > 0;
+                }
+            });
+
+            if (!hasUsage) {
+                setShowSubscriptionModal(true);
+                return;
+            }
+
+            // Execute Test
             if (captureMode === 'ai') {
                 const result = await aiColorTest(aiTestParams);
                 setAiResultData(result);
@@ -452,6 +476,11 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleBuyPackage = () => {
+        setShowSubscriptionModal(false);
+        navigation.navigate('PackageScreen');
     };
 
     const handleNavigateToAiDetail = (result: AiColorTestResponse) => {
@@ -922,6 +951,12 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             <ExpertSuccessModal
                 isVisible={showExpertSuccessModal}
                 onClose={() => setShowExpertSuccessModal(false)}
+            />
+
+            <SubscriptionAlertModal
+                isVisible={showSubscriptionModal}
+                onClose={() => setShowSubscriptionModal(false)}
+                onConfirm={handleBuyPackage}
             />
 
         </View>

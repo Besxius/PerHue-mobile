@@ -8,49 +8,60 @@ import {
     Image,
     Dimensions,
     Alert,
-    Platform,
     TouchableOpacity,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { getAiTestResultById } from '../api/userApi';
-import { AiTestResponse } from '../types/dataModels';
+import { AiTestResponse, Color } from '../types/dataModels';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import CapsulePalette from '../components/CapsulePalette';
+import { getColorTypeById } from '../api/capsulePaletteApi';
 
 type AiTestDetailScreenProps = NativeStackScreenProps<
     RootStackParamList,
     'AiTestResultDetailScreen'
 >;
 
-// Lấy kích thước màn hình
 const { width } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
 
+const getContrastTextColor = (hex: string) => {
+    if (!hex) return '#000';
+    const cleanHex = hex.replace('#', '').trim();
+    if (cleanHex.length !== 6) return '#FFFFFF';
+    const r = parseInt(cleanHex.substr(0, 2), 16);
+    const g = parseInt(cleanHex.substr(2, 2), 16);
+    const b = parseInt(cleanHex.substr(4, 2), 16);
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return (yiq >= 128) ? '#000000' : '#FFFFFF';
+};
 
-// =========================================================
-// 1. Component Hỗ trợ: Hiển thị Palettes Màu
-// =========================================================
-
-// Component để hiển thị ô vuông màu từ MẢNG mã màu
-const ColorBoxDisplay: React.FC<{ colorsArray: string[], title: string }> = ({ colorsArray, title }) => {
-    // Lọc các chuỗi rỗng và null
-    const colorCodes = colorsArray ? colorsArray.filter(c => c && c.length > 0) : [];
-
-    if (colorCodes.length === 0) {
+const ColorBoxDisplay: React.FC<{ colors: Color[], title: string }> = ({ colors, title }) => {
+    if (!colors || colors.length === 0) {
         return (
-            <View style={styles.colorSection}>
-                <Text style={styles.sectionTitle}>{title}</Text>
-                <Text style={styles.noDataText}>Không có dữ liệu màu.</Text>
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>{title}</Text>
+                <Text style={styles.noDataText}>No colors data available.</Text>
             </View>
         );
     }
 
     return (
-        <View style={styles.colorSection}>
-            <Text style={styles.sectionTitle}>{title} ({colorCodes.length} màu)</Text>
-            <View style={styles.colorContainer}>
-                {colorCodes.map((hex, index) => (
-                    <View key={index} style={[styles.colorBox, { backgroundColor: hex }]}>
-                        <Text style={styles.colorHexText}>{hex}</Text>
+        <View style={styles.card}>
+            <Text style={styles.cardTitle}>{title} ({colors.length})</Text>
+            <View style={styles.colorGrid}>
+                {colors.map((colorItem, index) => (
+                    <View key={index} style={[styles.colorBox, { backgroundColor: colorItem.hexCode }]}>
+                        <Text style={[styles.colorHexText, { color: getContrastTextColor(colorItem.hexCode) }]}>
+                            {colorItem.hexCode.toUpperCase()}
+                        </Text>
+                        {colorItem.name && colorItem.name !== colorItem.hexCode && (
+                            <Text style={[styles.colorNameText, { color: getContrastTextColor(colorItem.hexCode) }]} numberOfLines={1}>
+                                {colorItem.name}
+                            </Text>
+                        )}
                     </View>
                 ))}
             </View>
@@ -58,20 +69,18 @@ const ColorBoxDisplay: React.FC<{ colorsArray: string[], title: string }> = ({ c
     );
 };
 
-
-// =========================================================
-// 2. Component Chính
-// =========================================================
-const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route }) => {
-    // Lấy ID từ tham số điều hướng
+const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigation }) => {
     const id = route.params.id;
+    const insets = useSafeAreaInsets();
 
-    // --- State quản lý dữ liệu và trạng thái tải ---
     const [resultData, setResultData] = useState<AiTestResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedCapsuleId, setSelectedCapsuleId] = useState<number | null>(null);
 
-    // --- Hàm tải dữ liệu chi tiết ---
+    // [2] Thêm state để lưu tên Color Type
+    const [colorTypeName, setColorTypeName] = useState<string>('Undetermined');
+
     const fetchResult = useCallback(async () => {
         if (!id) {
             setError('Missing test ID.');
@@ -82,9 +91,21 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route }) => {
         setIsLoading(true);
         setError(null);
         try {
-            // Gọi API
+            // Lấy chi tiết kết quả AI Test
             const data = await getAiTestResultById(id);
             setResultData(data);
+
+            // [3] Gọi API lấy tên Color Type dựa trên ID trả về trong model
+            if (data.newAiTestResultResponseModel?.colorTypeId) {
+                try {
+                    const typeData = await getColorTypeById(data.newAiTestResultResponseModel.colorTypeId);
+                    setColorTypeName(typeData.name);
+                } catch (e) {
+                    console.error("Failed to load Color Type Name:", e);
+                    setColorTypeName('Unknown Type');
+                }
+            }
+
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
             setError(errorMessage);
@@ -97,9 +118,6 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route }) => {
     useEffect(() => {
         fetchResult();
     }, [fetchResult]);
-
-
-    // --- Render Content ---
 
     if (isLoading) {
         return (
@@ -114,65 +132,140 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route }) => {
         return (
             <View style={[styles.centered, styles.errorBox]}>
                 <Text style={styles.errorText}>An error occurred: {error || 'No data found'}</Text>
-                <Text style={styles.errorText}>Test ID: {id}</Text>
-                <TouchableOpacity onPress={fetchResult} style={styles.retryButton}>
-                    <Text style={styles.retryButtonText}>Thử lại</Text>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButtonCenter}>
+                    <Text style={styles.backButtonText}>Go Back</Text>
                 </TouchableOpacity>
             </View>
         );
     }
 
-    // Dữ liệu đã tải thành công
-    const result = resultData.result;
-    const colorType = result.colorType || 'Undetermined';
+    const model = resultData.newAiTestResultResponseModel;
     const imageUrl = resultData.imageUrl;
+    const suggestedPalettes = model?.suggestedCapsulePalletesBySystem || [];
+
+    // [4] Không cần tính toán colorType từ mảng palette nữa, dùng state colorTypeName
+    // const colorType = suggestedPalettes.length > 0
+    //     ? suggestedPalettes[0].colorType?.name
+    //     : 'Undetermined';
+
+    // 1. Suggested Colors (Từ chuỗi suggestedColor)
+    const suggestedColorString = model?.suggestedColor || '';
+    const suggestedColorsFromString: Color[] = suggestedColorString
+        .split(',')
+        .map(c => c.trim())
+        .filter(c => c.length > 0)
+        .map((hex, index) => ({
+            id: index,
+            name: '', // Chuỗi không có tên màu
+            hexCode: hex
+        }));
+
+    // 2. Suggested Colors By System (Từ mảng suggestedColorsBySystem)
+    const suggestedColorsBySystem: Color[] = model?.suggestedColorsBySystem || [];
+
+    // 3. Avoided Colors (Từ chuỗi avoidedColor)
+    const avoidedColorString = model?.avoidedColor || '';
+    const avoidedColorsList: Color[] = avoidedColorString
+        .split(',')
+        .map(c => c.trim())
+        .filter(c => c.length > 0)
+        .map((hex, index) => ({
+            id: index,
+            name: '',
+            hexCode: hex
+        }));
 
     return (
-        // Sử dụng View làm container chính và áp dụng padding top nếu cần cho iOS
-        <View style={styles.container}>
-            <ScrollView contentContainerStyle={styles.scrollViewContent}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+            <View style={styles.headerBar}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+                    <Ionicons name="arrow-back" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>AI Test Result #{resultData.id}</Text>
+                <View style={styles.headerButton} />
+            </View>
 
-                {/* 1. Tiêu đề và ColorType */}
-                <View style={styles.header}>
-                    <Text style={styles.title}>AI Test Result #{resultData.testRequestId}</Text>
-                    <Text style={styles.userInfoText}>Send date: {new Date(resultData.createdDate).toLocaleDateString()}</Text>
-                    <View style={styles.colorTypeBadge}>
-                        <Text style={styles.colorTypeText}>Color Type: </Text>
-                        <Text style={styles.colorTypeLarge}>{colorType}</Text>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+                <View style={styles.summaryCard}>
+                    <View style={styles.rowBetween}>
+                        <Text style={styles.label}>Date:</Text>
+                        <Text style={styles.value}>
+                            {new Date(resultData.createdDate).toLocaleDateString('vi-VN')}
+                        </Text>
+                    </View>
+                    <View style={styles.divider} />
+                    <View style={styles.resultRow}>
+                        <Text style={styles.resultLabel}>AI Suggested Color Type:</Text>
+                        <View style={styles.badge}>
+                            {/* [5] Hiển thị tên Color Type từ state */}
+                            <Text style={styles.badgeText}>{colorTypeName}</Text>
+                        </View>
                     </View>
                 </View>
 
-                <View style={styles.divider} />
-
-                {/* 2. Hình ảnh (Nếu có) */}
                 {imageUrl ? (
-                    <View style={styles.imageContainer}>
-                        <Text style={styles.sectionTitle}>Image Used for Analysis</Text>
-                        <Image
-                            source={{ uri: imageUrl }}
-                            style={styles.picture}
-                            resizeMode="contain"
-                        />
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Analyzed Image</Text>
+                        <View style={styles.imageWrapper}>
+                            <Image
+                                source={{ uri: imageUrl }}
+                                style={styles.resultImage}
+                                resizeMode="contain"
+                            />
+                        </View>
                     </View>
-                ) : (
-                    <Text style={styles.noImageText}>No image URL found for this test.</Text>
-                )}
+                ) : null}
 
-                <View style={styles.divider} />
-
-                {/* 3. SuggestedColor và AvoidedColor */}
+                {/* --- PHẦN 1: Suggested Colors (Từ chuỗi) --- */}
                 <ColorBoxDisplay
-                    colorsArray={result.suggestedColor}
+                    colors={suggestedColorsFromString}
                     title="Suggested Colors"
                 />
 
+                {/* --- PHẦN 2: Suggested Colors Of System (Từ mảng hệ thống) --- */}
                 <ColorBoxDisplay
-                    colorsArray={result.avoidedColor}
+                    colors={suggestedColorsBySystem}
+                    title="Suggested Colors Of System"
+                />
+
+                {/* --- PHẦN 3: Avoided Colors --- */}
+                <ColorBoxDisplay
+                    colors={avoidedColorsList}
                     title="Avoided Colors"
                 />
 
-                <View style={{ height: 50 }} />
+                {/* --- PHẦN 4: Palettes --- */}
+                {suggestedPalettes.length > 0 && (
+                    <View style={styles.sectionContainer}>
+                        <Text style={styles.sectionHeader}>Suggested Capsule Palettes ({suggestedPalettes.length})</Text>
+                        <View style={styles.capsuleGrid}>
+                            {suggestedPalettes.map(palette => {
+                                if (!palette.colors || palette.colors.length < 4) return null;
+                                const hexCodes = palette.colors.slice(0, 4).map(c => c.hexCode);
 
+                                return (
+                                    <View key={palette.id} style={styles.capsuleItemWrapper}>
+                                        <CapsulePalette
+                                            colors={hexCodes as [string, string, string, string]}
+                                            isSelected={selectedCapsuleId === palette.id}
+                                            onSelect={() => setSelectedCapsuleId(palette.id)}
+                                        />
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </View>
+                )}
+
+                {model?.note && (
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Note</Text>
+                        <Text style={styles.noteText}>{model.note}</Text>
+                    </View>
+                )}
+
+                <View style={{ height: 50 }} />
             </ScrollView>
         </View>
     );
@@ -180,17 +273,33 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route }) => {
 
 export default AiTestResultDetailScreen;
 
-// =========================================================
-// 3. Stylesheets
-// =========================================================
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f5f5f5',
-        // Thêm padding cho iOS để tránh thanh trạng thái
-        paddingTop: Platform.OS === 'ios' ? 40 : 0,
     },
-    scrollViewContent: {
+    headerBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    headerButton: {
+        width: 40,
+        alignItems: 'flex-start',
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        flex: 1,
+        textAlign: 'center',
+    },
+    scrollContent: {
         padding: 15,
     },
     centered: {
@@ -204,102 +313,103 @@ const styles = StyleSheet.create({
     },
     errorText: {
         color: 'red',
-        marginTop: 10,
+        fontSize: 16,
         textAlign: 'center',
-    },
-    noDataText: {
-        color: '#666',
-        textAlign: 'center',
-        padding: 10,
-        backgroundColor: '#eee',
-        borderRadius: 5,
-        marginTop: 10,
+        marginBottom: 20,
     },
     loadingText: {
         marginTop: 10,
         color: '#666',
     },
-
-    // Header
-    header: {
-        alignItems: 'center',
-        marginBottom: 20,
-        paddingBottom: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
+    backButtonCenter: {
+        padding: 10,
+        backgroundColor: '#eee',
+        borderRadius: 8,
     },
-    title: {
-        fontSize: 24,
+    backButtonText: {
+        color: '#333',
+        fontWeight: '600',
+    },
+    summaryCard: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 15,
+        marginBottom: 15,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+    },
+    card: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 15,
+        marginBottom: 15,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
+    },
+    rowBetween: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    label: {
+        fontSize: 14,
+        color: '#666',
+    },
+    value: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#333',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#f0f0f0',
+        marginVertical: 10,
+    },
+    resultRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    resultLabel: {
+        fontSize: 16,
         fontWeight: 'bold',
         color: '#333',
     },
-    userInfoText: {
-        fontSize: 14,
-        color: '#666',
-        lineHeight: 22,
-    },
-    colorTypeBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 10,
-        paddingHorizontal: 15,
-        paddingVertical: 5,
-        backgroundColor: '#e6f0ff',
+    badge: {
+        backgroundColor: '#E3F2FD',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 20,
-        ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-            android: { elevation: 2 },
-        }),
     },
-    colorTypeText: {
-        fontSize: 16,
+    badgeText: {
         color: BLUE_COLOR,
-        fontWeight: '500',
-    },
-    colorTypeLarge: {
-        fontSize: 18,
         fontWeight: 'bold',
-        color: '#1a73e8',
+        fontSize: 16,
     },
-
-    // General Sections
-    divider: {
-        height: 1,
-        backgroundColor: '#eee',
-        marginVertical: 15,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#555',
-        marginBottom: 10,
-    },
-
-    // Image
-    imageContainer: {
+    imageWrapper: {
         alignItems: 'center',
-        marginBottom: 15,
-        padding: 10,
-        backgroundColor: '#fff',
-        borderRadius: 10,
-        elevation: 1,
+        backgroundColor: '#f9f9f9',
+        borderRadius: 8,
+        overflow: 'hidden',
     },
-    picture: {
-        width: width - 50,
+    resultImage: {
+        width: '100%',
         height: 300,
-        borderRadius: 10,
-        backgroundColor: '#ccc',
+        borderRadius: 8,
     },
-
-    // Colors
-    colorSection: {
-        marginBottom: 15,
-        padding: 15,
-        backgroundColor: '#fff',
-        borderRadius: 10,
-        elevation: 1,
-    },
-    colorContainer: {
+    colorGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 10,
@@ -309,38 +419,52 @@ const styles = StyleSheet.create({
         height: 60,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#ddd',
-        justifyContent: 'flex-end',
+        borderColor: 'rgba(0,0,0,0.1)',
+        justifyContent: 'center',
         alignItems: 'center',
-        paddingBottom: 2,
-        ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-            android: { elevation: 2 },
-        }),
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1.00,
+        elevation: 1,
     },
     colorHexText: {
         fontSize: 10,
-        color: '#fff',
-        textShadowColor: 'rgba(0, 0, 0, 0.75)',
-        textShadowOffset: { width: 1, height: 1 },
-        textShadowRadius: 2,
-    },
-    retryButton: {
-        backgroundColor: BLUE_COLOR,
-        paddingHorizontal: 15,
-        paddingVertical: 10,
-        borderRadius: 8,
-        marginTop: 20,
-    },
-    retryButtonText: {
-        color: '#fff',
         fontWeight: 'bold',
-    },
-    // Fix lỗi: Thêm noImageText vào styles
-    noImageText: {
-        fontSize: 16,
-        color: '#888',
         textAlign: 'center',
-        padding: 10,
+    },
+    colorNameText: {
+        fontSize: 8,
+        textAlign: 'center',
+        marginTop: 2,
+        paddingHorizontal: 2,
+    },
+    noDataText: {
+        color: '#888',
+        fontStyle: 'italic',
+    },
+    sectionContainer: {
+        marginTop: 10,
+    },
+    sectionHeader: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: BLUE_COLOR,
+        marginBottom: 15,
+    },
+    capsuleGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+    },
+    capsuleItemWrapper: {
+        width: '48%',
+        marginBottom: 15,
+        alignItems: 'center',
+    },
+    noteText: {
+        fontSize: 14,
+        color: '#555',
+        lineHeight: 20,
     },
 });

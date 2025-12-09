@@ -26,6 +26,7 @@ import TermAndPoliciesScreen from '../screens/TermAndPoliciesScreen';
 import HelpAndSupportScreen from '../screens/HelpAndSupportScreen';
 import ColorTestOnImageScreen from '../screens/ColorTestOnImageScreen';
 import ExpertTestResponseDetailScreen from '../screens/ExpertTestResponseDetailScreen';
+import MyExpertInformationScreen from '../screens/MyExpertInformationScreen';
 
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
 export type TabName = 'home' | 'capsule' | 'camera' | 'history' | 'menu';
@@ -48,6 +49,7 @@ export type RootStackParamList = {
   TermAndPoliciesScreen: undefined;
   HelpAndSupportScreen: undefined;
   ExpertTestResponseDetailScreen: { id: number };
+  MyExpertInformationScreen: undefined;
   ColorTestOnImageScreen: {
     imageUri: string;
     testRequestId?: number;
@@ -204,7 +206,7 @@ const RootNavigationStack = () => {
             name="AiTestResultDetailScreen"
             component={AiTestResultDetailScreen}
             options={{
-              headerShown: true,
+              headerShown: false,
               title: 'AI Test Result'
             }}
           />
@@ -268,6 +270,14 @@ const RootNavigationStack = () => {
           <RootStack.Screen
             name="ExpertTestResponseDetailScreen"
             component={ExpertTestResponseDetailScreen}
+            options={{
+              headerShown: false,
+              title: 'Image Expert Color Test'
+            }}
+          />
+          <RootStack.Screen
+            name="MyExpertInformationScreen"
+            component={MyExpertInformationScreen}
             options={{
               headerShown: false,
               title: 'Image Expert Color Test'

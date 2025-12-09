@@ -148,7 +148,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
     const insets = useSafeAreaInsets();
 
     const testRequestId = route.params.id;
-    const { initialBestColors, initialWorstColors } = route.params; // Nhận tham số mới
+    const { initialBestColors, initialWorstColors } = route.params;
     const { colorTypes, colorFiltersSpectrum, isLoadingResources } = useResources();
 
     const [clientRequest, setClientRequest] = useState<ExpertRequest | null>(null);
@@ -218,11 +218,13 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         return type ? type.name : '';
     }, [colorTypeId, colorTypes]);
 
+    // [CẬP NHẬT] Hàm xử lý sự kiện bấm nút thêm màu
     const handleColorFieldPress = (mode: ColorPickerMode) => {
-        if (mode === 'BEST' && !colorTypeId) {
+        // Kiểm tra colorTypeId cho cả 2 trường hợp
+        if (!colorTypeId) {
             Alert.alert(
                 'Selection Required',
-                'Please select a Color Type first before choosing Best Colors.'
+                'Please select a Color Type first before adding colors.'
             );
             return;
         }
@@ -527,7 +529,8 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 <TouchableOpacity
                     style={styles.addColorButton}
                     onPress={() => handleColorFieldPress('BEST')}
-                    disabled={isSubmitting || isLoadingColorFilters || !colorTypeId}
+                    // [CẬP NHẬT] Đã xóa kiểm tra `!colorTypeId` khỏi disabled
+                    disabled={isSubmitting || isLoadingColorFilters}
                 >
                     <Text style={styles.addColorButtonText}>+ Add Best Color</Text>
                 </TouchableOpacity>

@@ -413,7 +413,7 @@ const paletteStyles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.7)',
     },
     palettePickerPopupContainer: {
-        backgroundColor: '#000',
+        backgroundColor: '#333',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         paddingTop: 10,
