@@ -9,7 +9,7 @@ const USER_ENDPOINT = '/auth';
 export const login = async (credentials: LoginCredentials): Promise<LoginResponseData> => {
     try {
         const response = await apiClient.post<LoginResponseData>(
-            `${USER_ENDPOINT}/login`, // Thay thế bằng endpoint đăng nhập thực tế của bạn
+            `${USER_ENDPOINT}/login`,
             credentials
         );
 
@@ -20,7 +20,6 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
             await setRefreshToken(refreshToken || null);
             return response.data;
         } else {
-            // Trường hợp response 2xx nhưng không có token
             throw new Error('Login failed: No access token returned from server.');
         }
 
@@ -32,19 +31,15 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
 
             switch (status) {
                 case 404:
-                    // Tài khoản không tồn tại
                     errorMessage = 'Account does not exist.';
                     break;
                 case 403:
-                    // Tài khoản bị khóa hoặc không có quyền truy cập
                     errorMessage = 'Account is locked or access is forbidden.';
                     break;
                 case 401:
-                    // Sai email hoặc password
                     errorMessage = 'Incorrect email or password.';
                     break;
                 default:
-                    // Các lỗi khác (5xx, 400, 422, v.v.)
                     errorMessage = error.response?.data?.message || `Unexpected error: ${error.message}`;
                     break;
             }
@@ -52,7 +47,6 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
             errorMessage = error.message;
         }
 
-        // Luôn ném lỗi với thông báo chi tiết
         throw new Error(errorMessage);
     }
 };

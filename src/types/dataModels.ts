@@ -410,3 +410,10 @@ export interface UpdateResponsePayload {
     colorTypeId: number;
     note: string;
 }
+
+export interface ExpertTestImageModel {
+    imageFile: ImageFile,
+    bestColor: string,
+    worstColor: string,
+    colorTypeId: number,
+}

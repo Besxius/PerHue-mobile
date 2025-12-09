@@ -77,22 +77,24 @@ export const getRequestById = async (id: number): Promise<ExpertRequestDetailRes
 };
 
 export const updateExpertResponse = async (
-    testRequestId: number,
+    id: number,
     data: UpdateResponsePayload
 ): Promise<ExpertTestResponse> => {
 
-    const url = `${EXPERT_ENDPOINT}/response/${testRequestId}`;
+    const url = `${EXPERT_ENDPOINT}/requests/${id}`;
 
     try {
+        console.log(url)
+        console.log(data)
         const response = await apiClient.put<ExpertTestResponse>(url, data);
 
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {
-            console.error(`Error submitting expert response for ID ${testRequestId}:`, error.response?.data || error.message);
-            throw new Error(error.response?.data?.message || `Failed to submit response for request ID ${testRequestId}.`);
+            console.error(`Error submitting expert response for ID ${id}:`, error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || `Failed to submit response for request ID ${id}.`);
         } else {
-            console.error(`An unexpected error occurred while submitting expert response for ID ${testRequestId}:`, error);
+            console.error(`An unexpected error occurred while submitting expert response for ID ${id}:`, error);
             throw new Error('An unexpected error occurred.');
         }
     }

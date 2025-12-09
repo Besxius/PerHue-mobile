@@ -24,12 +24,11 @@ import MySubscriptionScreen from '../screens/MySubscriptionScreen';
 import MyPaymentHistoryScreen from '../screens/MyPaymentHistoryScreen';
 import TermAndPoliciesScreen from '../screens/TermAndPoliciesScreen';
 import HelpAndSupportScreen from '../screens/HelpAndSupportScreen';
+import ColorTestOnImageScreen from '../screens/ColorTestOnImageScreen';
 
-// 1. Kiểu cho Bottom Tab Routes (Giữ nguyên)
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
 export type TabName = 'home' | 'capsule' | 'camera' | 'history' | 'menu';
 
-// 2. CẬP NHẬT Kiểu cho ROOT Stack Routes
 export type RootStackParamList = {
   Tabs: undefined;
   PackageScreen: undefined;
@@ -47,6 +46,10 @@ export type RootStackParamList = {
   MyPaymentHistoryScreen: undefined;
   TermAndPoliciesScreen: undefined;
   HelpAndSupportScreen: undefined;
+  ColorTestOnImageScreen: {
+    imageUri: string;
+    colorTestRequestId?: number;
+  };
 };
 
 
@@ -250,6 +253,14 @@ const RootNavigationStack = () => {
             options={{
               headerShown: true,
               title: 'Help & Support'
+            }}
+          />
+          <RootStack.Screen
+            name="ColorTestOnImageScreen"
+            component={ColorTestOnImageScreen}
+            options={{
+              headerShown: false,
+              title: 'Image Expert Color Test'
             }}
           />
         </>

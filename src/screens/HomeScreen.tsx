@@ -19,7 +19,7 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { ExpertInfo } from '../types/dataModels';
 import { getExpertListRanked } from '../api/expertApi';
-import { getUserName } from '../api/apiClient';
+import { getAuthRole, getUserName } from '../api/apiClient';
 
 const { width } = Dimensions.get('window');
 
@@ -48,6 +48,7 @@ const useUserName = () => {
         const firstName = name.split(' ')[0];
         setUserName(firstName);
       }
+
     };
     loadName();
   }, []);

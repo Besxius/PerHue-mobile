@@ -12,14 +12,29 @@ import {
     Dimensions,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/AppNavigator';
+// import { RootStackParamList } from '../navigation/AppNavigator'; // Đảm bảo import này đã tồn tại
 import { getRequestById, createResponse, updateExpertResponse } from '../api/expertApi';
 import { ExpertRequest, CreateResponseRequest, ColorType, Color, ExpertTestResponse, UpdateResponsePayload } from '../types/dataModels';
 import Toast from 'react-native-toast-message';
 import { getColorType } from '../api/capsulePaletteApi';
 import ColorPickerPopup from '../components/ColorPickerPopup';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getCorlorListSpectrum } from '../api/colorApi';
+import { getColorsByType, getCorlorListSpectrum } from '../api/colorApi';
+import { FontAwesome } from '@expo/vector-icons';
+
+// Khai báo lại RootStackParamList tối thiểu để code chạy độc lập
+type RootStackParamList = {
+    CreateExpertTestResponse: {
+        id: number;
+        initialBestColors?: Color[];
+        initialWorstColors?: Color[];
+    };
+    ColorTestOnImageScreen: {
+        imageUri: string;
+        testRequestId: number;
+    };
+    // Thêm các route khác của bạn ở đây
+};
 
 // Định nghĩa kiểu Props của màn hình
 type CreateResponseScreenProps = NativeStackScreenProps<
@@ -35,16 +50,9 @@ const { width } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
 
 
-const MOCK_COLOR_SPECTRUM_API_RESULT = [
-    { id: 101, name: 'Scarlet', hexCode: '#FF2400' },
-    { id: 102, name: 'Sapphire', hexCode: '#082567' },
-    { id: 103, name: 'Emerald', hexCode: '#50C878' },
-    { id: 104, name: 'Gold', hexCode: '#FFD700' },
-];
-
 const useResources = () => {
     const [colorTypes, setColorTypes] = useState<ColorType[]>([]);
-    const [colorFilters, setColorFilters] = useState<Color[]>([]);
+    const [colorFiltersSpectrum, setColorFiltersSpectrum] = useState<Color[]>([]);
     const [isLoadingResources, setIsLoadingResources] = useState(true);
 
     const fetchResources = useCallback(async () => {
@@ -54,7 +62,7 @@ const useResources = () => {
             setColorTypes(types);
 
             const spectrum = await getCorlorListSpectrum();
-            setColorFilters(spectrum);
+            setColorFiltersSpectrum(spectrum);
 
         } catch (error) {
             console.error("Failed to load resources:", error);
@@ -68,7 +76,7 @@ const useResources = () => {
         fetchResources();
     }, [fetchResources]);
 
-    return { colorTypes, colorFilters, isLoadingResources };
+    return { colorTypes, colorFiltersSpectrum, isLoadingResources };
 };
 
 
@@ -118,14 +126,12 @@ const SelectedColorsDisplay: FC<SelectedColorsDisplayProps> = ({ colors, onRemov
     return (
         <View style={styles.selectedColorsContainer}>
             {colors.map((color) => (
-                // Thay vì wrapper, ta dùng TouchableOpacity trực tiếp cho ô màu
                 <View key={color.id} style={styles.colorSquareWrapper}>
                     <View style={[styles.colorSquare, { backgroundColor: color.hexCode }]}>
-                        {/* XÓA TEXT HIỂN THỊ MÃ HEX ĐỂ GIỮ NÓ LÀ HÌNH VUÔNG */}
                         <Text style={styles.colorSquareHexText}>{color.hexCode.toUpperCase()}</Text>
                     </View>
                     <TouchableOpacity
-                        style={styles.removeButtonSquare} // STYLE MỚI cho nút X
+                        style={styles.removeButtonSquare}
                         onPress={() => onRemove(color.id)}
                     >
                         <Text style={styles.removeButtonText}>X</Text>
@@ -136,12 +142,20 @@ const SelectedColorsDisplay: FC<SelectedColorsDisplayProps> = ({ colors, onRemov
     );
 };
 
+const isRequestExpired = (createdDate: string | Date, daysLimit: number = 2): boolean => {
+    const creationTime = new Date(createdDate).getTime();
+    const currentTime = Date.now();
+    const expiryTime = creationTime + daysLimit * 24 * 60 * 60 * 1000;
+    return currentTime > expiryTime;
+};
+
 
 const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
 
     const testRequestId = route.params.id;
-    const { colorTypes, colorFilters, isLoadingResources } = useResources();
+    const { initialBestColors, initialWorstColors } = route.params; // Nhận tham số mới
+    const { colorTypes, colorFiltersSpectrum, isLoadingResources } = useResources();
 
     const [clientRequest, setClientRequest] = useState<ExpertRequest | null>(null);
     const [isLoadingRequest, setIsLoadingRequest] = useState(true);
@@ -149,9 +163,12 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
     const [responsesHistory, setResponsesHistory] = useState<ExpertTestResponse[]>([]);
 
     const [note, setNote] = useState('');
-    const [bestColorsList, setBestColorsList] = useState<Color[]>([]); // Lưu object Color
-    const [worstColorsList, setWorstColorsList] = useState<Color[]>([]); // Lưu object Color
+    const [bestColorsList, setBestColorsList] = useState<Color[]>([]);
+    const [worstColorsList, setWorstColorsList] = useState<Color[]>([]);
     const [colorTypeId, setColorTypeId] = useState<number | null>(null);
+
+    const [colorFiltersByType, setColorFiltersByType] = useState<Color[]>([]);
+    const [isLoadingColorFilters, setIsLoadingColorFilters] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
@@ -160,30 +177,62 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
     const hasExistingResponse = useMemo(() => responsesHistory.length > 0, [responsesHistory]);
 
+    const clientPictureUri = useMemo(() => clientRequest?.pictures?.[0]?.source, [clientRequest]);
+
+    const isExpired = useMemo(() => {
+        if (!clientRequest?.createdDate) return false;
+        return isRequestExpired(clientRequest.createdDate, 2);
+    }, [clientRequest]);
+
     const updateColorStrings = useCallback((bestList: Color[], worstList: Color[]) => {
         const bestHex = bestList.map(c => c.hexCode).join(',');
         const worstHex = worstList.map(c => c.hexCode).join(',');
         return { bestHex, worstHex };
     }, []);
 
-    const hexStringToColorList = useCallback((hexString: string, colorFilters: Color[]): Color[] => {
+    const fetchColorFiltersByType = useCallback(async (typeId: number) => {
+        setIsLoadingColorFilters(true);
+        try {
+            const colors = await getColorsByType(typeId);
+            setColorFiltersByType(colors);
+            console.log(`Loaded ${colors.length} colors for type ${typeId}`);
+        } catch (error) {
+            console.error(`Failed to load colors for type ${typeId}:`, error);
+            setColorFiltersByType([]);
+        } finally {
+            setIsLoadingColorFilters(false);
+        }
+    }, []);
+
+    const hexStringToColorList = useCallback((hexString: string, filterList: Color[]): Color[] => {
         if (!hexString) return [];
         const hexCodes = hexString.split(',').map(h => h.trim().toUpperCase());
 
-        // Tạo danh sách Color objects: ưu tiên match với filters, nếu không thì tạo tạm thời
         return hexCodes.map((hex, index) => {
-            const matchedColor = colorFilters.find(f => f.hexCode.toUpperCase() === hex);
+            const matchedColor = filterList.find(f => f.hexCode.toUpperCase() === hex);
             return matchedColor || {
-                id: Date.now() + index, // Dùng ID tạm thời
+                id: Date.now() + index,
                 name: hex,
                 hexCode: hex
             };
         });
     }, []);
 
-
+    const selectedColorTypeName = useMemo(() => {
+        if (!colorTypeId) return '';
+        const type = colorTypes.find(t => t.id === colorTypeId);
+        return type ? type.name : '';
+    }, [colorTypeId, colorTypes]);
 
     const handleColorFieldPress = (mode: ColorPickerMode) => {
+        if (mode === 'BEST' && !colorTypeId) {
+            Alert.alert(
+                'Selection Required',
+                'Please select a Color Type first before choosing Best Colors.'
+            );
+            return;
+        }
+
         setPickerMode(mode);
         const currentList = mode === 'BEST' ? bestColorsList : worstColorsList;
 
@@ -238,11 +287,18 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 const latestResponse = data.responses[data.responses.length - 1];
 
                 setNote(latestResponse.note || '');
+                const initialColorTypeId = latestResponse.colorTypeId || null;
                 setColorTypeId(latestResponse.colorTypeId || null);
 
-                // Chuyển đổi màu HEX string thành Color List
-                const initialBest = hexStringToColorList(latestResponse.bestColor || '', colorFilters);
-                const initialWorst = hexStringToColorList(latestResponse.worstColor || '', colorFilters);
+                let initialColorFilterList: Color[] = colorFiltersSpectrum;
+                if (initialColorTypeId) {
+                    const loadedFiltersByType = await getColorsByType(initialColorTypeId);
+                    setColorFiltersByType(loadedFiltersByType);
+                    initialColorFilterList = loadedFiltersByType;
+                }
+
+                const initialBest = hexStringToColorList(latestResponse.bestColor || '', initialColorFilterList);
+                const initialWorst = hexStringToColorList(latestResponse.worstColor || '', colorFiltersSpectrum);
 
                 setBestColorsList(initialBest);
                 setWorstColorsList(initialWorst);
@@ -253,7 +309,39 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         } finally {
             setIsLoadingRequest(false);
         }
-    }, [testRequestId, hexStringToColorList, colorFilters]);
+    }, [testRequestId, hexStringToColorList, colorFiltersSpectrum]);
+
+    // --- useEffect Lắng nghe tham số route để cập nhật màu ---
+    useEffect(() => {
+        // Chỉ cập nhật nếu có dữ liệu mới từ ColorTestOnImageScreen
+        if (initialBestColors || initialWorstColors) {
+            // Lọc các màu trùng lặp trước khi set state
+            if (initialBestColors) {
+                setBestColorsList(prev => {
+                    const existingHexes = new Set(prev.map(c => c.hexCode.toUpperCase()));
+                    const newUniqueColors = initialBestColors.filter(c => !existingHexes.has(c.hexCode.toUpperCase()));
+                    return [...prev, ...newUniqueColors];
+                });
+            }
+
+            if (initialWorstColors) {
+                setWorstColorsList(prev => {
+                    const existingHexes = new Set(prev.map(c => c.hexCode.toUpperCase()));
+                    const newUniqueColors = initialWorstColors.filter(c => !existingHexes.has(c.hexCode.toUpperCase()));
+                    return [...prev, ...newUniqueColors];
+                });
+            }
+        }
+    }, [initialBestColors, initialWorstColors]);
+
+
+    useEffect(() => {
+        if (colorTypeId !== null) {
+            fetchColorFiltersByType(colorTypeId);
+        } else {
+            setColorFiltersByType([]);
+        }
+    }, [colorTypeId, fetchColorFiltersByType]);
 
     useEffect(() => {
         if (!isLoadingResources) {
@@ -272,24 +360,17 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
         setIsSubmitting(true);
 
-        const payload: CreateResponseRequest = {
-            testRequestId: testRequestId,
+        const commonPayload: UpdateResponsePayload = {
             note: note.trim(),
             bestColor: bestHex,
             worstColor: worstHex,
             colorTypeId: colorTypeId,
         };
 
-        const commonPayload: UpdateResponsePayload = {
-            note: note.trim(),
-            bestColor: bestHex,
-            worstColor: worstHex,
-            colorTypeId: colorTypeId,
-        }
-
         try {
             if (hasExistingResponse) {
                 const updatePayload: UpdateResponsePayload = commonPayload;
+
                 await updateExpertResponse(testRequestId, updatePayload);
 
                 Toast.show({
@@ -301,9 +382,10 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
             } else {
                 const createPayload: CreateResponseRequest = {
-                    ...payload,
+                    ...commonPayload,
                     testRequestId: testRequestId,
                 };
+
                 await createResponse(createPayload);
 
                 Toast.show({
@@ -324,7 +406,40 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         }
     }, [testRequestId, note, bestColorsList, worstColorsList, colorTypeId, navigation, updateColorStrings, hasExistingResponse]);
 
+    const colorPickerProps = useMemo(() => {
+        if (pickerMode === 'BEST') {
+            return {
+                colorFilters: colorFiltersByType,
+                colorTitle: `PerHue Colors for ${selectedColorTypeName || 'Selected Type'}`,
+                disabled: isLoadingColorFilters,
+            };
+        } else if (pickerMode === 'WORST') {
+            return {
+                colorFilters: colorFiltersSpectrum,
+                colorTitle: `PerHue Colors`,
+                disabled: isLoadingResources,
+            };
+        }
+        return {
+            colorFilters: [],
+            colorTitle: '',
+            disabled: true,
+        };
+    }, [pickerMode, colorFiltersByType, colorFiltersSpectrum, selectedColorTypeName, isLoadingColorFilters, isLoadingResources]);
+
     const isLoading = isLoadingRequest || isLoadingResources;
+
+    const handleNavigateToColorTestOnImage = useCallback(() => {
+        if (!clientPictureUri) {
+            Toast.show({ type: 'error', text1: 'Error', text2: 'No image available for testing.', visibilityTime: 3000 });
+            return;
+        }
+
+        navigation.navigate('ColorTestOnImageScreen', {
+            imageUri: clientPictureUri,
+            testRequestId: testRequestId, // Truyền ID để màn hình test có thể navigate ngược lại
+        });
+    }, [navigation, clientPictureUri, testRequestId]);
 
     // --- Render Loading/Error ---
     if (isLoading) {
@@ -347,8 +462,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         );
     }
 
-    const clientPictureUri = clientRequest.pictures?.[0]?.source;
-
     // --- Render Form ---
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -362,7 +475,18 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 <View style={styles.clientInfoCard}>
                     <Text style={styles.cardTitle}>Client Request Details #{clientRequest.id}</Text>
                     {clientPictureUri && (
-                        <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
+                        <View style={styles.clientImageContainer}>
+                            <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
+
+                            {/* NÚT CAMERA/TEST MÀU */}
+                            <TouchableOpacity
+                                style={styles.colorTestButton}
+                                onPress={handleNavigateToColorTestOnImage}
+                            >
+                                <FontAwesome name="camera" size={24} color="white" />
+                                <Text style={styles.colorTestButtonText}>Test</Text>
+                            </TouchableOpacity>
+                        </View>
                     )}
 
                     <ColorDetailDisplay
@@ -417,7 +541,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 <TouchableOpacity
                     style={styles.addColorButton}
                     onPress={() => handleColorFieldPress('BEST')}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoadingColorFilters || !colorTypeId}
                 >
                     <Text style={styles.addColorButtonText}>+ Add Best Color</Text>
                 </TouchableOpacity>
@@ -431,7 +555,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 <TouchableOpacity
                     style={styles.addColorButton}
                     onPress={() => handleColorFieldPress('WORST')}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoadingResources}
                 >
                     <Text style={styles.addColorButtonText}>+ Add Worst Color</Text>
                 </TouchableOpacity>
@@ -443,12 +567,11 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
             <View
                 style={[
                     styles.footer,
-                    // Thêm khoảng đệm an toàn cho footer
                     { paddingBottom: styles.footer.padding + insets.bottom }
                 ]}
             >
                 <TouchableOpacity
-                    style={[styles.backButtonFooter]} // Style mới cho nút Back
+                    style={[styles.backButtonFooter]}
                     onPress={() => navigation.goBack()}
                     disabled={isSubmitting}
                 >
@@ -456,9 +579,12 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+                    style={[
+                        styles.submitButton,
+                        (isSubmitting || isExpired) && styles.submitButtonDisabled
+                    ]}
                     onPress={handleSubmit}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isExpired}
                 >
                     {isSubmitting ? (
                         <ActivityIndicator color="#fff" />
@@ -477,7 +603,8 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     onClose={() => setIsColorPickerVisible(false)}
                     onColorSelected={handleColorAdded}
                     initialColorHex={initialPickerHex}
-                    colorFilters={colorFilters} // Truyền danh sách màu gợi ý/filter
+                    colorFilters={colorPickerProps.colorFilters}
+                    colorTitle={colorPickerProps.colorTitle}
                 />
             )}
         </View>
@@ -487,7 +614,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 export default CreateExpertTestResponse;
 
 // =========================================================
-// STYLES
+// STYLES (Không thay đổi)
 // =========================================================
 
 const styles = StyleSheet.create({
@@ -528,7 +655,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
-    // Client Info Card
     clientInfoCard: {
         backgroundColor: '#fff',
         padding: 15,
@@ -555,14 +681,38 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         paddingTop: 5,
     },
-    clientImage: {
+    clientImageContainer: {
         width: '100%',
         height: 200,
         borderRadius: 8,
         marginBottom: 10,
         backgroundColor: '#eee',
+        position: 'relative',
+        overflow: 'hidden',
     },
-    // Color Detail Display Styles
+    clientImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 8,
+    },
+    colorTestButton: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        backgroundColor: '#473e3eff',
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    colorTestButtonText: {
+        color: 'white',
+        marginLeft: 5,
+        fontWeight: 'bold',
+        fontSize: 14,
+    },
     colorDisplayContainer: {
         marginTop: 10,
         marginBottom: 15,
@@ -607,7 +757,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
         textAlign: 'right',
     },
-    // Form Styles
     sectionHeader: {
         fontSize: 20,
         fontWeight: 'bold',
@@ -621,15 +770,6 @@ const styles = StyleSheet.create({
         marginTop: 10,
         marginBottom: 5,
     },
-    input: {
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 8,
-        padding: 12,
-        fontSize: 16,
-        marginBottom: 15,
-    },
     textArea: {
         backgroundColor: '#fff',
         borderWidth: 1,
@@ -641,7 +781,6 @@ const styles = StyleSheet.create({
         minHeight: 100,
         textAlignVertical: 'top',
     },
-    // Color Type Selector
     colorTypeSelectorContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -671,7 +810,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
-    // Selected Colors Display
     selectedColorsContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -703,8 +841,6 @@ const styles = StyleSheet.create({
         textShadowRadius: 1,
         marginBottom: 2,
     },
-
-    // Nút Xóa mới (Hình tròn nhỏ ở góc trên bên phải)
     removeButtonSquare: {
         position: 'absolute',
         top: -5,
@@ -715,38 +851,7 @@ const styles = StyleSheet.create({
         height: 20,
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 5, // Đảm bảo nút nằm trên các ô màu khác
-    },
-    selectedColorWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        overflow: 'hidden',
-    },
-    selectedColorChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderTopLeftRadius: 20,
-        borderBottomLeftRadius: 20,
-    },
-    selectedColorText: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#fff',
-        textShadowColor: 'rgba(0,0,0,0.5)',
-        textShadowOffset: { width: 1, height: 1 },
-    },
-    removeButton: {
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        backgroundColor: '#f44336',
-        height: '100%',
-        justifyContent: 'center',
+        zIndex: 5,
     },
     removeButtonText: {
         color: 'white',
@@ -788,7 +893,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     submitButtonDisabled: {
-        backgroundColor: '#90ee90',
+        backgroundColor: '#727272ff',
     },
     submitButtonText: {
         color: '#fff',
@@ -796,15 +901,16 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     backButtonFooter: {
-        flex: 1, // Chiếm 1/3 không gian
+        flex: 1,
         backgroundColor: '#e0e0e0',
         padding: 15,
         borderRadius: 10,
         alignItems: 'center',
+        marginRight: 10,
     },
     backButtonText: {
         color: '#333',
         fontSize: 18,
         fontWeight: 'bold',
-    }
+    },
 });
