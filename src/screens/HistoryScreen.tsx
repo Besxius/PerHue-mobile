@@ -22,7 +22,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { getRequestHistory, getRequests, getReviewRequests } from "../api/expertApi";
 import { BaseHistoryItem, ImageSource } from "../types";
-import { getColorType, getColorTypeById } from "../api/capsulePaletteApi";
+import { getColorType } from "../api/capsulePaletteApi";
 import { useAuth } from "./auth/AuthContext";
 
 export type RoleInfo = { name: string };
@@ -37,11 +37,10 @@ type HistoryScreenProps = CompositeScreenProps<
     NativeStackScreenProps<RootStackParamList>
 >;
 
+// ... (Giữ nguyên các hàm transform dữ liệu: transformManualTestResult, etc.)
 const transformManualTestResult = (result: ManualTestResult): BaseHistoryItem => {
     const imageSource: ImageSource[] = result.picture ? [{ uri: result.picture }] : [];
-
     const subtitle = `ColorType: ${result.colorType?.name || 'Unknown'}`;
-
     return {
         id: result.id,
         title: `#${result.id} - ${result.type || 'Manual Test'}`,
@@ -58,18 +57,12 @@ const transformManualTestResult = (result: ManualTestResult): BaseHistoryItem =>
 
 const transformAiTestResult = (response: AiTestResponse, colorMap: Record<number, string>): BaseHistoryItem => {
     const id = response.id;
-
     const imageSource: ImageSource[] = response.imageUrl ? [{ uri: response.imageUrl }] : [];
-
     const resultModel = response.newAiTestResultResponseModel;
-
     const suggestedColors = resultModel?.suggestedColor || 'N/A';
-
     const colorTypeId = resultModel?.colorTypeId;
     const colorTypeName = (colorTypeId && colorMap[colorTypeId]) ? colorMap[colorTypeId] : 'Unknown';
-
     const subtitle = `ColorType: ${colorTypeName}`;
-
     const dateStr = response.createdDate
         ? new Date(response.createdDate).toLocaleDateString('vi-VN')
         : 'N/A';
@@ -90,10 +83,8 @@ const transformAiTestResult = (response: AiTestResponse, colorMap: Record<number
 
 const transformExpertTestResult = (response: ExpertTestResponse): BaseHistoryItem => {
     const id = response.id;
-
     const pictureUrl = response.pictures?.[0]?.source;
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
-
     const subTitle = ``;
 
     return {
@@ -112,12 +103,9 @@ const transformExpertTestResult = (response: ExpertTestResponse): BaseHistoryIte
 
 const transformExpertRequest = (request: ExpertRequest): BaseHistoryItem => {
     const id = request.id;
-
     const pictureUrl = request.pictures?.[0]?.source;
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
-
     const subTitle = ``;
-
     const buttonText = request.status === 'Pending' ? 'Response Now' : 'View Detail';
 
     return {
@@ -136,13 +124,10 @@ const transformExpertRequest = (request: ExpertRequest): BaseHistoryItem => {
 
 const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem => {
     const id = reviewReq.testRequest.id;
-
     const pictureUrl = reviewReq.testRequest.pictures?.[0]?.source;
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
-
     const responseCount = reviewReq.previousResponses?.length || 0;
     const isReviewed = responseCount > 0;
-
     let status = reviewReq.testRequest.status;
     let buttonText = 'View Detail';
 
@@ -151,7 +136,6 @@ const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem =
     } else if (status === 'Completed') {
         status = isReviewed ? 'Reviewed' : 'Completed';
     }
-
     const subTitle = `Has ${responseCount} previous response(s)`;
 
     return {
@@ -170,16 +154,12 @@ const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem =
 
 const transformExpertHistory = (historyItem: ExpertRequestHistoryItem): BaseHistoryItem => {
     const id = historyItem.id;
-
     const pictureUrl = historyItem.pictures?.[0]?.source;
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
-
     const statusText = historyItem.expertStatus || historyItem.status;
     const assignmentDate = new Date(historyItem.assignmentDate).toLocaleDateString('vi-VN');
     const subTitle = `Assigned: ${assignmentDate}`;
-
     const buttonText = 'View Detail';
-
     const isExpert = true;
 
     return {
@@ -198,7 +178,6 @@ const transformExpertHistory = (historyItem: ExpertRequestHistoryItem): BaseHist
 
 const filterHistory = async (statusFilter: string) => {
     const results = await getRequestHistory();
-
     const filtered = results.filter(item =>
         (item.expertStatus && item.expertStatus.toLowerCase() === statusFilter.toLowerCase()) ||
         (item.status && item.status.toLowerCase() === statusFilter.toLowerCase())
@@ -253,14 +232,12 @@ const USER_TABS: TabConfig[] = [
                 getAiTestResults(),
                 getColorType()
             ]);
-
             const colorMap: Record<number, string> = {};
             if (colorTypes && Array.isArray(colorTypes)) {
                 colorTypes.forEach(type => {
                     colorMap[type.id] = type.name;
                 });
             }
-
             return results.map(item => transformAiTestResult(item, colorMap));
         }
     },
@@ -273,7 +250,8 @@ const USER_TABS: TabConfig[] = [
     },
 ];
 
-const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
+// [CẬP NHẬT] Thêm route vào props
+const HistoryScreen: FC<HistoryScreenProps> = ({ navigation, route }) => {
     const insets = useSafeAreaInsets();
     const { userRole } = useAuth();
 
@@ -290,13 +268,30 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
 
     const [refreshing, setRefreshing] = useState(false);
 
+    // [CẬP NHẬT] Logic xử lý tham số điều hướng 'initialTab'
     useEffect(() => {
+        // Lấy params (ép kiểu any vì TabParamList gốc có thể chưa định nghĩa param này)
+        const params = route.params as any;
+
+        if (params?.initialTab && currentTabs.length > 0) {
+            const targetTab = currentTabs.find(tab => tab.name === params.initialTab);
+            if (targetTab) {
+                console.log(`Switching to tab: ${targetTab.name}`);
+                setActiveTab(targetTab);
+
+                // Xóa params để tránh lỗi khi refresh hoặc focus lại (tuỳ chọn)
+                navigation.setParams({ initialTab: undefined } as any);
+                return;
+            }
+        }
+
+        // Logic mặc định nếu không có params hoặc params không khớp
         if (currentTabs.length > 0 && !activeTab) {
             setActiveTab(currentTabs[0]);
         } else if (activeTab && !currentTabs.some(tab => tab.name === activeTab.name)) {
             setActiveTab(currentTabs[0]);
         }
-    }, [currentTabs, activeTab]);
+    }, [currentTabs, route.params]); // Thêm route.params vào dependency
 
     const loadHistoryData = useCallback(async (fetcher: () => Promise<any[]>, tabName: string, isRefetch = false) => {
         if (!isRefetch) setIsLoadingData(true);
@@ -339,12 +334,9 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
                     return;
                 }
             }
-
             if (activeTab?.name === 'Review') {
-                navigation.navigate('ExpertReviewDetailScreen' as any, { id: item.id });
                 return;
             }
-
             if (['History', 'Completed', 'Expired'].includes(activeTab?.name || '')) {
                 navigation.navigate('CreateExpertTestResponse' as any, { id: item.id });
                 return;
@@ -365,8 +357,6 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
             navigation.navigate('ExpertTestResponseDetailScreen', { id: item.id });
             return;
         }
-
-        console.log(`Default action for tab ${activeTab?.name}`);
     }, [activeTab, navigation, userRole]);
 
     const renderHistoryItem: ListRenderItem<BaseHistoryItem> = useCallback(({ item }) => {
@@ -431,19 +421,19 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
                 <FlatList
                     data={historyData}
                     renderItem={renderHistoryItem}
-                    keyExtractor={(item) => (item?.id != null) ? item.id.toString() : `fallback-${Math.random()}`}
+                    keyExtractor={keyExtractor}
                     style={styles.flatList}
                     contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={<Text style={styles.emptyListText}>No {activeTab.name} items found.</Text>}
                     ListFooterComponent={<View style={{ height: 20 + insets.bottom }} />}
-
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
                             colors={['#4C7BE2']}
                             tintColor={'#4C7BE2'}
+                            progressViewOffset={50}
                         />
                     }
                 />
@@ -454,6 +444,7 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
 
 export default HistoryScreen;
 
+// ... (Giữ nguyên styles)
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -517,32 +508,4 @@ const styles = StyleSheet.create({
         paddingHorizontal: 15,
         paddingBottom: 100,
     },
-    itemContainer: {
-        flexDirection: 'row',
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-        alignItems: 'center',
-    },
-    imageGrid: { width: 80, height: 80, marginRight: 15, flexDirection: 'row', flexWrap: 'wrap', overflow: 'hidden', borderRadius: 8, },
-    gridImage: { width: '50%', height: '50%', },
-    fullImage: { width: '100%', height: '100%', borderRadius: 8, },
-    itemContent: { flex: 1, },
-    itemTitle: { fontSize: 14, color: '#333', fontWeight: '500', },
-    itemNumber: { fontWeight: 'bold', },
-    itemMethod: { fontSize: 16, fontWeight: '600', marginTop: 2, },
-    statusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5, },
-    itemStatus: { fontSize: 14, fontWeight: '500', marginRight: 8, },
-    processingStatus: { color: '#888', },
-    completedStatus: { color: '#333', },
-    checkIconContainer: { backgroundColor: '#4C7BE2', width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center', },
-    checkIcon: { color: '#fff', fontSize: 10, lineHeight: 12, fontWeight: 'bold', },
-    itemActions: { marginLeft: 10, alignItems: 'flex-end', },
-    responseCount: { fontSize: 14, color: '#666', marginBottom: 8, },
-    actionButton: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 25, minWidth: 90, alignItems: 'center', justifyContent: 'center', },
-    trackButton: { backgroundColor: '#4C7BE2', },
-    reviewButton: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#4C7BE2', },
-    buttonText: { fontSize: 14, fontWeight: '600', },
-    trackButtonText: { color: '#fff', },
-    reviewButtonText: { color: '#4C7BE2', }
 });

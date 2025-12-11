@@ -23,10 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ManualTestResultDetailS
 const { width } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
 
-// --- Helper Functions ---
-// Hàm xác định màu chữ (đen/trắng) dựa trên độ sáng màu nền
 const getContrastTextColor = (hex: string) => {
-    // Đảm bảo hex có độ dài chuẩn (vd: #RRGGBB)
     const cleanHex = hex.replace('#', '');
     if (cleanHex.length !== 6) return '#FFFFFF';
 
@@ -91,6 +88,13 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
         fetchResult();
     }, [fetchResult]);
 
+    const handleGoBack = () => {
+        navigation.navigate('Tabs' as any, {
+            screen: 'History',
+            params: { initialTab: 'Manual Test' }
+        });
+    };
+
     if (isLoading) {
         return (
             <View style={styles.centered}>
@@ -104,18 +108,15 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
         return (
             <View style={styles.centered}>
                 <Text style={styles.errorText}>Error: {error}</Text>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButtonCenter}>
+                <TouchableOpacity onPress={handleGoBack} style={styles.backButtonCenter}>
                     <Text style={styles.backButtonText}>Go Back</Text>
                 </TouchableOpacity>
             </View>
         );
     }
 
-    // Data processing
     const colorType = result.colorType?.name || 'Undetermined';
     const profilePictureUri = result.picture;
-
-    // Filter valid Capsule Palettes (must have 4 colors)
     const validCapsulePalettes = result.capsulePalettes
         .map(palette => {
             const colorsArray = palette.colors.slice(0, 4).map(c => c.hexCode);
@@ -133,7 +134,7 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
         <View style={[styles.container, { paddingTop: insets.top }]}>
             {/* Custom Header */}
             <View style={styles.headerBar}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+                <TouchableOpacity onPress={handleGoBack} style={styles.headerButton}>
                     <Ionicons name="arrow-back" size={28} color="#333" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Test Result #{result.id}</Text>
@@ -141,12 +142,10 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-                {/* 1. Result Summary (Date & Color Type) */}
+                {/* 1. Result Summary */}
                 <View style={styles.summaryCard}>
                     <View style={styles.rowBetween}>
                         <Text style={styles.label}>Time:</Text>
-                        {/* Cập nhật hiển thị cả ngày và giờ */}
                         <Text style={styles.value}>
                             {new Date(result.createdDate).toLocaleString('vi-VN')}
                         </Text>

@@ -30,7 +30,6 @@ import Entypo from '@expo/vector-icons/Entypo';
 import Svg, { Rect, Mask, Defs, Ellipse } from 'react-native-svg';
 import { ColorTestRequest, CapsulePaletteModel, Color, ColorType, ImageFile, ManualColorTestResponse, AiColorTestResponse } from '../types/dataModels';
 import { getColorsByType, getCorlorListSpectrum } from '../api/colorApi';
-import { getAuthRole } from '../api/apiClient';
 import ColorPopup from '../components/ColorPopup';
 import ColorPickerPopup from '../components/ColorPickerPopup';
 import PalettePopup from '../components/PalettePopup';
@@ -342,18 +341,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         }
     };
 
-    const handleNavigateToManualDetail = () => {
-        if (manualResultData && fullPreviewUri) {
-            setShowManualResultModal(false);
-            navigation.navigate('ManualResultDetail', {
-                resultData: manualResultData,
-                currentPhotoUri: fullPreviewUri
-            });
-        } else {
-            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không có dữ liệu chi tiết.', visibilityTime: 2000 });
-        }
-    };
-
     const handleCloseManualModal = () => {
         setShowManualResultModal(false);
         setManualResultData(null);
@@ -419,7 +406,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
         setIsLoading(true);
         try {
-            // [Check Subscription Logic]
             const activeSubs = await getActiveSubscriptions();
             const isAiMode = captureMode === 'ai';
 
@@ -439,7 +425,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 return;
             }
 
-            // Execute Test
             if (captureMode === 'ai') {
                 const result = await aiColorTest(aiTestParams);
                 setAiResultData(result);
@@ -465,18 +450,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     const handleBuyPackage = () => {
         setShowSubscriptionModal(false);
         navigation.navigate('PackageScreen');
-    };
-
-    const handleNavigateToAiDetail = (result: AiColorTestResponse) => {
-        if (fullPreviewUri) {
-            setShowAiResultModal(false);
-            navigation.navigate('AiResultDetail', {
-                resultData: result,
-                currentPhotoUri: fullPreviewUri
-            });
-        } else {
-            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không có dữ liệu chi tiết ảnh.', visibilityTime: 2000 });
-        }
     };
 
     const handleCloseAiModal = () => {
@@ -714,9 +687,11 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                         style={[styles.sendButton, { bottom: insets.bottom + 70 }]}
                         onPress={captureMode === 'manual' ? handleManualTest : handleColorTest}
                     >
-                        <View style={styles.sendButtonContent}>
-                            <Text style={styles.buttonText}>SEND</Text>
-                        </View>
+                        {!isUserExpert && (
+                            <View style={styles.sendButtonContent}>
+                                <Text style={styles.buttonText}>SEND</Text>
+                            </View>
+                        )}
                     </TouchableOpacity>
                     {capturedColors && (
                         <View style={[styles.paletteContainer, { bottom: 150 + insets.bottom }]}>
@@ -920,7 +895,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 isVisible={showManualResultModal}
                 onClose={handleCloseManualModal}
                 resultData={manualResultData}
-                onNavigateToDetail={handleNavigateToManualDetail}
                 currentPhotoUri={fullPreviewUri}
             />
 
@@ -929,7 +903,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 onClose={handleCloseAiModal}
                 resultData={aiResultData}
                 currentPhotoUri={fullPreviewUri}
-                onNavigateToDetail={() => aiResultData && handleNavigateToAiDetail(aiResultData)}
             />
 
             <ExpertSuccessModal
