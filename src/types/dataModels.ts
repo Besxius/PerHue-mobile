@@ -451,3 +451,20 @@ export interface ExpertTestImageModel {
     worstColor: string,
     colorTypeId: number,
 }
+
+export interface ExpertSalaryDetail {
+    testResponseId: number;
+    completedDate: string;
+    rating: number;
+    amount: number;
+}
+
+export interface ExpertSalaryResponse {
+    expertId: number;
+    totalSalary: number;
+    totalRequests: number;
+    averageRating: number;
+    fromDate: string;
+    toDate: string;
+    details: ExpertSalaryDetail[];
+}

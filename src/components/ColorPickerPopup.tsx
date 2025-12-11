@@ -87,7 +87,8 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
     colorTitle
 }) => {
     const insets = useSafeAreaInsets();
-    const MODAL_HEIGHT = screenHeight * 0.8;
+    // [UPDATED] Tăng chiều cao modal lên 85% màn hình để có nhiều không gian hơn
+    const MODAL_HEIGHT = screenHeight * 0.85;
     const TARGET_Y = screenHeight - MODAL_HEIGHT;
 
     const initialHex = useMemo(() => {
@@ -106,7 +107,7 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
     const [colorFormat, setColorFormat] = useState<ColorFormat>('HEX');
     const [isDropdownVisible, setIsDropdownVisible] = useState(false);
 
-    // 3. Memo Hooks: Danh sách màu hiển thị (sử dụng colorFilters hoặc default)
+    // 3. Memo Hooks: Danh sách màu hiển thị
     const displayColorHexes = useMemo(() => {
         if (colorFilters && colorFilters.length > 0) {
             return colorFilters.map(c => c.hexCode.toUpperCase());
@@ -140,7 +141,7 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
         }
     }, [isVisible, slideAnim, TARGET_Y]);
 
-    // 5. useEffect cho Reset State (khi Modal được mở)
+    // 5. useEffect Reset State
     useEffect(() => {
         if (isVisible) {
             setSelectedHex(initialHex);
@@ -150,9 +151,6 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
         }
     }, [isVisible, initialHex]);
 
-    // *************** KẾT THÚC VÙNG KHAI BÁO HOOKS ***************
-
-    // Ngăn chặn render nếu animation trượt xuống đã hoàn tất
     if (!shouldRender) return null;
 
     // --- LOGIC VÀ HÀM ---
@@ -178,19 +176,16 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
         setIsDropdownVisible(false);
     }
 
-    // Xử lý khi nhấn OK (trả về Color object đầy đủ)
     const handleOk = () => {
         const finalHexCode = selectedHex.toUpperCase();
         let finalSelectedColor: Color | undefined;
 
-        // 1. Kiểm tra xem màu được chọn có tồn tại trong colorFilters không (nếu có)
         if (colorFilters && colorFilters.length > 0) {
             finalSelectedColor = colorFilters.find(
                 c => c.hexCode.toUpperCase() === finalHexCode
             );
         }
 
-        // 2. Nếu không tìm thấy, tạo một object Color mới (dùng HEX làm tên và ID tạm)
         if (!finalSelectedColor) {
             finalSelectedColor = {
                 id: Date.now(),
@@ -202,9 +197,6 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
         onColorSelected(finalSelectedColor);
     };
 
-    /**
-     * Component hiển thị 1 ô input giá trị màu
-     */
     const ColorInputDisplay = () => {
         if (colorFormat === 'HEX') {
             return (
@@ -234,9 +226,6 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
         );
     };
 
-    /**
-     * Component Dropdown Menu
-     */
     const FormatDropdown = () => (
         <View style={colorPickerToolStyles.dropdownMenu}>
             {COLOR_FORMATS.map((format) => (
@@ -265,96 +254,100 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
                         style={[
                             colorPickerToolStyles.modalContent,
                             {
+                                height: MODAL_HEIGHT,
                                 transform: [{ translateY: slideAnim }]
                             }
                         ]}
                     >
                         {/* Bọc nội dung bên trong để chặn sự kiện nhấn (tránh đóng modal) */}
-                        <TouchableOpacity activeOpacity={1} onPress={() => { }}
-                            style={[
-                                colorPickerToolStyles.modalContentInner,
-                                { paddingTop: insets.top + 15, paddingBottom: insets.bottom + 15 }
-                            ]}
-                        >
-                            {/* --- Color Picker Wheel --- */}
-                            <View style={colorPickerToolStyles.colorPickerContainer}>
-                                <ColorWheel
-                                    color={selectedHex}
-                                    onColorChange={onColorChangeComplete}
-                                    onColorChangeComplete={onColorChangeComplete}
-                                    thumbSize={25}
-                                    sliderSize={20}
-                                    gapSize={15}
-                                />
-                            </View>
+                        <TouchableOpacity activeOpacity={1} onPress={() => { }} style={colorPickerToolStyles.modalContentInner}>
 
-                            {/* --- Input Hex/RGB/CMYK và Dropdown Container --- */}
-                            <View style={colorPickerToolStyles.inputContainer}>
-                                <View style={colorPickerToolStyles.hexInputRow}>
-                                    {/* Nút Dropdown */}
-                                    <TouchableOpacity
-                                        style={colorPickerToolStyles.dropdownPlaceholder}
-                                        onPress={() => setIsDropdownVisible(!isDropdownVisible)}
-                                    >
-                                        <View style={colorPickerToolStyles.dropdownContent}>
-                                            <Text style={colorPickerToolStyles.buttonText}>{colorFormat}</Text>
-                                            <Entypo name="chevron-down" size={16} color="white" style={colorPickerToolStyles.dropdownIcon} />
-                                        </View>
-                                    </TouchableOpacity>
-
-                                    {/* Input hiển thị theo định dạng */}
-                                    <ColorInputDisplay />
+                            {/* [UPDATED] Thêm ScrollView để cuộn được trên màn hình nhỏ */}
+                            <ScrollView
+                                contentContainerStyle={{
+                                    paddingTop: insets.top + 10,
+                                    paddingBottom: insets.bottom + 20,
+                                    paddingHorizontal: 20
+                                }}
+                                showsVerticalScrollIndicator={false}
+                            >
+                                {/* --- Color Picker Wheel --- */}
+                                <View style={colorPickerToolStyles.colorPickerContainer}>
+                                    <ColorWheel
+                                        color={selectedHex}
+                                        onColorChange={onColorChangeComplete}
+                                        onColorChangeComplete={onColorChangeComplete}
+                                        thumbSize={25}
+                                        sliderSize={20}
+                                        gapSize={15}
+                                    />
                                 </View>
 
-                                {/* Dropdown Menu */}
-                                {isDropdownVisible && <FormatDropdown />}
-                            </View>
-
-                            {/* --- Saved Colors (Color Filters) --- */}
-                            <View style={colorPickerToolStyles.savedColorsSection}>
-                                <Text style={colorPickerToolStyles.savedColorsTitle}>
-                                    {colorTitle
-                                        ? colorTitle
-                                        : (colorFilters && colorFilters.length > 0
-                                            ? "PerHue Color"
-                                            : "Suggest Colors"
-                                        )
-                                    }
-                                </Text>
-                                <ScrollView
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={colorPickerToolStyles.savedColorsRow}
-                                >
-                                    {displayColorHexes.map((colorHex, index) => (
+                                {/* --- Input Hex/RGB/CMYK và Dropdown Container --- */}
+                                <View style={colorPickerToolStyles.inputContainer}>
+                                    <View style={colorPickerToolStyles.hexInputRow}>
                                         <TouchableOpacity
-                                            key={index}
-                                            style={[
-                                                colorPickerToolStyles.savedColorSwatch,
-                                                { backgroundColor: colorHex },
-                                                selectedHex.toUpperCase() === colorHex.toUpperCase() && colorPickerToolStyles.activeSwatch
-                                            ]}
-                                            onPress={() => onColorChangeComplete(colorHex)}
-                                        />
-                                    ))}
-                                </ScrollView>
-                            </View>
+                                            style={colorPickerToolStyles.dropdownPlaceholder}
+                                            onPress={() => setIsDropdownVisible(!isDropdownVisible)}
+                                        >
+                                            <View style={colorPickerToolStyles.dropdownContent}>
+                                                <Text style={colorPickerToolStyles.buttonText}>{colorFormat}</Text>
+                                                <Entypo name="chevron-down" size={16} color="white" style={colorPickerToolStyles.dropdownIcon} />
+                                            </View>
+                                        </TouchableOpacity>
 
-                            {/* --- Action Buttons --- */}
-                            <View style={colorPickerToolStyles.actionRow}>
-                                <TouchableOpacity
-                                    style={[colorPickerToolStyles.button, { backgroundColor: '#FF6347' }]}
-                                    onPress={onClose}
-                                >
-                                    <Text style={colorPickerToolStyles.buttonText}>Cancel</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[colorPickerToolStyles.button, { backgroundColor: '#4CAF50' }]}
-                                    onPress={handleOk}
-                                >
-                                    <Text style={colorPickerToolStyles.buttonText}>OK</Text>
-                                </TouchableOpacity>
-                            </View>
+                                        <ColorInputDisplay />
+                                    </View>
+
+                                    {isDropdownVisible && <FormatDropdown />}
+                                </View>
+
+                                {/* --- Saved Colors (Color Filters) --- */}
+                                <View style={colorPickerToolStyles.savedColorsSection}>
+                                    <Text style={colorPickerToolStyles.savedColorsTitle}>
+                                        {colorTitle
+                                            ? colorTitle
+                                            : (colorFilters && colorFilters.length > 0
+                                                ? "PerHue Color"
+                                                : "Suggest Colors"
+                                            )
+                                        }
+                                    </Text>
+                                    <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={colorPickerToolStyles.savedColorsRow}
+                                    >
+                                        {displayColorHexes.map((colorHex, index) => (
+                                            <TouchableOpacity
+                                                key={index}
+                                                style={[
+                                                    colorPickerToolStyles.savedColorSwatch,
+                                                    { backgroundColor: colorHex },
+                                                    selectedHex.toUpperCase() === colorHex.toUpperCase() && colorPickerToolStyles.activeSwatch
+                                                ]}
+                                                onPress={() => onColorChangeComplete(colorHex)}
+                                            />
+                                        ))}
+                                    </ScrollView>
+                                </View>
+
+                                {/* --- Action Buttons --- */}
+                                <View style={colorPickerToolStyles.actionRow}>
+                                    <TouchableOpacity
+                                        style={[colorPickerToolStyles.button, { backgroundColor: '#FF6347' }]}
+                                        onPress={onClose}
+                                    >
+                                        <Text style={colorPickerToolStyles.buttonText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[colorPickerToolStyles.button, { backgroundColor: '#4CAF50' }]}
+                                        onPress={handleOk}
+                                    >
+                                        <Text style={colorPickerToolStyles.buttonText}>OK</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </ScrollView>
                         </TouchableOpacity>
                     </Animated.View>
                 </KeyboardAvoidingView>
@@ -383,7 +376,6 @@ const colorPickerToolStyles = StyleSheet.create({
     },
     modalContent: {
         width: '100%',
-        height: screenHeight * 0.8,
         backgroundColor: '#333',
         borderTopLeftRadius: 15,
         borderTopRightRadius: 15,
@@ -393,16 +385,14 @@ const colorPickerToolStyles = StyleSheet.create({
     },
     modalContentInner: {
         flex: 1,
-        alignItems: 'flex-start',
-        justifyContent: 'flex-start',
         width: '100%',
-        paddingHorizontal: 20,
     },
     actionRow: {
         flexDirection: 'row',
         marginTop: 20,
         justifyContent: 'space-around',
         width: '100%',
+        marginBottom: 20, // Thêm margin bottom
     },
     button: {
         paddingVertical: 10,
@@ -419,10 +409,10 @@ const colorPickerToolStyles = StyleSheet.create({
     // --- Color Picker ---
     colorPickerContainer: {
         width: '100%',
-        height: 400,
+        height: screenHeight * 0.5, // [UPDATED] Chiều cao linh động, 40% màn hình
         paddingHorizontal: 5,
         marginTop: 5,
-        alignSelf: 'center', // Căn giữa nếu muốn đặt width cố định
+        alignSelf: 'center',
     },
 
     // Input & Dropdown Container
@@ -518,7 +508,6 @@ const colorPickerToolStyles = StyleSheet.create({
         color: 'white',
         fontWeight: '600',
     },
-
 
     // Saved Colors
     savedColorsSection: {

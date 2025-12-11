@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { CreateResponseRequest, ExpertInfo, ExpertRequest, ExpertRequestDetailResponse, ExpertRequestHistoryItem, ExpertTestResponse, ReviewTestRequest, UpdateResponsePayload, UserInfo, VoteForReviewRequest } from '../types/dataModels';
+import { CreateResponseRequest, ExpertInfo, ExpertRequest, ExpertRequestDetailResponse, ExpertRequestHistoryItem, ExpertSalaryResponse, ExpertTestResponse, ReviewTestRequest, UpdateResponsePayload, UserInfo, VoteForReviewRequest } from '../types/dataModels';
 import apiClient from './apiClient';
 
 const EXPERT_ENDPOINT = '/experts';
@@ -180,6 +180,41 @@ export const getRequestHistory = async (): Promise<ExpertRequestHistoryItem[]> =
             throw new Error(error.response?.data?.message || 'Failed to fetch expert request history.');
         } else {
             console.error('An unexpected error occurred while fetching expert request history:', error);
+            throw new Error('An unexpected error occurred.');
+        }
+    }
+};
+
+export const getExpertSalary = async (
+    startDate?: Date,
+    endDate?: Date
+): Promise<ExpertSalaryResponse> => {
+    let url = `${EXPERT_ENDPOINT}/my-salary`;
+    const queryParams: string[] = [];
+
+    if (startDate) {
+        // Chuyển đổi Date sang ISO String (YYYY-MM-DDTHH:mm:ss.sssZ) chuẩn Date Time
+        queryParams.push(`startDate=${encodeURIComponent(startDate.toISOString())}`);
+    }
+
+    if (endDate) {
+        queryParams.push(`endDate=${encodeURIComponent(endDate.toISOString())}`);
+    }
+
+    if (queryParams.length > 0) {
+        url += `?${queryParams.join('&')}`;
+    }
+
+    try {
+        const response = await apiClient.get<ExpertSalaryResponse>(url);
+
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('Error fetching expert salary:', error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || 'Failed to fetch expert salary.');
+        } else {
+            console.error('An unexpected error occurred while fetching expert salary:', error);
             throw new Error('An unexpected error occurred.');
         }
     }

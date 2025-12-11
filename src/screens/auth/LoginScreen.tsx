@@ -20,7 +20,8 @@ import { useAuth } from './AuthContext';
 import { login, signInWithGoogle, register } from '../../api/authApi';
 import { configureGoogleSignIn } from '../../api/config/googleAuthConfig';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { RegisterCredentials } from '../../types/dataModels';
+import { JwtPayload, RegisterCredentials } from '../../types/dataModels';
+import { jwtDecode } from 'jwt-decode';
 
 configureGoogleSignIn();
 
@@ -58,34 +59,29 @@ const LoginScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
 
-    const { setIsLoggedIn } = useAuth();
+    const { setIsLoggedIn, setUserRole, setUserName } = useAuth();
     const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
     const [loading, setLoading] = useState<boolean>(false);
 
-    // --- Login State ---
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [rememberMe, setRememberMe] = useState<boolean>(false);
 
-    // --- Register State (Updated) ---
     const [fullName, setFullName] = useState<string>('');
     const [registerEmail, setRegisterEmail] = useState<string>('');
     const [registerPassword, setRegisterPassword] = useState<string>('');
     const [confirmPassword, setConfirmPassword] = useState<string>('');
     const [phoneNo, setPhoneNo] = useState<string>('');
-    const [gender, setGender] = useState<boolean>(true); // true = Male, false = Female
+    const [gender, setGender] = useState<boolean>(true);
 
-    // DOB uses Date object for DatePicker integration
-    const [dob, setDob] = useState<Date>(new Date(2000, 0, 1)); // Default 01/01/2000
+    const [dob, setDob] = useState<Date>(new Date(2000, 0, 1));
     const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
 
-    // Profile Picture uses string URI
     const [profilePicture, setProfilePicture] = useState<string>('');
 
     const [showToast, setShowToast] = useState<boolean>(false);
     const [toastMessage, setToastMessage] = useState<string>('');
 
-    // Function to show Toast (Assuming Custom Toast is defined)
     const showCustomToast = (message: string) => {
         setToastMessage(message);
         setShowToast(true);
@@ -126,10 +122,24 @@ const LoginScreen: React.FC = () => {
         setLoading(true);
 
         try {
-            const token = await login({ email, password });
+            const responseData = await login({ email, password });
             showCustomToast('Login successful! Welcome');
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            if (token) {
+
+            if (responseData && responseData.accessToken) {
+                try {
+                    const decoded: JwtPayload = jwtDecode(responseData.accessToken);
+                    console.log("Decoded Role at Login:", decoded.role);
+
+                    setUserRole(decoded.role || 'User');
+                    if (decoded.unique_name) {
+                        setUserName(decoded.unique_name);
+                    }
+                } catch (e) {
+                    console.error("Error decoding token at login:", e);
+                    setUserRole('User');
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 500));
                 setIsLoggedIn(true);
             }
         } catch (error: any) {
@@ -191,19 +201,17 @@ const LoginScreen: React.FC = () => {
             fullname: fullName,
             phone: phoneNo,
             gender: gender,
-            dob: formatDate(dob), // Use Date format function
-            profilepicture: profilePicture || '', // Use selected URI, or undefined if empty
+            dob: formatDate(dob),
+            profilepicture: profilePicture || '',
         };
 
         console.log('Calling Register API with:', credentials);
 
         try {
-            // 🔥 CẬP NHẬT: GỌI HÀM register THỰC TẾ
             await register(credentials);
 
             Alert.alert('Success', 'Account registration successful! Please log in.');
 
-            // Chuyển sang tab Login và điền sẵn email
             setActiveTab('login');
             setEmail(registerEmail);
             setPassword('');
@@ -226,6 +234,13 @@ const LoginScreen: React.FC = () => {
         try {
             const result = await signInWithGoogle();
             if (result.success && result.user && result.loginData) {
+
+                const decoded: JwtPayload = jwtDecode(result.loginData.accessToken);
+                setUserRole(decoded.role || 'User');
+                if (decoded.unique_name) {
+                    setUserName(decoded.unique_name);
+                }
+
                 showCustomToast(`Welcome, ${result.user.displayName}! Login successful.`);
                 await new Promise(resolve => setTimeout(resolve, 1500));
                 setIsLoggedIn(true);
@@ -236,7 +251,6 @@ const LoginScreen: React.FC = () => {
             }
         } catch (error: any) {
             const errorMessage = error.message || 'Unknown error.';
-            // Check for cancel error (can be localized, using a general check)
             if (errorMessage.toLowerCase().includes("cancelled") || errorMessage.toLowerCase().includes("user cancelled")) {
                 showCustomToast('Login cancelled.');
             } else {
@@ -440,7 +454,6 @@ const LoginScreen: React.FC = () => {
     );
 };
 
-// Stylesheets (Kept as is for completeness)
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,
@@ -477,9 +490,8 @@ const styles = StyleSheet.create({
         padding: 20,
         marginTop: -30,
     },
-    // Using ScrollView contentContainerStyle
     formScrollContent: {
-        paddingBottom: 40, // Ensure enough space when scrolling
+        paddingBottom: 40,
     },
     tabContainer: {
         flexDirection: 'row',
