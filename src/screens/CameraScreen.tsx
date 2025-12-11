@@ -44,15 +44,13 @@ import AiTestResultModal from '../components/AiResultModal';
 import ExpertSuccessModal from '../components/ExpertSuccessModal';
 import { getActiveSubscriptions } from '../api/dataApi';
 import SubscriptionAlertModal from '../components/SubscriptionAlertModal';
+import { useAuth } from './auth/AuthContext';
 
-// Get screen dimensions
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Define type for selected photo
 type PhotoAsset = PhotoFile | Asset | null;
 type CaptureMode = 'manual' | 'ai' | 'expert';
 
-// Default color value
 const DEFAULT_COLOR: Color = { id: 0, name: "Default White", hexCode: "white" };
 
 const OVAL_WIDTH = screenWidth * 0.7;
@@ -67,7 +65,6 @@ const TOTAL_WIDTH_TABS = screenWidth * 0.7;
 const TAB_AREA_WIDTH = TOTAL_WIDTH_TABS;
 const TAB_ITEM_WIDTH = TAB_AREA_WIDTH / 3;
 
-// 1. RELATIVE translation position inside the TAB_AREA_WIDTH region
 const TAB_POSITIONS: { [key in CaptureMode]: number } = {
     manual: (TAB_ITEM_WIDTH * 0) + (TAB_ITEM_WIDTH / 2) - (HIGHLIGHT_WIDTH / 2),
     ai: (TAB_ITEM_WIDTH * 1) + (TAB_ITEM_WIDTH / 2) - (HIGHLIGHT_WIDTH / 2),
@@ -79,6 +76,9 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const devices = useCameraDevices();
     const cameraRef = useRef<Camera>(null);
+
+    const { userRole } = useAuth();
+    const isUserExpert = userRole === 'Expert';
 
     const backCamera = useMemo(() => devices.find(d => d.position === 'back'), [devices]);
     const frontCamera = useMemo(() => devices.find(d => d.position === 'front'), [devices]);
@@ -93,10 +93,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const [captureMode, setCaptureMode] = useState<CaptureMode>('manual');
 
-    // Add Loading State
     const [isLoading, setIsLoading] = useState(false);
-    // 2. Add isUserExpert State
-    const [isUserExpert, setIsUserExpert] = useState(false);
 
     const [showLeftControls, setShowLeftControls] = useState(true);
 
@@ -129,19 +126,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
     const highlightAnim = useRef(new Animated.Value(TAB_POSITIONS.manual)).current;
-
-    // 3. Load Role
-    useEffect(() => {
-        const checkRole = async () => {
-            const role = await getAuthRole();
-            if (role === 'Expert') {
-                setIsUserExpert(true);
-            } else {
-                setIsUserExpert(false);
-            }
-        };
-        checkRole();
-    }, []);
 
     const loadPalettesByTypeId = useCallback(async (colorTypeId: number, seasonName: string) => {
         setIsLoadingPalettes(true);

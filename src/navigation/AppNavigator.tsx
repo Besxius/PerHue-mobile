@@ -27,6 +27,7 @@ import HelpAndSupportScreen from '../screens/HelpAndSupportScreen';
 import ColorTestOnImageScreen from '../screens/ColorTestOnImageScreen';
 import ExpertTestResponseDetailScreen from '../screens/ExpertTestResponseDetailScreen';
 import MyExpertInformationScreen from '../screens/MyExpertInformationScreen';
+import MySalaryScreen from '../screens/MySalaryScreen';
 
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
 export type TabName = 'home' | 'capsule' | 'camera' | 'history' | 'menu';
@@ -54,6 +55,7 @@ export type RootStackParamList = {
     imageUri: string;
     testRequestId?: number;
   };
+  MySalaryScreen: undefined;
 };
 
 
@@ -280,7 +282,15 @@ const RootNavigationStack = () => {
             component={MyExpertInformationScreen}
             options={{
               headerShown: false,
-              title: 'Image Expert Color Test'
+              title: ''
+            }}
+          />
+          <RootStack.Screen
+            name="MySalaryScreen"
+            component={MySalaryScreen}
+            options={{
+              headerShown: false,
+              title: ''
             }}
           />
         </>

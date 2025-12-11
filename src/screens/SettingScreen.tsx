@@ -14,10 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useAuth } from './auth/AuthContext';
 import { unifiedLogout } from '../api/authApi';
-import { getAuthRole } from '../api/apiClient'; // Import getAuthRole
 import CustomHeader from '../components/CustomHeader';
-
-type SettingScreenProps = NativeStackScreenProps<RootStackParamList, 'Tabs'>;
 
 interface SettingItem {
     id: string;
@@ -28,7 +25,6 @@ interface SettingItem {
     targetScreen?: keyof RootStackParamList | string;
 }
 
-// Dữ liệu gốc
 const BASE_SETTINGS_DATA: { title: string; data: SettingItem[] }[] = [
     {
         title: 'Account',
@@ -77,17 +73,7 @@ const renderIcon = (item: SettingItem) => {
 
 const SettingScreen: React.FC<any> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const { setIsLoggedIn } = useAuth();
-    const [userRole, setUserRole] = useState<string | null>(null);
-
-    // Lấy Role khi component mount
-    useEffect(() => {
-        const fetchRole = async () => {
-            const role = await getAuthRole();
-            setUserRole(role);
-        };
-        fetchRole();
-    }, []);
+    const { setIsLoggedIn, userRole } = useAuth();
 
     const navigateToPackageScreen = () => {
         navigation.navigate('PackageScreen');
@@ -96,29 +82,34 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
         navigation.navigate("NotificationScreen");
     };
 
-    // Xử lý logic lọc menu dựa trên Role
     const settingsData = useMemo(() => {
-        // Sao chép sâu dữ liệu gốc để không làm thay đổi biến global
         const data = JSON.parse(JSON.stringify(BASE_SETTINGS_DATA));
         const accountSection = data.find((section: any) => section.title === 'Account');
 
         if (accountSection) {
             if (userRole === 'Expert') {
-                // 1. Loại bỏ các mục không cần thiết cho Expert
                 accountSection.data = accountSection.data.filter((item: SettingItem) =>
                     item.label !== 'Become Expert' &&
                     item.label !== 'My Subscription' &&
                     item.label !== 'My payment history'
                 );
 
-                // 2. Thêm mục "My Expert Information"
                 accountSection.data.splice(1, 0, {
                     id: 'expert-info',
-                    icon: 'idcard', // Icon AntDesign
+                    icon: 'idcard',
                     iconSet: 'AntDesign',
                     label: 'My Expert Information',
                     action: 'navigate',
                     targetScreen: 'MyExpertInformationScreen'
+                });
+
+                accountSection.data.splice(2, 0, {
+                    id: 'expert-salary',
+                    icon: 'currency-usd',
+                    iconSet: 'MaterialCommunityIcons',
+                    label: 'My Salary',
+                    action: 'navigate',
+                    targetScreen: 'MySalaryScreen'
                 });
             }
         }
@@ -127,7 +118,6 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
 
     const handlePress = (item: SettingItem) => {
         if (item.action === 'navigate' && item.targetScreen) {
-            // @ts-ignore
             navigation.navigate(item.targetScreen);
         } else if (item.action === 'logout') {
             Alert.alert(
@@ -218,7 +208,6 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         borderRadius: 12,
         backgroundColor: 'white',
-        // Shadow nhẹ
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,

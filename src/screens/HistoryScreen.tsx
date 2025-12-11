@@ -7,12 +7,12 @@ import {
     FlatList,
     ListRenderItem,
     ActivityIndicator,
+    RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from 'react-native-toast-message';
 import CustomHeader from '../components/CustomHeader';
 import HistoryItem from "../components/HistoryItem";
-import { getAuthRole } from '../api/apiClient';
 import { getAiTestResults, getExpertTestResults, getManualTestResults } from "../api/userApi";
 import { AiTestResponse, ExpertRequest, ExpertRequestHistoryItem, ExpertTestResponse, ManualTestResult, ReviewTestRequest } from "../types/dataModels";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -23,6 +23,7 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import { getRequestHistory, getRequests, getReviewRequests } from "../api/expertApi";
 import { BaseHistoryItem, ImageSource } from "../types";
 import { getColorType, getColorTypeById } from "../api/capsulePaletteApi";
+import { useAuth } from "./auth/AuthContext";
 
 export type RoleInfo = { name: string };
 
@@ -35,37 +36,6 @@ type HistoryScreenProps = CompositeScreenProps<
     BottomTabScreenProps<TabParamList, 'History'>,
     NativeStackScreenProps<RootStackParamList>
 >;
-
-const useUserRole = () => {
-    const [userRole, setUserRole] = useState<'Expert' | 'User' | null>(null);
-    const [isLoadingUser, setIsLoadingUser] = useState(true);
-
-    useEffect(() => {
-        const loadRole = async () => {
-            try {
-                const role = await getAuthRole();
-                console.log("DEBUG: Role retrieved from storage:", role);
-
-                if (role === 'Expert') {
-                    setUserRole('Expert');
-                } else if (role === 'User') {
-                    setUserRole('User')
-                } else {
-                    console.warn("DEBUG: Invalid role found, defaulting to User.");
-                    setUserRole('User');
-                }
-            } catch (e) {
-                console.error("Failed to load user role from storage:", e);
-                setUserRole('User');
-            } finally {
-                setIsLoadingUser(false);
-            }
-        };
-        loadRole();
-    }, []);
-
-    return { userRole, isLoadingUser };
-};
 
 const transformManualTestResult = (result: ManualTestResult): BaseHistoryItem => {
     const imageSource: ImageSource[] = result.picture ? [{ uri: result.picture }] : [];
@@ -95,7 +65,6 @@ const transformAiTestResult = (response: AiTestResponse, colorMap: Record<number
 
     const suggestedColors = resultModel?.suggestedColor || 'N/A';
 
-    // Lấy tên ColorType từ bảng tra cứu (colorMap)
     const colorTypeId = resultModel?.colorTypeId;
     const colorTypeName = (colorTypeId && colorMap[colorTypeId]) ? colorMap[colorTypeId] : 'Unknown';
 
@@ -280,13 +249,11 @@ const USER_TABS: TabConfig[] = [
     {
         name: 'AI Test',
         apiFetcher: async () => {
-            // 1. Gọi song song 2 API: Lấy kết quả test và Lấy danh sách ColorType
             const [results, colorTypes] = await Promise.all([
                 getAiTestResults(),
                 getColorType()
             ]);
 
-            // 2. Tạo bảng tra cứu (Map): ID -> Name để truy xuất nhanh O(1)
             const colorMap: Record<number, string> = {};
             if (colorTypes && Array.isArray(colorTypes)) {
                 colorTypes.forEach(type => {
@@ -294,7 +261,6 @@ const USER_TABS: TabConfig[] = [
                 });
             }
 
-            // 3. Truyền colorMap vào hàm transform
             return results.map(item => transformAiTestResult(item, colorMap));
         }
     },
@@ -309,7 +275,7 @@ const USER_TABS: TabConfig[] = [
 
 const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const { userRole, isLoadingUser } = useUserRole();
+    const { userRole } = useAuth();
 
     const currentTabs = useMemo(() => {
         if (userRole === 'Expert') {
@@ -322,6 +288,8 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
     const [historyData, setHistoryData] = useState<BaseHistoryItem[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(false);
 
+    const [refreshing, setRefreshing] = useState(false);
+
     useEffect(() => {
         if (currentTabs.length > 0 && !activeTab) {
             setActiveTab(currentTabs[0]);
@@ -330,8 +298,9 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
         }
     }, [currentTabs, activeTab]);
 
-    const loadHistoryData = useCallback(async (fetcher: () => Promise<any[]>, tabName: string) => {
-        setIsLoadingData(true);
+    const loadHistoryData = useCallback(async (fetcher: () => Promise<any[]>, tabName: string, isRefetch = false) => {
+        if (!isRefetch) setIsLoadingData(true);
+
         try {
             const data = await fetcher();
             setHistoryData(data as BaseHistoryItem[]);
@@ -341,12 +310,20 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
             Toast.show({ type: 'error', text1: 'API Error', text2: `Unable to load data for ${tabName}` });
         } finally {
             setIsLoadingData(false);
+            if (isRefetch) setRefreshing(false);
         }
     }, []);
 
     useEffect(() => {
         if (activeTab?.apiFetcher) {
             loadHistoryData(activeTab.apiFetcher, activeTab.name);
+        }
+    }, [activeTab, loadHistoryData]);
+
+    const onRefresh = useCallback(() => {
+        if (activeTab?.apiFetcher) {
+            setRefreshing(true);
+            loadHistoryData(activeTab.apiFetcher, activeTab.name, true);
         }
     }, [activeTab, loadHistoryData]);
 
@@ -423,10 +400,6 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
 
     const categoryKeyExtractor = useCallback((item: TabConfig) => item.name, []);
 
-    if (isLoadingUser) {
-        return <View style={[styles.container, styles.loadingOverlay]}><ActivityIndicator size="large" color="#4C7BE2" /></View>;
-    }
-
     if (!activeTab) {
         return <View style={[styles.container, styles.loadingOverlay]}><Text style={styles.loadingText}>Configuring...</Text></View>;
     }
@@ -449,7 +422,7 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
                 contentContainerStyle={styles.tabBar}
             />
 
-            {isLoadingData ? (
+            {isLoadingData && !refreshing ? (
                 <View style={styles.loadingListContainer}>
                     <ActivityIndicator size="large" color="#4C7BE2" />
                     <Text style={styles.loadingText}>Loading {activeTab.name}...</Text>
@@ -458,12 +431,21 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation }) => {
                 <FlatList
                     data={historyData}
                     renderItem={renderHistoryItem}
-                    keyExtractor={keyExtractor}
+                    keyExtractor={(item) => (item?.id != null) ? item.id.toString() : `fallback-${Math.random()}`}
                     style={styles.flatList}
                     contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={<Text style={styles.emptyListText}>No {activeTab.name} items found.</Text>}
                     ListFooterComponent={<View style={{ height: 20 + insets.bottom }} />}
+
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={['#4C7BE2']}
+                            tintColor={'#4C7BE2'}
+                        />
+                    }
                 />
             )}
         </View>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   NativeScrollEvent,
   ViewStyle,
   ImageSourcePropType,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,13 +27,12 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { ExpertInfo } from '../types/dataModels';
 import { getExpertListRanked } from '../api/expertApi';
-import { getUserName } from '../api/apiClient';
+import { useAuth } from './auth/AuthContext';
 
 const { width } = Dimensions.get('window');
-// Chiều rộng hiển thị sát viền (trừ 10px mỗi bên)
 const DISPLAY_WIDTH = width - 20;
+const BLUE_COLOR = '#3B82F6';
 
-// --- ASSETS IMPORT ---
 const PICTURES_GROUP_1 = [
   require('../assets/picture/1.png'),
   require('../assets/picture/2.png'),
@@ -59,25 +59,8 @@ type HomeScreenProps = CompositeScreenProps<
 
 const DEFAULT_AVATAR_URI = 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400';
 
-const useUserName = () => {
-  const [userName, setUserName] = useState<string>('User');
-  useEffect(() => {
-    const loadName = async () => {
-      const name = await getUserName();
-      if (name) {
-        const firstName = name.split(' ')[0];
-        setUserName(firstName);
-      }
-    };
-    loadName();
-  }, []);
-  return userName;
-};
-
-// --- COMPONENT: HÌNH ẢNH TỰ ĐỘNG TÍNH CHIỀU CAO (GIỮ NGUYÊN TỪ LẦN TRƯỚC) ---
 const DynamicImageItem = ({ source }: { source: ImageSourcePropType }) => {
   const { width: originalWidth, height: originalHeight } = Image.resolveAssetSource(source);
-  // Tính chiều cao dựa trên tỉ lệ ảnh gốc để vừa khít chiều rộng
   const dynamicHeight = DISPLAY_WIDTH * (originalHeight / originalWidth);
 
   return (
@@ -99,7 +82,6 @@ const DynamicImageItem = ({ source }: { source: ImageSourcePropType }) => {
   );
 };
 
-// --- COMPONENT: CAROUSEL ---
 interface CarouselProps {
   data: any[];
 }
@@ -152,7 +134,6 @@ const AutoScrollingCarousel: React.FC<CarouselProps> = ({ data }) => {
   );
 };
 
-// --- COMPONENT: VIDEO PLAYER ITEM (ĐÃ SỬA LỖI MẤT VIDEO) ---
 interface VideoPlayerProps {
   source: any;
   style?: ViewStyle;
@@ -171,38 +152,54 @@ const VideoPlayerItem: React.FC<VideoPlayerProps> = ({ source, style }) => {
         style={styles.video}
         player={player}
         nativeControls={false}
-        // 'cover' giúp lấp đầy khung hình, loại bỏ viền đen
         contentFit="cover"
       />
     </View>
   );
 };
 
-// --- MAIN SCREEN ---
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const userName = useUserName();
+  const { userName } = useAuth();
 
   const [expertList, setExpertList] = useState<ExpertInfo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchExperts = async () => {
-      try {
-        setIsLoading(true);
-        const experts = await getExpertListRanked();
-        setExpertList(experts);
-        setError(null);
-      } catch (e) {
-        console.error('Error fetching experts:', e);
-        setError('Không thể tải danh sách chuyên gia.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchExperts();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const displayFirstName = useMemo(() => {
+    if (userName) {
+      return userName.split(' ')[0];
+    }
+    return 'User';
+  }, [userName]);
+
+  const fetchExperts = useCallback(async (isRefetch = false) => {
+    if (!isRefetch) setIsLoading(true);
+    setError(null);
+    try {
+      const experts = await getExpertListRanked();
+      setExpertList(experts);
+    } catch (e) {
+      console.error('Error fetching experts:', e);
+      setError('Không thể tải danh sách chuyên gia.');
+    } finally {
+      setIsLoading(false);
+      if (isRefetch) setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchExperts();
+  }, [fetchExperts]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      fetchExperts(true),
+    ]);
+  }, [fetchExperts]);
 
   const navigateToExpertDetail = (expert: ExpertInfo) => {
     navigation.navigate('ExpertDetailScreen', { expert: expert });
@@ -215,6 +212,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 60 + insets.bottom + 20 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BLUE_COLOR]}
+            tintColor={BLUE_COLOR}
+            progressViewOffset={50}
+          />
+        }
       >
         <CustomHeader
           onNavigateToPackage={() => navigation.navigate('PackageScreen')}
@@ -224,7 +230,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.welcomeContainer}>
           <View>
             <Text style={styles.greetingText}>Hello,</Text>
-            <Text style={styles.userNameText}>{userName}</Text>
+            <Text style={styles.userNameText}>{displayFirstName}</Text>
             <Text style={styles.subGreetingText}>Ready to find your best colors?</Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('UserScreen')} style={styles.profileLinkButton}>
@@ -246,7 +252,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           style={{ height: 700 }}
         />
 
-        {/* --- SECTION 3: TOP EXPERTS --- */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Top Experts</Text>
           <TouchableOpacity>
@@ -254,8 +259,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {isLoading ? (
-          <ActivityIndicator size="large" color="#3B82F6" style={styles.loadingIndicator} />
+        {isLoading && !refreshing ? (
+          <ActivityIndicator size="large" color={BLUE_COLOR} style={styles.loadingIndicator} />
         ) : error ? (
           <Text style={styles.errorText}>{error}</Text>
         ) : (
@@ -412,7 +417,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginHorizontal: 3,
   },
-  // --- Video Styles ---
   videoContainer: {
     width: DISPLAY_WIDTH,
     marginHorizontal: 10,
@@ -424,6 +428,6 @@ const styles = StyleSheet.create({
   },
   video: {
     width: '100%',
-    height: '100%', // VideoView lấp đầy container
+    height: '100%',
   },
 });
