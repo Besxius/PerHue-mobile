@@ -9,8 +9,8 @@ interface AuthContextType {
     setIsLoggedIn: (status: boolean) => void;
     userRole: string | null;
     setUserRole: (role: string | null) => void;
-    userName: string | null; // 👈 THÊM: State userName
-    setUserName: (name: string | null) => void; // 👈 THÊM: Hàm set userName
+    userName: string | null;
+    setUserName: (name: string | null) => void;
     logout: () => Promise<void>;
     isLoading: boolean;
 }
@@ -20,8 +20,8 @@ const AuthContext = createContext<AuthContextType>({
     setIsLoggedIn: () => { },
     userRole: null,
     setUserRole: () => { },
-    userName: null, // Default
-    setUserName: () => { }, // Default
+    userName: null,
+    setUserName: () => { },
     logout: async () => { },
     isLoading: true,
 });
@@ -35,7 +35,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
     const [userRole, setUserRole] = useState<string | null>(null);
-    const [userName, setUserName] = useState<string | null>(null); // 👈 Khởi tạo state userName
+    const [userName, setUserName] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const logout = useCallback(async () => {
@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             await unifiedLogout();
             setIsLoggedIn(false);
             setUserRole(null);
-            setUserName(null); // 👈 Reset userName khi logout
+            setUserName(null);
         } catch (e) {
             console.error("Lỗi khi đăng xuất hoàn chỉnh:", e);
             setIsLoggedIn(false);
@@ -64,7 +64,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 if (storedToken) {
                     setIsLoggedIn(true);
 
-                    // Lấy Role
                     try {
                         const decoded: JwtPayload = jwtDecode(storedToken);
                         setUserRole(decoded.role || 'User');
@@ -73,7 +72,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         setUserRole(role);
                     }
 
-                    // 👈 Lấy UserName từ bộ nhớ (đã được lưu khi login/loadAuthToken)
                     const name = await getUserName();
                     setUserName(name);
 
@@ -103,8 +101,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsLoggedIn,
         userRole,
         setUserRole,
-        userName,      // 👈 Export
-        setUserName,   // 👈 Export
+        userName,
+        setUserName,
         logout,
         isLoading,
     };

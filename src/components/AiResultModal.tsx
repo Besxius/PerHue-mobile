@@ -1,5 +1,5 @@
 // components/AiResultModal.tsx
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
     Modal,
     View,
@@ -8,15 +8,19 @@ import {
     TouchableOpacity,
     Dimensions,
     ScrollView,
-    Image
+    Image,
+    Animated,
+    PanResponder,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
 import { AiColorTestResponse } from '../types/dataModels';
-// Giả sử AiColorTestResponse đã được import đúng
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
+const BLUE_COLOR = '#4C7BE2';
 
-// Interface cho các màu tối thiểu để render
 interface DisplayColor {
     hexCode: string;
     name: string;
@@ -27,26 +31,73 @@ interface AiResultModalProps {
     onClose: () => void;
     resultData: AiColorTestResponse | null;
     currentPhotoUri: string | null;
-    onNavigateToDetail: () => void;
-    // Thêm hàm này nếu bạn muốn điều hướng đến AiResultDetail (tương tự như Manual)
+    // [CẬP NHẬT] Loại bỏ onNavigateToDetail
 }
+
+const getContrastTextColor = (hex: string) => {
+    const cleanHex = hex.replace('#', '');
+    if (cleanHex.length !== 6) return '#FFFFFF';
+    const r = parseInt(cleanHex.substr(0, 2), 16);
+    const g = parseInt(cleanHex.substr(2, 2), 16);
+    const b = parseInt(cleanHex.substr(4, 2), 16);
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return (yiq >= 128) ? '#000000' : '#FFFFFF';
+};
 
 const createDisplayColor = (hex: string): DisplayColor => ({
     hexCode: hex.trim(),
     name: hex.trim().toUpperCase(),
 });
 
-
 const AiTestResultModal: React.FC<AiResultModalProps> = ({
     isVisible,
     onClose,
     resultData,
     currentPhotoUri,
-    onNavigateToDetail
 }) => {
+    // [CẬP NHẬT] Sử dụng useNavigation
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+    const panY = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (isVisible) {
+            panY.setValue(0);
+        }
+    }, [isVisible]);
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onPanResponderMove: (e, gestureState) => {
+                if (gestureState.dy > 0) {
+                    panY.setValue(gestureState.dy);
+                }
+            },
+            onPanResponderRelease: (e, gestureState) => {
+                if (gestureState.dy > 150) {
+                    onClose();
+                } else {
+                    Animated.spring(panY, {
+                        toValue: 0,
+                        useNativeDriver: false,
+                        bounciness: 10
+                    }).start();
+                }
+            },
+        })
+    ).current;
+
+    const handleNavigateToDetail = () => {
+        if (resultData?.id) {
+            onClose();
+            navigation.navigate('AiTestResultDetailScreen', { id: resultData.id });
+        }
+    };
+
     if (!resultData) return null;
 
-    // Phân tách chuỗi mã màu thành mảng các Hex Code
     const suggestedHexes = resultData.suggestedColor
         ? resultData.suggestedColor.split(',').map(createDisplayColor)
         : [];
@@ -55,15 +106,13 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
         ? resultData.avoidedColor.split(',').map(createDisplayColor)
         : [];
 
-    // Giả định tên loại màu (ví dụ: Spring, Winter) nếu có trong resultData hoặc API
-    // (Vì interface bạn cung cấp không có tên loại màu, tôi dùng ID tạm thời)
-    const colorTypeName = `AI TEST RESULT (Type ID: ${resultData.colorTypeId})`;
+    const colorTypeName = `Color Type ID: ${resultData.colorTypeId}`;
 
-    // Hàm render khối màu nhỏ
     const renderColorSummaryBlock = (color: DisplayColor) => (
-        <View key={color.hexCode} style={modalStyles.summaryBlockItem}>
-            <View style={[modalStyles.summaryBlockColor, { backgroundColor: color.hexCode }]} />
-            <Text style={modalStyles.summaryBlockText}>{color.name}</Text>
+        <View key={color.hexCode} style={[modalStyles.colorBox, { backgroundColor: color.hexCode }]}>
+            <Text style={[modalStyles.colorHexText, { color: getContrastTextColor(color.hexCode) }]}>
+                {color.hexCode.toUpperCase()}
+            </Text>
         </View>
     );
 
@@ -74,26 +123,42 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
             visible={isVisible}
             onRequestClose={onClose}
         >
-            <TouchableOpacity
-                style={modalStyles.overlay}
-                activeOpacity={1}
-                onPress={onClose}
-            >
-                <View style={modalStyles.container} onStartShouldSetResponder={() => true}>
+            <View style={modalStyles.overlay}>
+                <TouchableOpacity
+                    style={StyleSheet.absoluteFill}
+                    activeOpacity={1}
+                    onPress={onClose}
+                />
 
-                    {/* Header */}
-                    <View style={modalStyles.header}>
-                        <Text style={modalStyles.colorTypeName}>{colorTypeName.toUpperCase()}</Text>
+                <Animated.View
+                    style={[
+                        modalStyles.container,
+                        { transform: [{ translateY: panY }] }
+                    ]}
+                >
+                    <View
+                        style={modalStyles.header}
+                        {...panResponder.panHandlers}
+                    >
+                        <View style={modalStyles.dragHandle} />
                         <TouchableOpacity onPress={onClose} style={modalStyles.closeButton}>
-                            <Ionicons name="close-circle-outline" size={30} color="#fff" />
+                            <Ionicons name="close-circle" size={30} color="#e0e0e0" />
                         </TouchableOpacity>
                     </View>
 
-                    {/* Content */}
-                    <ScrollView contentContainerStyle={modalStyles.content}>
+                    <ScrollView
+                        contentContainerStyle={modalStyles.content}
+                        showsVerticalScrollIndicator={false}
+                        bounces={false}
+                    >
+                        <View style={modalStyles.badgeContainer}>
+                            <Text style={modalStyles.resultLabel}>AI SUGGESTED TYPE:</Text>
+                            <View style={modalStyles.badge}>
+                                <Text style={modalStyles.badgeText}>{colorTypeName}</Text>
+                            </View>
+                        </View>
 
-                        {/* 1. Captured Image */}
-                        <Text style={modalStyles.subtitle}>CAPTURED IMAGE:</Text>
+                        <Text style={modalStyles.subtitle}>CAPTURED IMAGE</Text>
                         {currentPhotoUri && (
                             <View style={modalStyles.imageWrapperFull}>
                                 <Image
@@ -103,8 +168,7 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
                             </View>
                         )}
 
-                        {/* 2. Suggested Colors */}
-                        <Text style={modalStyles.subtitle}>SUGGESTED COLORS:</Text>
+                        <Text style={modalStyles.subtitle}>SUGGESTED COLORS</Text>
                         <View style={modalStyles.keyColorsSection}>
                             {suggestedHexes.length > 0 ? (
                                 <View style={modalStyles.colorBlocksSummary}>
@@ -115,8 +179,7 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
                             )}
                         </View>
 
-                        {/* 3. Avoided Colors */}
-                        <Text style={modalStyles.subtitle}>AVOIDED COLORS:</Text>
+                        <Text style={modalStyles.subtitle}>AVOIDED COLORS</Text>
                         <View style={modalStyles.keyColorsSection}>
                             {avoidedHexes.length > 0 ? (
                                 <View style={modalStyles.colorBlocksSummary}>
@@ -127,28 +190,28 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
                             )}
                         </View>
 
-                        {/* 4. Note / Result Message */}
-                        <Text style={modalStyles.subtitle}>EXPERT NOTE:</Text>
-                        <Text style={modalStyles.noteText}>{resultData.note || "No detailed note provided."}</Text>
-                        <Text style={modalStyles.noteDate}>Date: {new Date(resultData.date).toLocaleDateString()}</Text>
+                        <View style={modalStyles.noteContainer}>
+                            <Text style={modalStyles.subtitle}>EXPERT NOTE</Text>
+                            <Text style={modalStyles.noteText}>{resultData.note || "No detailed note provided."}</Text>
+                            <Text style={modalStyles.noteDate}>Date: {new Date(resultData.date).toLocaleDateString()}</Text>
+                        </View>
 
-                        {/* 5. Navigate Button */}
-                        <TouchableOpacity style={modalStyles.detailButton} onPress={onNavigateToDetail}>
+                        {/* [CẬP NHẬT] Nút điều hướng */}
+                        <TouchableOpacity style={modalStyles.detailButton} onPress={handleNavigateToDetail}>
                             <Text style={modalStyles.detailButtonText}>
                                 VIEW DETAILED ANALYSIS
                             </Text>
-                            <Ionicons name="arrow-forward-circle-outline" size={20} color="#fff" style={{ marginLeft: 5 }} />
+                            <Ionicons name="arrow-forward-circle" size={24} color="#fff" style={{ marginLeft: 8 }} />
                         </TouchableOpacity>
+
+                        <View style={{ height: 40 }} />
                     </ScrollView>
-                </View>
-            </TouchableOpacity>
+                </Animated.View>
+            </View>
         </Modal>
     );
 };
 
-// =========================================================
-// STYLES
-// =========================================================
 const modalStyles = StyleSheet.create({
     overlay: {
         flex: 1,
@@ -156,127 +219,165 @@ const modalStyles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     container: {
-        backgroundColor: '#1E1E1E',
+        backgroundColor: '#FFFFFF',
         width: '100%',
-        maxHeight: screenHeight * 0.9,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingBottom: 20,
+        height: screenHeight * 0.9,
+        borderTopLeftRadius: 25,
+        borderTopRightRadius: 25,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 10,
+        overflow: 'hidden',
     },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'center',
+        width: '100%',
+        height: 40,
         alignItems: 'center',
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+        zIndex: 1,
     },
-    colorTypeName: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#7AC943', // Màu xanh lá cho AI
-        textAlign: 'center',
+    dragHandle: {
+        width: 60,
+        height: 6,
+        backgroundColor: '#E0E0E0',
+        borderRadius: 3,
+        marginTop: 10,
     },
     closeButton: {
-        padding: 5,
         position: 'absolute',
         right: 15,
-        top: 15,
+        top: 10,
+    },
+    badgeContainer: {
+        alignItems: 'center',
+        marginVertical: 15,
+    },
+    resultLabel: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 5,
+        fontWeight: '600',
+    },
+    badge: {
+        backgroundColor: '#E3F2FD',
+        paddingHorizontal: 20,
+        paddingVertical: 8,
+        borderRadius: 20,
+    },
+    badgeText: {
+        color: '#2E7D32',
+        fontWeight: 'bold',
+        fontSize: 18,
     },
     content: {
-        padding: 20,
+        paddingHorizontal: 20,
+        paddingBottom: 40,
     },
     subtitle: {
-        fontSize: 16,
-        color: '#fff',
-        marginBottom: 10,
-        marginTop: 15,
+        fontSize: 14,
+        color: '#888',
+        marginBottom: 8,
+        marginTop: 20,
         fontWeight: '700',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
     },
-
-    // --- Image Section ---
     imageWrapperFull: {
         width: '100%',
-        height: screenWidth * 0.6,
-        borderRadius: 10,
+        height: 250,
+        borderRadius: 16,
         overflow: 'hidden',
-        marginBottom: 10,
+        backgroundColor: '#F5F5F5',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
     imageThumbnailFull: {
         width: '100%',
         height: '100%',
         resizeMode: 'cover',
     },
-
-    // --- Key Colors Section ---
     keyColorsSection: {
-        marginBottom: 15,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        backgroundColor: '#FAFAFA',
+        padding: 15,
+        borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#333',
-        borderRadius: 10,
-        padding: 10,
-        backgroundColor: '#2C2C2E',
+        borderColor: '#EEEEEE',
     },
     colorBlocksSummary: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        gap: 10,
     },
-    summaryBlockItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginRight: 10,
-        paddingVertical: 3,
-        paddingHorizontal: 8,
-        borderRadius: 5,
-        backgroundColor: '#1E1E1E',
-        marginBottom: 5,
-    },
-    summaryBlockColor: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
+    colorBox: {
+        width: 50,
+        height: 50,
+        borderRadius: 8,
         borderWidth: 1,
-        borderColor: 'white',
-        marginRight: 5,
+        borderColor: 'rgba(0,0,0,0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+        elevation: 2,
     },
-    summaryBlockText: {
-        color: 'white',
-        fontSize: 12,
-        fontWeight: '600',
+    colorHexText: {
+        fontSize: 9,
+        fontWeight: 'bold',
+        textAlign: 'center',
+    },
+    noteContainer: {
+        marginTop: 10,
     },
     noteText: {
-        color: '#E0E0E0',
-        fontSize: 14,
-        marginBottom: 10,
+        color: '#444',
+        fontSize: 15,
+        lineHeight: 22,
+        backgroundColor: '#F0F9F0',
+        padding: 15,
+        borderRadius: 12,
+        overflow: 'hidden',
     },
     noteDate: {
-        color: '#A0A0A0',
+        color: '#999',
         fontSize: 12,
         fontStyle: 'italic',
         textAlign: 'right',
+        marginTop: 5,
     },
     noColorText: {
-        color: '#aaa',
+        color: '#999',
         fontStyle: 'italic',
-        marginTop: 5,
-        marginBottom: 5,
+        fontSize: 14,
     },
-
-    // --- Navigation Button ---
     detailButton: {
-        backgroundColor: '#7AC943', // Màu xanh nổi bật
-        padding: 15,
-        borderRadius: 10,
+        backgroundColor: '#2E7D32',
+        paddingVertical: 16,
+        borderRadius: 30,
         alignItems: 'center',
-        marginTop: 20,
+        marginTop: 30,
         flexDirection: 'row',
         justifyContent: 'center',
+        shadowColor: "#2E7D32",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
     },
     detailButtonText: {
-        color: '#1E1E1E',
-        fontSize: 18,
+        color: '#FFFFFF',
+        fontSize: 16,
         fontWeight: 'bold',
+        letterSpacing: 0.5,
     },
 });
 

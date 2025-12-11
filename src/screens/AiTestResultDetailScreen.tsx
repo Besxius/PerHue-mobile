@@ -77,8 +77,6 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedCapsuleId, setSelectedCapsuleId] = useState<number | null>(null);
-
-    // [2] Thêm state để lưu tên Color Type
     const [colorTypeName, setColorTypeName] = useState<string>('Undetermined');
 
     const fetchResult = useCallback(async () => {
@@ -91,11 +89,9 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
         setIsLoading(true);
         setError(null);
         try {
-            // Lấy chi tiết kết quả AI Test
             const data = await getAiTestResultById(id);
             setResultData(data);
 
-            // [3] Gọi API lấy tên Color Type dựa trên ID trả về trong model
             if (data.newAiTestResultResponseModel?.colorTypeId) {
                 try {
                     const typeData = await getColorTypeById(data.newAiTestResultResponseModel.colorTypeId);
@@ -119,6 +115,13 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
         fetchResult();
     }, [fetchResult]);
 
+    const handleGoBack = () => {
+        navigation.navigate('Tabs' as any, {
+            screen: 'History',
+            params: { initialTab: 'AI Test' }
+        });
+    };
+
     if (isLoading) {
         return (
             <View style={styles.centered}>
@@ -132,7 +135,7 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
         return (
             <View style={[styles.centered, styles.errorBox]}>
                 <Text style={styles.errorText}>An error occurred: {error || 'No data found'}</Text>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButtonCenter}>
+                <TouchableOpacity onPress={handleGoBack} style={styles.backButtonCenter}>
                     <Text style={styles.backButtonText}>Go Back</Text>
                 </TouchableOpacity>
             </View>
@@ -143,12 +146,6 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
     const imageUrl = resultData.imageUrl;
     const suggestedPalettes = model?.suggestedCapsulePalletesBySystem || [];
 
-    // [4] Không cần tính toán colorType từ mảng palette nữa, dùng state colorTypeName
-    // const colorType = suggestedPalettes.length > 0
-    //     ? suggestedPalettes[0].colorType?.name
-    //     : 'Undetermined';
-
-    // 1. Suggested Colors (Từ chuỗi suggestedColor)
     const suggestedColorString = model?.suggestedColor || '';
     const suggestedColorsFromString: Color[] = suggestedColorString
         .split(',')
@@ -156,14 +153,12 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
         .filter(c => c.length > 0)
         .map((hex, index) => ({
             id: index,
-            name: '', // Chuỗi không có tên màu
+            name: '',
             hexCode: hex
         }));
 
-    // 2. Suggested Colors By System (Từ mảng suggestedColorsBySystem)
     const suggestedColorsBySystem: Color[] = model?.suggestedColorsBySystem || [];
 
-    // 3. Avoided Colors (Từ chuỗi avoidedColor)
     const avoidedColorString = model?.avoidedColor || '';
     const avoidedColorsList: Color[] = avoidedColorString
         .split(',')
@@ -178,7 +173,7 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.headerBar}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+                <TouchableOpacity onPress={handleGoBack} style={styles.headerButton}>
                     <Ionicons name="arrow-back" size={28} color="#333" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>AI Test Result #{resultData.id}</Text>
@@ -186,7 +181,6 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
                 <View style={styles.summaryCard}>
                     <View style={styles.rowBetween}>
                         <Text style={styles.label}>Date:</Text>
@@ -198,7 +192,6 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
                     <View style={styles.resultRow}>
                         <Text style={styles.resultLabel}>AI Suggested Color Type:</Text>
                         <View style={styles.badge}>
-                            {/* [5] Hiển thị tên Color Type từ state */}
                             <Text style={styles.badgeText}>{colorTypeName}</Text>
                         </View>
                     </View>
@@ -217,25 +210,21 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
                     </View>
                 ) : null}
 
-                {/* --- PHẦN 1: Suggested Colors (Từ chuỗi) --- */}
                 <ColorBoxDisplay
                     colors={suggestedColorsFromString}
                     title="Suggested Colors"
                 />
 
-                {/* --- PHẦN 2: Suggested Colors Of System (Từ mảng hệ thống) --- */}
                 <ColorBoxDisplay
                     colors={suggestedColorsBySystem}
                     title="Suggested Colors Of System"
                 />
 
-                {/* --- PHẦN 3: Avoided Colors --- */}
                 <ColorBoxDisplay
                     colors={avoidedColorsList}
                     title="Avoided Colors"
                 />
 
-                {/* --- PHẦN 4: Palettes --- */}
                 {suggestedPalettes.length > 0 && (
                     <View style={styles.sectionContainer}>
                         <Text style={styles.sectionHeader}>Suggested Capsule Palettes ({suggestedPalettes.length})</Text>
