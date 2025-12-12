@@ -875,7 +875,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                     onClose={() => setShowSkiaPicker(false)}
                     onDone={(colors) => {
                         setCapturedColors(colors);
-                        console.log("Màu đã chọn:", colors);
                         setShowSkiaPicker(false);
                     }}
                 />

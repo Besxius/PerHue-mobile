@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ExpertInfo, PaymentCallbackParams, UserInfo } from '../types/dataModels';
+import { PaymentCallbackParams } from '../types/dataModels';
 import apiClient from './apiClient';
 
 const USER_SUBSCRIPTION_ENDPOINT = '/usersubscriptions';
@@ -16,8 +16,6 @@ export const getPaymentLink = async (subscriptionId: number): Promise<string> =>
     try {
         const response = await apiClient.post(paymentUrl);
 
-        // Giả sử API trả về cấu trúc dữ liệu mà trong đó link thanh toán là một trường trực tiếp,
-        // ví dụ: { "paymentLink": "https://pay.payos.vn/web/..." }
         const paymentLink: string = response.data?.paymentLink || response.data;
 
         if (!paymentLink || typeof paymentLink !== 'string') {
@@ -36,15 +34,11 @@ export const getPaymentLink = async (subscriptionId: number): Promise<string> =>
 };
 
 export const getPaymentSuccess = async (params: PaymentCallbackParams): Promise<any> => {
-    // Xây dựng Query String từ các tham số
     const queryString = `code=${params.code}&id=${params.id}&cancel=${params.cancel}&status=${params.status}&orderCode=${params.orderCode}&servicePackageId=${params.servicePackageId}`;
 
-    // Endpoint Backend cần được gọi
     const apiUrl = `${USER_SUBSCRIPTION_ENDPOINT}/subscription/success?${queryString}`;
-    console.log('success url', apiUrl)
 
     try {
-        // Sử dụng phương thức GET/POST tùy thuộc vào cấu hình Backend của bạn (Backend đang dùng GET)
         const response = await apiClient.get(apiUrl);
         return response.data;
     } catch (error) {
@@ -56,20 +50,13 @@ export const getPaymentSuccess = async (params: PaymentCallbackParams): Promise<
     }
 };
 
-/**
- * Gọi API Backend để xử lý kết quả thanh toán bị hủy hoặc thất bại.
- * @param params Dữ liệu trả về từ PayOS qua Deep Link Query String.
- */
 export const getPaymentCancel = async (params: PaymentCallbackParams): Promise<any> => {
-    // Xây dựng Query String từ các tham số
     const queryString = `code=${params.code}&id=${params.id}&cancel=${params.cancel}&status=${params.status}&orderCode=${params.orderCode}&servicePackageId=${params.servicePackageId}`;
 
-    // Endpoint Backend cần được gọi
     const apiUrl = `${USER_SUBSCRIPTION_ENDPOINT}/subscription/cancel?${queryString}`;
     console.log('success url', apiUrl)
 
     try {
-        // Sử dụng phương thức GET/POST tùy thuộc vào cấu hình Backend của bạn (Backend đang dùng GET)
         const response = await apiClient.get(apiUrl);
         return response.data;
     } catch (error) {

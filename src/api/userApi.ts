@@ -284,6 +284,28 @@ export const rateExpertTest = async (
     }
 };
 
+export const sendReviewRequest = async (testRequestId: number): Promise<void> => {
+    const url = `/testresults/request-review/${testRequestId}`;
+
+    try {
+        await apiClient.post(url);
+        console.log(`Đã gửi yêu cầu review cho Test Request ID: ${testRequestId}`);
+
+    } catch (error) {
+        let errorMessage = 'Failed to send review request.';
+
+        if (axios.isAxiosError(error)) {
+            console.error(`Error sending review request for ID ${testRequestId}:`, error.response?.data || error.message);
+            errorMessage = error.response?.data?.message || error.message;
+        } else if (error instanceof Error) {
+            console.error(`An unexpected error occurred while sending review request for ID ${testRequestId}:`, error);
+            errorMessage = error.message;
+        }
+
+        throw new Error(errorMessage);
+    }
+};
+
 export const getUserSubscriptionInformations = async (): Promise<UserSubscriptionInformation[]> => {
     const url = `${SUBSCRIPTION_ENDPOINT}`;
 

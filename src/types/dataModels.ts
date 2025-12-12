@@ -258,6 +258,7 @@ export interface ExpertTestResponse {
 export interface ExpertTestDetailResponse {
     testRequest: ExpertRequest;
     responses: ExpertTestResponse[];
+    responsesSimilarityScore?: number | null;
 }
 
 export interface ReviewTestRequest {

@@ -10,13 +10,14 @@ import {
     Dimensions,
     FlatList,
     Alert,
+    Modal,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, AntDesign } from '@expo/vector-icons';
+import { Ionicons, AntDesign, MaterialIcons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { ExpertRequest, ExpertTestResponse, Color } from '../types/dataModels';
-import { getExpertTestResultsById, rateExpertTest } from '../api/userApi';
+import { ExpertRequest, ExpertTestResponse, Color, ExpertTestDetailResponse } from '../types/dataModels';
+import { getExpertTestResultsById, rateExpertTest, sendReviewRequest } from '../api/userApi'; // Đảm bảo đã import sendReviewRequest
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type DetailScreenProps = NativeStackScreenProps<
@@ -24,15 +25,11 @@ type DetailScreenProps = NativeStackScreenProps<
     'ExpertTestResponseDetailScreen'
 >;
 
-interface ExpertTestDetailData {
-    testRequest: ExpertRequest;
-    responses: ExpertTestResponse[];
-}
-
 const { width } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
 const DANGER_COLOR = '#F44336';
 const SUCCESS_COLOR = '#4CAF50';
+const WARNING_COLOR = '#FFC107';
 const CARD_MARGIN = 15;
 
 // --- Helper Functions ---
@@ -134,16 +131,126 @@ const InteractiveStarRating: FC<InteractiveStarRatingProps> = ({ rating, onRate,
     );
 };
 
+// [CẬP NHẬT] Similarity Score Card với nút Request Review
+interface SimilarityScoreCardProps {
+    score: number;
+    onRequestReview: () => void;
+    isRequesting: boolean;
+    isReviewRequested: boolean; // Trạng thái đã gửi yêu cầu hay chưa (có thể check từ API nếu có field)
+}
+
+const SimilarityScoreCard: FC<SimilarityScoreCardProps> = ({ score, onRequestReview, isRequesting, isReviewRequested }) => {
+    const percentage = Math.min(Math.max(score, 0), 100);
+
+    let reliabilityLevel = 'Low';
+    let progressColor = DANGER_COLOR;
+    let showRecommendation = true;
+
+    if (percentage > 85) {
+        reliabilityLevel = 'High';
+        progressColor = SUCCESS_COLOR;
+        showRecommendation = false;
+    } else if (percentage >= 70) {
+        reliabilityLevel = 'Medium';
+        progressColor = WARNING_COLOR;
+        showRecommendation = false;
+    }
+
+    return (
+        <View style={styles.scoreCard}>
+            <View style={styles.scoreHeader}>
+                <MaterialIcons name="analytics" size={24} color={BLUE_COLOR} />
+                <Text style={styles.scoreTitle}>Expert Consensus</Text>
+            </View>
+
+            <View style={styles.scoreContent}>
+                <Text style={styles.scoreValue}>{percentage.toFixed(1)}%</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.scoreDescription}>Reliability Level</Text>
+                    <Text style={[styles.reliabilityText, { color: progressColor }]}>{reliabilityLevel}</Text>
+                </View>
+            </View>
+
+            <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBarFill, { width: `${percentage}%`, backgroundColor: progressColor }]} />
+            </View>
+
+            {/* Hiển thị recommend nếu reliability thấp */}
+            {showRecommendation && (
+                <View style={styles.recommendationContainer}>
+                    <View style={styles.recommendationHeader}>
+                        <Ionicons name="alert-circle-outline" size={20} color={DANGER_COLOR} />
+                        <Text style={styles.recommendationTitle}>Recommendation</Text>
+                    </View>
+                    <Text style={styles.recommendationText}>
+                        The consensus score is low, indicating varied opinions among experts. You can request a re-evaluation for better accuracy.
+                    </Text>
+
+                    {!isReviewRequested ? (
+                        <TouchableOpacity
+                            style={styles.requestReviewButton}
+                            onPress={onRequestReview}
+                            disabled={isRequesting}
+                        >
+                            {isRequesting ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={styles.requestReviewButtonText}>Request Review</Text>
+                            )}
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.reviewSentContainer}>
+                            <Ionicons name="checkmark-circle" size={18} color={SUCCESS_COLOR} />
+                            <Text style={styles.reviewSentText}>Review Requested</Text>
+                        </View>
+                    )}
+                </View>
+            )}
+        </View>
+    );
+};
+
+// [MỚI] Modal thông báo thành công
+const SuccessModal: FC<{ visible: boolean; onClose: () => void }> = ({ visible, onClose }) => (
+    <Modal
+        animationType="fade"
+        transparent={true}
+        visible={visible}
+        onRequestClose={onClose}
+    >
+        <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+                <View style={styles.modalIconContainer}>
+                    <Ionicons name="checkmark-circle" size={50} color={SUCCESS_COLOR} />
+                </View>
+                <Text style={styles.modalTitle}>Success!</Text>
+                <Text style={styles.modalMessage}>
+                    Your review request has been sent. We will forward your request to another expert for review. Please wait 2-3 days for the result.
+                </Text>
+                <TouchableOpacity style={styles.modalButton} onPress={onClose}>
+                    <Text style={styles.modalButtonText}>OK</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    </Modal>
+);
+
 // --- Màn Hình Chi Tiết Phản Hồi ---
 
 const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
     const testRequestId = route.params.id;
 
-    const [data, setData] = useState<ExpertTestDetailData | null>(null);
+    const [data, setData] = useState<ExpertTestDetailResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [ratingLoadingMap, setRatingLoadingMap] = useState<Record<number, boolean>>({});
+
+    // State cho tính năng Review
+    const [isRequestingReview, setIsRequestingReview] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    // Giả lập trạng thái đã gửi (trong thực tế nên lấy từ API nếu có field status)
+    const [isReviewRequested, setIsReviewRequested] = useState(false);
 
     const hexStringToColorList = useCallback((hexString: string): Color[] => {
         if (!hexString) return [];
@@ -162,6 +269,7 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
         try {
             const result = await getExpertTestResultsById(testRequestId);
             setData(result);
+            // Kiểm tra trạng thái nếu cần (ví dụ: result.testRequest.status === 'ReviewRequested')
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
             setError(`Failed to load details: ${errorMessage}`);
@@ -205,6 +313,19 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
         }
     };
 
+    const handleSendReview = async () => {
+        setIsRequestingReview(true);
+        try {
+            await sendReviewRequest(testRequestId);
+            setIsReviewRequested(true);
+            setShowSuccessModal(true);
+        } catch (err: any) {
+            Alert.alert("Request Failed", err.message || "Could not send review request.");
+        } finally {
+            setIsRequestingReview(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <View style={styles.centered}>
@@ -225,7 +346,7 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
         );
     }
 
-    const { testRequest, responses } = data;
+    const { testRequest, responses, responsesSimilarityScore } = data;
     const clientPictureUri = testRequest.pictures?.[0]?.source;
 
     const renderResponseItem = ({ item, index }: { item: ExpertTestResponse, index: number }) => {
@@ -233,19 +354,18 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
         const worstColors = hexStringToColorList(item.worstColor || '');
         const isRating = ratingLoadingMap[item.id] || false;
 
-        // [LOGIC MỚI] Xác định màu nền và nhãn dựa trên Type
         let cardBackgroundColor = '#fff';
         let typeLabel = 'Normal Response';
         let typeColor = BLUE_COLOR;
 
         if (item.type === 'AI') {
-            cardBackgroundColor = '#E8F5E9'; // Xanh lá nhẹ
+            cardBackgroundColor = '#E8F5E9';
             typeLabel = 'AI Response';
-            typeColor = '#2E7D32'; // Xanh lá đậm hơn cho text
+            typeColor = '#2E7D32';
         } else if (item.type === 'Review') {
-            cardBackgroundColor = '#FFF9C4'; // Vàng nhẹ
+            cardBackgroundColor = '#FFF9C4';
             typeLabel = 'Review Response';
-            typeColor = '#F57F17'; // Cam/Vàng đậm cho text
+            typeColor = '#F57F17';
         }
 
         return (
@@ -255,7 +375,6 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
                         <Text style={styles.responseTitle}>
                             <Ionicons name="ribbon-outline" size={20} color={typeColor} /> Response #{index + 1}
                         </Text>
-                        {/* Hiển thị Type */}
                         <Text style={{ fontSize: 12, color: typeColor, fontWeight: 'bold', marginLeft: 24, marginTop: 2 }}>
                             {typeLabel}
                         </Text>
@@ -292,7 +411,6 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
                     />
                 </View>
 
-                {/* [LOGIC MỚI] Chỉ hiển thị phần đánh giá nếu KHÔNG PHẢI là AI */}
                 {item.type !== 'AI' && (
                     <View style={styles.ratingSection}>
                         <Text style={styles.ratingTitle}>Rate this analysis:</Text>
@@ -350,7 +468,17 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
                     </Text>
                 </View>
 
-                {/* --- 2. Expert Responses History --- */}
+                {/* --- 2. Similarity Score & Recommendation --- */}
+                {responsesSimilarityScore !== null && responsesSimilarityScore !== undefined && responses.length > 1 && (
+                    <SimilarityScoreCard
+                        score={responsesSimilarityScore}
+                        onRequestReview={handleSendReview}
+                        isRequesting={isRequestingReview}
+                        isReviewRequested={isReviewRequested}
+                    />
+                )}
+
+                {/* --- 3. Expert Responses History --- */}
                 <Text style={styles.sectionHeader}>Expert Responses ({responses.length})</Text>
 
                 {responses.length > 0 ? (
@@ -369,6 +497,11 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
                 )}
                 <View style={{ height: insets.bottom + 20 }} />
             </ScrollView>
+
+            <SuccessModal
+                visible={showSuccessModal}
+                onClose={() => setShowSuccessModal(false)}
+            />
         </View>
     );
 };
@@ -527,7 +660,6 @@ const styles = StyleSheet.create({
     },
     // Response Card Styles
     responseCard: {
-        // backgroundColor: '#fff', // Removed to support dynamic background
         padding: 15,
         borderRadius: 15,
         marginBottom: 15,
@@ -562,7 +694,7 @@ const styles = StyleSheet.create({
     resultChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.6)', // Semi-transparent white
+        backgroundColor: 'rgba(255,255,255,0.6)',
         borderRadius: 5,
         paddingHorizontal: 10,
         paddingVertical: 5,
@@ -578,7 +710,7 @@ const styles = StyleSheet.create({
         marginLeft: 5,
     },
     noteContainer: {
-        backgroundColor: 'rgba(255,255,255,0.5)', // Semi-transparent
+        backgroundColor: 'rgba(255,255,255,0.5)',
         padding: 10,
         borderRadius: 8,
         marginBottom: 15,
@@ -676,6 +808,154 @@ const styles = StyleSheet.create({
         color: '#888',
         marginTop: 8,
         textAlign: 'right',
+    },
+    // --- Score Card Styles ---
+    scoreCard: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 15,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 3,
+        borderTopWidth: 4,
+        borderTopColor: '#FFC107',
+    },
+    scoreHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    scoreTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginLeft: 8,
+    },
+    scoreContent: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    scoreValue: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    scoreDescription: {
+        fontSize: 12,
+        color: '#666',
+        fontStyle: 'italic',
+    },
+    reliabilityText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        textAlign: 'right',
+    },
+    progressBarContainer: {
+        height: 8,
+        backgroundColor: '#eee',
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        height: '100%',
+        borderRadius: 4,
+    },
+    // --- Recommendation Section ---
+    recommendationContainer: {
+        marginTop: 15,
+        paddingTop: 15,
+        borderTopWidth: 1,
+        borderTopColor: '#f0f0f0',
+    },
+    recommendationHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    recommendationTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: DANGER_COLOR,
+        marginLeft: 5,
+    },
+    recommendationText: {
+        fontSize: 14,
+        color: '#666',
+        lineHeight: 20,
+        marginBottom: 12,
+    },
+    requestReviewButton: {
+        backgroundColor: BLUE_COLOR,
+        paddingVertical: 10,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    requestReviewButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14,
+    },
+    reviewSentContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#E8F5E9',
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    reviewSentText: {
+        color: SUCCESS_COLOR,
+        fontWeight: 'bold',
+        marginLeft: 5,
+    },
+    // --- Modal Styles ---
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContainer: {
+        width: '80%',
+        backgroundColor: '#fff',
+        borderRadius: 15,
+        padding: 25,
+        alignItems: 'center',
+        elevation: 5,
+    },
+    modalIconContainer: {
+        marginBottom: 15,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
+    },
+    modalMessage: {
+        fontSize: 15,
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 25,
+        lineHeight: 22,
+    },
+    modalButton: {
+        backgroundColor: BLUE_COLOR,
+        paddingVertical: 10,
+        paddingHorizontal: 30,
+        borderRadius: 25,
+        width: '100%',
+        alignItems: 'center',
+    },
+    modalButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
 });
 

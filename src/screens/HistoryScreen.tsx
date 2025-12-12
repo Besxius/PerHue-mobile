@@ -37,7 +37,6 @@ type HistoryScreenProps = CompositeScreenProps<
     NativeStackScreenProps<RootStackParamList>
 >;
 
-// ... (Giữ nguyên các hàm transform dữ liệu: transformManualTestResult, etc.)
 const transformManualTestResult = (result: ManualTestResult): BaseHistoryItem => {
     const imageSource: ImageSource[] = result.picture ? [{ uri: result.picture }] : [];
     const subtitle = `ColorType: ${result.colorType?.name || 'Unknown'}`;
@@ -128,14 +127,22 @@ const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem =
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
     const responseCount = reviewReq.previousResponses?.length || 0;
     const isReviewed = responseCount > 0;
-    let status = reviewReq.testRequest.status;
+
+    // Status gốc từ API
+    const rawStatus = reviewReq.testRequest.status;
+    let status = rawStatus;
     let buttonText = 'View Detail';
 
-    if (status === 'Pending') {
+    // [CẬP NHẬT] Xử lý trạng thái để nút không bị disable
+    // Nếu trạng thái là 'Reviewing', map sang 'PendingReview' để HistoryItem nhận diện là active
+    if (rawStatus === 'Reviewing') {
+        status = 'PendingReview';
+    } else if (rawStatus === 'Pending') {
         buttonText = 'Review Now';
-    } else if (status === 'Completed') {
+    } else if (rawStatus === 'Completed') {
         status = isReviewed ? 'Reviewed' : 'Completed';
     }
+
     const subTitle = `Has ${responseCount} previous response(s)`;
 
     return {
@@ -143,7 +150,7 @@ const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem =
         title: `#${id} - Review for ${reviewReq.testRequest.typeOfTest || 'Client Test'}`,
         subTitle: subTitle,
         date: new Date(reviewReq.testRequest.createdDate).toLocaleDateString('vi-VN'),
-        status: status,
+        status: status, // Sử dụng status đã map
         imageSources: imageSource,
         buttonText: buttonText,
         isOrder: true,
@@ -250,7 +257,6 @@ const USER_TABS: TabConfig[] = [
     },
 ];
 
-// [CẬP NHẬT] Thêm route vào props
 const HistoryScreen: FC<HistoryScreenProps> = ({ navigation, route }) => {
     const insets = useSafeAreaInsets();
     const { userRole } = useAuth();
@@ -268,9 +274,7 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation, route }) => {
 
     const [refreshing, setRefreshing] = useState(false);
 
-    // [CẬP NHẬT] Logic xử lý tham số điều hướng 'initialTab'
     useEffect(() => {
-        // Lấy params (ép kiểu any vì TabParamList gốc có thể chưa định nghĩa param này)
         const params = route.params as any;
 
         if (params?.initialTab && currentTabs.length > 0) {
@@ -278,20 +282,17 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation, route }) => {
             if (targetTab) {
                 console.log(`Switching to tab: ${targetTab.name}`);
                 setActiveTab(targetTab);
-
-                // Xóa params để tránh lỗi khi refresh hoặc focus lại (tuỳ chọn)
                 navigation.setParams({ initialTab: undefined } as any);
                 return;
             }
         }
 
-        // Logic mặc định nếu không có params hoặc params không khớp
         if (currentTabs.length > 0 && !activeTab) {
             setActiveTab(currentTabs[0]);
         } else if (activeTab && !currentTabs.some(tab => tab.name === activeTab.name)) {
             setActiveTab(currentTabs[0]);
         }
-    }, [currentTabs, route.params]); // Thêm route.params vào dependency
+    }, [currentTabs, route.params]);
 
     const loadHistoryData = useCallback(async (fetcher: () => Promise<any[]>, tabName: string, isRefetch = false) => {
         if (!isRefetch) setIsLoadingData(true);
@@ -334,7 +335,9 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation, route }) => {
                     return;
                 }
             }
+            // [CẬP NHẬT] Xử lý sự kiện cho tab Review
             if (activeTab?.name === 'Review') {
+                navigation.navigate('ExpertReviewDetailScreen' as any, { id: item.id });
                 return;
             }
             if (['History', 'Completed', 'Expired'].includes(activeTab?.name || '')) {
@@ -444,7 +447,6 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation, route }) => {
 
 export default HistoryScreen;
 
-// ... (Giữ nguyên styles)
 const styles = StyleSheet.create({
     container: {
         flex: 1,

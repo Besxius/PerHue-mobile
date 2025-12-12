@@ -86,8 +86,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
                 servicePackageId: packageDetails.id,
             };
 
-            console.log('Parsed Callback Params:', params);
-
             if (!params.code && !params.id && !params.orderCode) {
                 throw new Error("Tham số Deep Link không hợp lệ hoặc bị thiếu.");
             }
