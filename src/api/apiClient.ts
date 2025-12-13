@@ -16,8 +16,8 @@ const HOST =
         ? '10.0.2.2'
         : HOST_LAN_IP;
 
-export const API_BASE_URL = `http://${HOST}:${HTTP_PORT}/api`;
-// export const API_BASE_URL = `${AZURE_HOST}/api`;
+// export const API_BASE_URL = `http://${HOST}:${HTTP_PORT}/api`;
+export const API_BASE_URL = `${AZURE_HOST}/api`;
 export const AUTH_TOKEN_KEY = 'authToken';
 export const REFRESH_TOKEN_KEY = 'refreshToken';
 export const ROLE_KEY = 'userRole';
