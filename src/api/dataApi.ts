@@ -68,19 +68,15 @@ export const getInactiveSubscriptions = async (): Promise<UserSubscriptionInform
 };
 
 export const getAllSubscriptions = async (): Promise<UserSubscriptionInformation[]> => {
-    // Xây dựng URL endpoint
     const url = `${USER_SUBSCRIPTION_ENDPOINT}/all`;
 
     try {
-        // Gọi API GET, mong đợi trả về mảng UserSubscriptionInformation
         const response = await apiClient.get<UserSubscriptionInformation[]>(url);
 
-        // API trả về trực tiếp mảng
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {
             console.error('Error fetching all subscriptions:', error.response?.data || error.message);
-            // Ném lỗi chi tiết hơn từ server
             throw new Error(error.response?.data?.message || 'Failed to fetch all subscriptions.');
         } else {
             console.error('An unexpected error occurred while fetching all subscriptions:', error);
@@ -90,19 +86,15 @@ export const getAllSubscriptions = async (): Promise<UserSubscriptionInformation
 };
 
 export const getAllPayments = async (): Promise<UserPayment[]> => {
-    // Xây dựng URL endpoint
     const url = `${PAYMENT_ENDPOINT}/user/all-payments`;
 
     try {
-        // Gọi API GET, mong đợi trả về mảng UserPayment
         const response = await apiClient.get<UserPayment[]>(url);
 
-        // API trả về trực tiếp mảng
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {
             console.error('Error fetching all user payments:', error.response?.data || error.message);
-            // Ném lỗi chi tiết hơn từ server
             throw new Error(error.response?.data?.message || 'Failed to fetch payment history.');
         } else {
             console.error('An unexpected error occurred while fetching user payments:', error);

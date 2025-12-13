@@ -137,7 +137,6 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     }, [fetchReviewData]);
 
     const handleVotePress = (responseId: number) => {
-        // Toggle: Nếu bấm lại vào item đang chọn thì đóng, ngược lại mở item mới và reset note
         if (selectedResponseId === responseId) {
             setSelectedResponseId(null);
             setVoteNote('');

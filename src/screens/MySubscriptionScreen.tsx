@@ -13,8 +13,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// Import các types và hàm API đã tạo
 import { UserSubscriptionInformation } from '../types/dataModels';
 import {
     getActiveSubscriptions,
@@ -24,16 +22,10 @@ import {
 
 const { width } = Dimensions.get('window');
 
-// Định nghĩa 3 tab
 type SubscriptionTab = 'Active' | 'Expired' | 'History';
 type MySubscriptionScreenProps = NativeStackScreenProps<RootStackParamList, 'MySubscriptionScreen'>;
 
-// Danh sách cấu hình tab
 const SUBSCRIPTION_TABS: SubscriptionTab[] = ['Active', 'Expired', 'History'];
-
-// =================================================================
-// CÁC HÀM HỖ TRỢ (Giữ nguyên)
-// =================================================================
 
 const formatDate = (dateString: string) => {
     try {
@@ -48,10 +40,6 @@ const formatDate = (dateString: string) => {
     }
 };
 
-// =================================================================
-// COMPONENT CARD (Giữ nguyên)
-// =================================================================
-
 interface SubscriptionCardProps {
     subscription: UserSubscriptionInformation;
 }
@@ -63,16 +51,13 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ subscription }) => 
     const remainingUses = subscription.remainingUses;
     const isActive = subscription.status;
 
-    // Phân biệt trạng thái cho giao diện
     const statusText = isActive ? 'Active' : 'Expired';
     const statusColor = isActive ? styles.activeButton : styles.expiredButton;
 
-    // Lựa chọn màu cho tiêu đề dựa trên trạng thái
     const titleColor = isActive ? styles.packageNameActive : styles.packageNameExpired;
 
     return (
         <View style={styles.cardContainer}>
-            {/* Header: Tên gói và Ngày hết hạn */}
             <View style={styles.cardHeader}>
                 <Text style={[styles.packageName, titleColor]}>{packageName}</Text>
                 <Text style={styles.validUntilText}>
@@ -80,12 +65,10 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ subscription }) => 
                 </Text>
             </View>
 
-            {/* Đường gạch đứt */}
             <View style={styles.dashedLineContainer}>
                 <View style={styles.dashedLine} />
             </View>
 
-            {/* Body: Thông tin sử dụng và Button */}
             <View style={styles.cardBody}>
                 <View style={styles.usageInfo}>
                     <Ionicons name="time-outline" size={20} color="#333" />
@@ -104,11 +87,6 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ subscription }) => 
         </View>
     );
 };
-
-
-// =================================================================
-// MAIN SCREEN
-// =================================================================
 
 const MySubscriptionScreen: React.FC<MySubscriptionScreenProps> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
@@ -139,7 +117,7 @@ const MySubscriptionScreen: React.FC<MySubscriptionScreenProps> = ({ navigation 
         try {
             const rawData = await apiCall;
 
-            const data = Array.isArray(rawData) ? rawData : []; // <-- XỬ LÝ CHÍNH
+            const data = Array.isArray(rawData) ? rawData : [];
 
             const processedData = data.map(sub => ({
                 ...sub,
@@ -160,7 +138,6 @@ const MySubscriptionScreen: React.FC<MySubscriptionScreenProps> = ({ navigation 
         fetchData(activeTab);
     }, [activeTab, fetchData]);
 
-    // Hàm render nội dung tab (Giữ nguyên)
     const renderContent = () => {
         if (isLoading) {
             return <ActivityIndicator size="large" color="#3B82F6" style={styles.centerMessage} />;
@@ -191,7 +168,6 @@ const MySubscriptionScreen: React.FC<MySubscriptionScreenProps> = ({ navigation 
         );
     };
 
-    // HÀM RENDER ITEM CHO FLATLIST TAB BAR (Giữ nguyên)
     const renderTabItem = ({ item }: { item: SubscriptionTab }) => {
         const isActive = activeTab === item;
         return (

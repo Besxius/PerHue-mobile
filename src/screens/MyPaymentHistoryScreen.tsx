@@ -40,11 +40,6 @@ const formatDate = (dateString: string): string => {
     }
 };
 
-
-// =========================================================
-// COMPONENT CARD: Hiển thị chi tiết từng giao dịch
-// =========================================================
-
 interface PaymentCardProps {
     payment: UserPayment;
 }
@@ -94,11 +89,6 @@ const PaymentCard: FC<PaymentCardProps> = ({ payment }) => {
         </View>
     );
 };
-
-
-// =========================================================
-// MAIN SCREEN
-// =========================================================
 
 const MyPaymentHistoryScreen: FC<MyPaymentHistoryScreenProps> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
@@ -158,11 +148,6 @@ const MyPaymentHistoryScreen: FC<MyPaymentHistoryScreenProps> = ({ navigation })
 };
 
 export default MyPaymentHistoryScreen;
-
-
-// =========================================================
-// STYLES
-// =========================================================
 
 const styles = StyleSheet.create({
     container: {
@@ -238,15 +223,15 @@ const styles = StyleSheet.create({
         borderRadius: 15,
     },
     statusSuccess: {
-        backgroundColor: '#D4EDDA', // Light green
+        backgroundColor: '#D4EDDA',
     },
     statusFailed: {
-        backgroundColor: '#F8D7DA', // Light red
+        backgroundColor: '#F8D7DA',
     },
     statusText: {
         fontSize: 12,
         fontWeight: 'bold',
-        color: '#155724', // Dark green (or red)
+        color: '#155724',
     },
     detailRow: {
         flexDirection: 'row',

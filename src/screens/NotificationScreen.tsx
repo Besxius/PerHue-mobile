@@ -82,7 +82,6 @@ const TabContent: React.FC<TabContentProps> = ({ data, isLoading, onNotification
     const groupedData = useMemo(() => groupNotificationsByType(data), [data]);
     const notificationTypes = Object.keys(groupedData);
 
-    // Dùng view bên ngoài ScrollView để giữ kích thước CONTAINER_WIDTH
     return (
         <View style={styles.tabContent}>
             {isLoading ? (
@@ -169,27 +168,21 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
 
         if (!notification) return;
 
-        // Lấy ID cần thiết cho điều hướng
-        const requestId = notification.testRequestId; // <-- SỬ DỤNG testRequestId
+        const requestId = notification.testRequestId;
 
-        // 1. Xử lý logic điều hướng ngay (vì người dùng muốn xem chi tiết)
         if (notification.type === 'TestRequest' && requestId) {
             navigateToResponseScreen(requestId);
         }
 
-        // 2. Nếu thông báo chưa đọc, đánh dấu đã đọc (chạy ngầm)
         if (!notification.isRead) {
 
-            // Cập nhật trạng thái cục bộ
             setNotifications(prev => prev.map(n =>
                 n.id === notificationId ? { ...n, isRead: true } : n
             ));
 
-            // Gọi API
             try {
                 await markNotificationAsRead(notificationId);
             } catch (e) {
-                // Nếu API thất bại, đảo ngược trạng thái UI và hiển thị Toast
                 setNotifications(prev => prev.map(n =>
                     n.id === notificationId ? { ...n, isRead: false } : n
                 ));
@@ -238,7 +231,7 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
             await markAllNotificationAsRead();
 
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-            setShowUnreadOnly(false); // Tắt bộ lọc sau khi đọc tất cả
+            setShowUnreadOnly(false);
 
             Toast.show({ type: 'success', text1: 'Success', text2: 'All notifications marked as read.', visibilityTime: 3000 });
         } catch (e) {
@@ -376,7 +369,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#000',
     },
-    // --- Grouping Styles (UPDATED) ---
     notificationGroup: {
         marginBottom: 20,
     },
@@ -386,7 +378,6 @@ const styles = StyleSheet.create({
         color: '#333',
         marginBottom: 10,
     },
-    // --- Control Bar Styles ---
     controlBar: {
         flexDirection: 'row',
         justifyContent: 'flex-end',

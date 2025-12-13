@@ -128,13 +128,10 @@ const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem =
     const responseCount = reviewReq.previousResponses?.length || 0;
     const isReviewed = responseCount > 0;
 
-    // Status gốc từ API
     const rawStatus = reviewReq.testRequest.status;
     let status = rawStatus;
     let buttonText = 'View Detail';
 
-    // [CẬP NHẬT] Xử lý trạng thái để nút không bị disable
-    // Nếu trạng thái là 'Reviewing', map sang 'PendingReview' để HistoryItem nhận diện là active
     if (rawStatus === 'Reviewing') {
         status = 'PendingReview';
     } else if (rawStatus === 'Pending') {

@@ -125,12 +125,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
     }, [packageDetails, onClose]);
 
 
-    // HÀM XỬ LÝ CHẶN TẢI URL TRONG WEBVIEW
     const handleShouldStartLoad = useCallback((request: any): boolean => {
         const url = request.url;
         console.log('onShouldStartLoadWithRequest URL:', url);
         getPaymentSuccess
-        // Bắt Deep Link: Nếu URL bắt đầu bằng Scheme của ứng dụng
         if (url.startsWith(`${APP_SCHEME}://`)) {
             console.log('Deep Link Intercepted in WebView:', url);
 
@@ -149,7 +147,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
     }, [onDeepLinkDetected, handleDeepLinkProcessing]);
 
 
-    // Hàm gọi API lấy link và mở WebView (Giữ nguyên)
     const handleCheckout = useCallback(async () => {
         if (!packageDetails) return;
 
@@ -218,7 +215,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
                 animationType="slide"
                 transparent={false}
                 visible={isWebViewOpen}
-                // XỬ LÝ HỦY: Bắt nút back vật lý/yêu cầu đóng
                 onRequestClose={() => {
                     Alert.alert(
                         'Xác nhận Hủy',
@@ -234,7 +230,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
                     <View style={modalStyles.webViewHeader}>
                         <TouchableOpacity
                             onPress={() => {
-                                setIsWebViewOpen(false); // Đóng tạm thời
+                                setIsWebViewOpen(false);
                                 Alert.alert(
                                     'Xác nhận Hủy',
                                     'Bạn có chắc chắn muốn hủy giao dịch đang tiến hành?',

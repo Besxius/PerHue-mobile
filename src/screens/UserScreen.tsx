@@ -21,7 +21,6 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { ImageLibraryOptions, launchImageLibrary } from 'react-native-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 
-// 1. Định nghĩa kiểu dữ liệu (Interface) cho Props
 interface InputProps {
     label: string;
     placeholder: string;

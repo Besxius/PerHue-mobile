@@ -9,7 +9,7 @@ import {
     Dimensions,
     FlatList,
     Alert,
-    RefreshControl, // 👈 1. IMPORT RefreshControl
+    RefreshControl,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,13 +23,12 @@ type MySalaryScreenProps = NativeStackScreenProps<RootStackParamList, 'MySalaryS
 
 const { width } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
-const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1); // [1, 2, ..., 12]
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const MONTH_NAMES = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 ];
 
-// ... (Các hàm Helper giữ nguyên: formatCurrency, getMonthDates, getCurrentYearAndMonth, RatingStars)
 const formatCurrency = (amount: number): string => {
     if (amount === 0) return '0 VND';
     return `${amount.toLocaleString('en-US')} VND`;
@@ -68,8 +67,6 @@ const RatingStars: FC<{ rating: number }> = ({ rating }) => {
     );
 };
 
-// --- MAIN SCREEN ---
-
 const MySalaryScreen: FC<MySalaryScreenProps> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { year: currentYear, month: currentMonth } = getCurrentYearAndMonth();
@@ -96,7 +93,6 @@ const MySalaryScreen: FC<MySalaryScreenProps> = ({ navigation }) => {
     }, []);
 
     const fetchSalaryData = useCallback(async (year: number, month: number) => {
-        // Nếu không phải đang refresh (kéo xuống), thì hiện loading indicator chính
         if (!refreshing) setIsLoading(true);
         setError(null);
 
@@ -112,19 +108,18 @@ const MySalaryScreen: FC<MySalaryScreenProps> = ({ navigation }) => {
             setSalaryData(null);
         } finally {
             setIsLoading(false);
-            setRefreshing(false); // Tắt trạng thái refreshing
+            setRefreshing(false);
         }
-    }, [refreshing]); // Thêm refreshing vào dependency nếu cần, nhưng thường thì không cần thiết ở đây nếu dùng biến local, tuy nhiên để an toàn với logic state
+    }, [refreshing]);
 
     useEffect(() => {
         fetchSalaryData(activeYear, activeMonth);
-    }, [activeYear, activeMonth]); // Bỏ fetchSalaryData khỏi dependency để tránh loop nếu không dùng useCallback chuẩn, nhưng ở đây đã dùng useCallback
+    }, [activeYear, activeMonth]);
 
-    // 👈 3. Hàm xử lý Refresh
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         fetchSalaryData(activeYear, activeMonth);
-    }, [activeYear, activeMonth]); // Phụ thuộc vào năm/tháng đang chọn
+    }, [activeYear, activeMonth]);
 
     const renderMonthTab = ({ item: month }: { item: number }) => {
         const isActive = month === activeMonth;
@@ -195,18 +190,17 @@ const MySalaryScreen: FC<MySalaryScreenProps> = ({ navigation }) => {
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
-                // 👈 4. Thêm RefreshControl vào ScrollView
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
-                        colors={[BLUE_COLOR]} // Màu loading cho Android
-                        tintColor={BLUE_COLOR} // Màu loading cho iOS
+                        colors={[BLUE_COLOR]}
+                        tintColor={BLUE_COLOR}
                     />
                 }
             >
 
-                {isLoading && !refreshing ? ( // Chỉ hiện loading giữa màn hình khi KHÔNG phải đang vuốt refresh
+                {isLoading && !refreshing ? (
                     <View style={styles.loadingContainer}>
                         <ActivityIndicator size="large" color={BLUE_COLOR} />
                         <Text style={styles.loadingText}>Loading data for {currentMonthName}...</Text>
@@ -472,7 +466,6 @@ const styles = StyleSheet.create({
         gap: 2,
     },
     star: {
-        // Style cho icon sao
     },
     // --- Detail Section ---
     detailSectionTitle: {
@@ -506,6 +499,6 @@ const styles = StyleSheet.create({
     } as any,
     amountValue: {
         fontWeight: 'bold',
-        color: '#28a745', // Màu xanh lá cho thu nhập
+        color: '#28a745',
     },
 });
