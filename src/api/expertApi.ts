@@ -210,7 +210,6 @@ export const getExpertSalary = async (
     const queryParams: string[] = [];
 
     if (startDate) {
-        // Chuyển đổi Date sang ISO String (YYYY-MM-DDTHH:mm:ss.sssZ) chuẩn Date Time
         queryParams.push(`startDate=${encodeURIComponent(startDate.toISOString())}`);
     }
 

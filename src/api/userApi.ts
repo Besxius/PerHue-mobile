@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { AiTestResponse, ExpertTestDetailResponse, ExpertTestResponse, ManualTestResult, ReportPayload, ReportResponse, UserInfo, UserSubscriptionInformation, VerificationPayload } from '../types/dataModels';
-import apiClient, { setAuthToken } from './apiClient';
+import { AiTestResponse, ExpertTestDetailResponse, ExpertTestResponse, ManualTestResult, ReportPayload, ReportResponse, UpdateUserPayload, UserInfo, UserSubscriptionInformation, VerificationPayload } from '../types/dataModels';
+import apiClient from './apiClient';
 
 const USER_ENDPOINT = '/users';
 const TEST_INFO_ENDPOINT = '/testinformation';
@@ -31,6 +31,16 @@ export const loadUserInfo = async (): Promise<UserInfo> => {
 
         console.error('Lỗi khi tải User Info:', error);
         throw new Error(errorMessage);
+    }
+};
+
+export const updateUserInfo = async (id: number, data: UpdateUserPayload) => {
+    try {
+        const response = await apiClient.put(`/users/${id}`, data);
+        return response.data;
+    } catch (error) {
+        console.error("Lỗi khi cập nhật thông tin user:", error);
+        throw error;
     }
 };
 

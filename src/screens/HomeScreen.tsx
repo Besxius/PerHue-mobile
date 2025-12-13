@@ -57,7 +57,18 @@ type HomeScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
-const DEFAULT_AVATAR_URI = 'https://images.unsplash.com/photo-1517841905240-472988babdf9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.0.3&q=80&w=400';
+const DEFAULT_MAN_AVATAR = require('../assets/avatar/men/men.png');
+const DEFAULT_WOMAN_AVATAR = require('../assets/avatar/women/women.png');
+
+const getExpertAvatar = (expert: ExpertInfo) => {
+  if (expert.profilePicture) {
+    return { uri: expert.profilePicture };
+  }
+
+  const isMale = expert.idNavigation?.gender === true;
+
+  return isMale ? DEFAULT_MAN_AVATAR : DEFAULT_WOMAN_AVATAR;
+};
 
 const DynamicImageItem = ({ source }: { source: ImageSourcePropType }) => {
   const { width: originalWidth, height: originalHeight } = Image.resolveAssetSource(source);
@@ -273,7 +284,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               >
                 <View style={styles.avatarBorder}>
                   <Image
-                    source={{ uri: expert.profilePicture || DEFAULT_AVATAR_URI }}
+                    source={getExpertAvatar(expert)}
                     style={styles.recentlyViewedImage}
                   />
                 </View>

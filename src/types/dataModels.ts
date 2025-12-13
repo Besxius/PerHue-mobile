@@ -61,6 +61,14 @@ export type UserInfo = {
     role: RoleInfo;
 };
 
+export interface UpdateUserPayload {
+    fullname: string;
+    phone: string;
+    gender: boolean;
+    dob: string;
+    profilepicture: string;
+}
+
 export interface ExpertInfo {
     id: number;
     nickname: string;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     StyleSheet,
     View,
@@ -12,14 +12,33 @@ import {
     Image,
     Alert,
     ActivityIndicator,
+    Modal,
+    FlatList,
+    TouchableWithoutFeedback,
+    ImageSourcePropType,
+    PanResponder
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { UserInfo } from '../types/dataModels';
-import { loadUserInfo, uploadProfilePicture } from '../api/userApi';
+import { MaterialCommunityIcons, Ionicons, AntDesign } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { ImageLibraryOptions, launchImageLibrary } from 'react-native-image-picker';
-import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+
+import { UserInfo } from '../types/dataModels';
+import { loadUserInfo, updateUserInfo, uploadProfilePicture } from '../api/userApi';
+
+const MEN_AVATARS = [
+    require('../assets/avatar/men/men.png'),
+    require('../assets/avatar/men/men2.png'),
+    require('../assets/avatar/men/men3.png'),
+];
+
+const WOMEN_AVATARS = [
+    require('../assets/avatar/women/women.png'),
+    require('../assets/avatar/women/women2.png'),
+    require('../assets/avatar/women/women3.png'),
+];
+
+const BLUE_COLOR = '#4285F4';
 
 interface InputProps {
     label: string;
@@ -29,13 +48,7 @@ interface InputProps {
     editable?: boolean;
 }
 
-const CustomInput = ({
-    label,
-    placeholder,
-    value,
-    onChangeText,
-    editable = true
-}: InputProps) => (
+const CustomInput = ({ label, placeholder, value, onChangeText, editable = true }: InputProps) => (
     <View style={inputStyles.wrapper}>
         <Text style={inputStyles.label}>{label}</Text>
         <View style={[inputStyles.container, !editable && inputStyles.disabledContainer]}>
@@ -53,15 +66,15 @@ const CustomInput = ({
 
 interface GenderInputProps {
     label: string;
-    value: 'Nam' | 'Nữ';
-    onChange: (gender: 'Nam' | 'Nữ') => void;
+    value: 'Male' | 'Female';
+    onChange: (gender: 'Male' | 'Female') => void;
 }
 
 const GenderInput: React.FC<GenderInputProps> = ({ label, value, onChange }) => (
     <View style={inputStyles.wrapper}>
         <Text style={inputStyles.label}>{label}</Text>
         <View style={genderStyles.radioGroup}>
-            {(['Nam', 'Nữ'] as const).map((genderOption) => (
+            {(['Male', 'Female'] as const).map((genderOption) => (
                 <TouchableOpacity
                     key={genderOption}
                     style={genderStyles.radioButton}
@@ -77,53 +90,27 @@ const GenderInput: React.FC<GenderInputProps> = ({ label, value, onChange }) => 
     </View>
 );
 
-
-const DateInput = ({
-    label,
-    value,
-    onChangeDate
-}: { label: string, value: string, onChangeDate: (date: Date) => void }) => {
-
+const DateInput = ({ label, value, onChangeDate }: { label: string, value: string, onChangeDate: (date: Date) => void }) => {
     const [showPicker, setShowPicker] = useState(false);
     const initialDate = value ? new Date(value) : new Date();
 
     const onDateChange = (event: any, selectedDate?: Date) => {
-        if (Platform.OS === 'android') {
-            setShowPicker(false);
-        }
-
-        if (event.type === 'set' && selectedDate) {
-            onChangeDate(selectedDate);
-        }
-        if (event.type === 'dismissed') {
-            setShowPicker(false);
-        }
-    };
-    const handlePress = () => {
-        setShowPicker(true);
+        if (Platform.OS === 'android') setShowPicker(false);
+        if (event.type === 'set' && selectedDate) onChangeDate(selectedDate);
+        if (event.type === 'dismissed') setShowPicker(false);
     };
 
-
-    const displayValue = value || 'Chọn ngày sinh (YYYY-MM-DD)';
+    const displayValue = value || 'Select Date (YYYY-MM-DD)';
 
     return (
         <View style={inputStyles.wrapper}>
             <Text style={inputStyles.label}>{label}</Text>
-
-            <TouchableOpacity
-                onPress={handlePress}
-                style={stylesDate.dateInputContainer}
-                activeOpacity={0.7}
-            >
-                <Text style={[
-                    stylesDate.valueText,
-                    { color: value ? '#333' : '#888' }
-                ]}>
+            <TouchableOpacity onPress={() => setShowPicker(true)} style={stylesDate.dateInputContainer} activeOpacity={0.7}>
+                <Text style={[stylesDate.valueText, { color: value ? '#333' : '#888' }]}>
                     {displayValue}
                 </Text>
                 <Ionicons name="calendar-outline" size={24} color="#666" />
             </TouchableOpacity>
-
             {showPicker && (
                 <DateTimePicker
                     testID="dateTimePicker"
@@ -146,32 +133,48 @@ const UserScreen = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [modalVisible, setModalVisible] = useState(false);
+
     const [fullname, setFullname] = useState('');
     const [phone, setPhone] = useState('');
-    const [gender, setGender] = useState<'Nam' | 'Nữ'>('Nam');
+    const [gender, setGender] = useState<'Male' | 'Female'>('Male');
     const [dob, setDob] = useState(new Date());
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gestureState) => {
+                return gestureState.dy > 5;
+            },
+            onPanResponderRelease: (_, gestureState) => {
+                if (gestureState.dy > 100) {
+                    setModalVisible(false);
+                }
+            },
+        })
+    ).current;
 
     const formatDate = (date: Date) => {
         if (!date || isNaN(date.getTime())) return '';
         return date.toISOString().split('T')[0];
     };
 
-    // --- LOGIC TẢI DỮ LIỆU ---
     const fetchUserInfo = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
             const data = await loadUserInfo();
             setUserInfo(data);
+
             setFullname(data.fullname || '');
             setPhone(data.phone || '');
-            setGender(data.gender ? 'Nam' : 'Nữ');
-
+            setGender(data.gender === true ? 'Male' : 'Female');
             setDob(data.dob ? new Date(data.dob) : new Date());
 
         } catch (err: any) {
-            console.error('Lỗi tải thông tin:', err);
-            setError(err.message || 'Không thể tải thông tin người dùng.');
+            console.error('Error fetching info:', err);
+            setError(err.message || 'Cannot load user information.');
             setUserInfo(null);
         } finally {
             setLoading(false);
@@ -182,74 +185,176 @@ const UserScreen = () => {
         fetchUserInfo();
     }, [fetchUserInfo]);
 
-    const handleSaveChanges = () => {
-        const updatedData = {
-            fullname,
-            phone,
-            gender: gender === 'Nam',
-            dob: formatDate(dob),
-        };
 
-        Alert.alert('Chức năng', `Sẵn sàng gửi dữ liệu chỉnh sửa lên API: ${JSON.stringify(updatedData)}`);
-    };
-
-    // --- HÀM XỬ LÝ UPLOAD ẢNH MỚI (ĐÃ CẬP NHẬT) ---
-    const handleUploadProfilePicture = async () => {
-
-        // 1. GỌI IMAGE PICKER ĐỂ CHỌN ẢNH
-        const options: ImageLibraryOptions = {
-            mediaType: 'photo',
-            quality: 0.8,
-            selectionLimit: 1,
-        };
-
-        const response = await launchImageLibrary(options);
-
-        if (response.didCancel) {
-            console.log('User cancelled image picker');
-            return;
+    const displayAvatarSource = useMemo(() => {
+        if (userInfo?.profilepicture) {
+            return { uri: userInfo.profilepicture };
         }
-        if (response.errorCode) { // Dùng errorCode của RNImagePicker
-            Alert.alert('Lỗi', response.errorMessage || 'Lỗi khi chọn ảnh.');
-            return;
-        }
-
-        const asset = response.assets?.[0];
-
-        if (!asset || !asset.uri || !asset.type || !asset.fileName) {
-            Alert.alert('Lỗi', 'Không thể lấy thông tin file. Vui lòng thử lại.');
-            return;
-        }
-
-        // Đảm bảo URI là định dạng phù hợp cho iOS (loại bỏ 'file://' cho Android nếu cần)
-        const fileUri = Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri;
+        const isMale = gender === 'Male';
+        return isMale ? MEN_AVATARS[0] : WOMEN_AVATARS[0];
+    }, [userInfo, gender]);
 
 
-        // 2. GỌI API UPLOAD
+    const performUpload = async (uri: string, mimeType?: string, fileName?: string | null) => {
         setIsUploading(true);
         try {
-            const result = await uploadProfilePicture(
-                fileUri,
-                asset.type,
-                asset.fileName
-            );
+            const finalFileName = fileName || uri.split('/').pop() || 'avatar.jpg';
+            let finalMimeType = mimeType;
+            if (!finalMimeType) {
+                const match = /\.(\w+)$/.exec(finalFileName);
+                finalMimeType = match ? `image/${match[1]}` : `image/jpeg`;
+            }
 
-            setUserInfo(prev => prev ? { ...prev, profilepicture: result.url } : null);
+            console.log("Uploading...", { uri, finalMimeType, finalFileName });
 
-            Alert.alert('Thành công', 'Ảnh đại diện đã được cập nhật!');
+            const response = await uploadProfilePicture(uri, finalMimeType, finalFileName);
+
+            setUserInfo(prev => prev ? { ...prev, profilepicture: response.url } : null);
+            Alert.alert('Success', 'Profile picture updated successfully!');
 
         } catch (err: any) {
-            Alert.alert('Lỗi Upload', err.message || 'Không thể tải ảnh lên server.');
+            console.error("Upload error:", err);
+            Alert.alert('Upload Error', err.message || 'Cannot upload image to server.');
         } finally {
             setIsUploading(false);
         }
     };
 
+
+    const handleUploadFromLibrary = async () => {
+        setModalVisible(false);
+
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission Denied', 'Camera roll permissions are required to select an image.');
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            const asset = result.assets[0];
+            await performUpload(asset.uri, asset.mimeType, asset.fileName);
+        }
+    };
+
+    const handleSelectSystemAvatar = async (avatarSource: ImageSourcePropType) => {
+        setModalVisible(false);
+
+        try {
+            const assetSource = Image.resolveAssetSource(avatarSource);
+            const uri = assetSource.uri;
+
+            const fileName = `system_avatar_${Date.now()}.png`;
+            const mimeType = "image/png";
+
+            await performUpload(uri, mimeType, fileName);
+
+        } catch (error) {
+            console.error("Error processing system image:", error);
+            Alert.alert("Error", "Cannot use this image.");
+        }
+    };
+
+    const handleSaveChanges = async () => {
+        if (!userInfo || !userInfo.id) {
+            Alert.alert("Lỗi", "Không tìm thấy thông tin người dùng.");
+            return;
+        }
+
+        setIsSaving(true);
+
+        try {
+            const payload = {
+                fullname: fullname,
+                phone: phone,
+                gender: gender === 'Male',
+                dob: formatDate(dob),
+                profilepicture: userInfo.profilepicture || ""
+            };
+
+            console.log("Sending payload:", payload);
+
+            await updateUserInfo(userInfo.id, payload);
+
+            Alert.alert("Thành công", "Cập nhật thông tin thành công!");
+
+            await fetchUserInfo();
+
+        } catch (error: any) {
+            console.error("Save error:", error);
+            Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+
+    const renderAvatarSelectionModal = () => {
+        const currentSystemAvatars = gender === 'Male' ? MEN_AVATARS : WOMEN_AVATARS;
+
+        return (
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={modalVisible}
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+                    <View style={modalStyles.overlay}>
+                        <View
+                            style={modalStyles.contentContainer}
+                            {...panResponder.panHandlers}
+                        >
+                            <View style={modalStyles.headerIndicator} />
+
+                            <Text style={modalStyles.title}>Update Profile Picture</Text>
+                            <Text style={{ textAlign: 'center', color: '#888', marginBottom: 15, marginTop: -15, fontSize: 12 }}>
+                                (Swipe down to close)
+                            </Text>
+
+                            <TouchableOpacity style={modalStyles.optionButton} onPress={handleUploadFromLibrary}>
+                                <View style={modalStyles.optionIconContainer}>
+                                    <Ionicons name="images-outline" size={24} color={BLUE_COLOR} />
+                                </View>
+                                <View>
+                                    <Text style={modalStyles.optionText}>Upload from Library</Text>
+                                    <Text style={modalStyles.optionSubText}>Select photo from your device</Text>
+                                </View>
+                            </TouchableOpacity>
+
+                            <Text style={modalStyles.sectionTitle}>System Avatars ({gender})</Text>
+
+                            <FlatList
+                                data={currentSystemAvatars}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                keyExtractor={(_, index) => index.toString()}
+                                contentContainerStyle={{ paddingVertical: 10 }}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity onPress={() => handleSelectSystemAvatar(item)}>
+                                        <Image source={item} style={modalStyles.systemAvatarItem} />
+                                    </TouchableOpacity>
+                                )}
+                            />
+                            <View style={{ height: 20 }} />
+                        </View>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
+        );
+    };
+
     if (loading) {
         return (
             <View style={[styles.flexContainer, styles.center]}>
-                <ActivityIndicator size="large" color="#4285F4" />
-                <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+                <ActivityIndicator size="large" color={BLUE_COLOR} />
+                <Text style={styles.loadingText}>Loading info...</Text>
             </View>
         );
     }
@@ -257,9 +362,9 @@ const UserScreen = () => {
     if (error) {
         return (
             <View style={[styles.flexContainer, styles.center]}>
-                <Text style={styles.errorText}>Lỗi: {error}</Text>
+                <Text style={styles.errorText}>Error: {error}</Text>
                 <TouchableOpacity style={styles.retryButton} onPress={fetchUserInfo}>
-                    <Text style={styles.retryButtonText}>Thử lại</Text>
+                    <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -285,29 +390,26 @@ const UserScreen = () => {
                         }
                     ]}
                 >
-                    {/* Header */}
-                    {/* <View style={styles.header}>
-                        <Text style={styles.headerTitle}>Settings</Text>
-                        <Text style={styles.headerSubtitle}>
-                            {userInfo?.username ? `Hi, ${userInfo.username}` : 'Your Profile'}
-                        </Text>
-                    </View> */}
-
                     {/* Avatar Section */}
                     <View style={styles.avatarContainer}>
                         <Image
-                            source={{ uri: userInfo?.profilepicture || 'https://placehold.co/150x150/EEEEEE/333333?text=N/A' }}
+                            source={displayAvatarSource}
                             style={styles.avatar}
                         />
-                        <TouchableOpacity style={styles.editIconContainer} onPress={handleUploadProfilePicture} disabled={isUploading}>
+                        <TouchableOpacity
+                            style={styles.editIconContainer}
+                            onPress={() => setModalVisible(true)}
+                            disabled={isUploading}
+                        >
                             {isUploading ? (
                                 <ActivityIndicator size="small" color="#fff" />
                             ) : (
-                                <MaterialCommunityIcons name="pencil-circle" size={30} color="#4285F4" style={{ backgroundColor: '#fff', borderRadius: 15 }} />
+                                <AntDesign name="edit" size={20} color="#fff" />
                             )}
                         </TouchableOpacity>
                     </View>
 
+                    {/* Form Section */}
                     <View style={styles.inputSection}>
                         <CustomInput
                             label="Email"
@@ -324,8 +426,8 @@ const UserScreen = () => {
                             editable={false}
                         />
 
-                        <CustomInput label="Fullname" placeholder="Nhập Họ & Tên" value={fullname} onChangeText={setFullname} />
-                        <CustomInput label="Phone" placeholder="Nhập Số điện thoại" value={phone} onChangeText={setPhone} />
+                        <CustomInput label="Fullname" placeholder="Enter Full Name" value={fullname} onChangeText={setFullname} />
+                        <CustomInput label="Phone" placeholder="Enter Phone Number" value={phone} onChangeText={setPhone} />
 
                         <GenderInput label="Gender" value={gender} onChange={setGender} />
 
@@ -334,20 +436,100 @@ const UserScreen = () => {
 
                     <View style={styles.buttonWrapperScrolling}>
                         <TouchableOpacity
-                            style={styles.saveButton}
+                            style={[styles.saveButton, isSaving && { opacity: 0.7 }]}
                             onPress={handleSaveChanges}
+                            disabled={isSaving}
                         >
-                            <Text style={styles.saveButtonText}>Save Changes</Text>
+                            {isSaving ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={styles.saveButtonText}>Save Changes</Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {renderAvatarSelectionModal()}
 
         </View>
     );
 }
 
 export default UserScreen;
+
+const modalStyles = StyleSheet.create({
+    overlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    contentContainer: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        minHeight: 300,
+        paddingBottom: 40,
+    },
+    headerIndicator: {
+        width: 40,
+        height: 5,
+        backgroundColor: '#ccc',
+        borderRadius: 3,
+        alignSelf: 'center',
+        marginBottom: 15,
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    optionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 15,
+        borderWidth: 1,
+        borderColor: '#eee',
+        borderRadius: 12,
+        marginBottom: 20,
+    },
+    optionIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#EBF5FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 15,
+    },
+    optionText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+    },
+    optionSubText: {
+        fontSize: 12,
+        color: '#888',
+        marginTop: 2,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
+    },
+    systemAvatarItem: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        marginRight: 15,
+        borderWidth: 1,
+        borderColor: '#eee',
+    }
+});
 
 const stylesDate = StyleSheet.create({
     dateInputContainer: {
@@ -360,177 +542,53 @@ const stylesDate = StyleSheet.create({
         paddingHorizontal: 15,
         marginBottom: 15,
     },
-    valueText: {
-        fontSize: 16,
-        flex: 1,
-    }
+    valueText: { fontSize: 16, flex: 1 }
 });
 
 const genderStyles = StyleSheet.create({
-    radioGroup: {
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
-        marginTop: 5,
-    },
-    radioButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginRight: 20,
-        paddingVertical: 5,
-    },
-    radioOuter: {
-        height: 24,
-        width: 24,
-        borderRadius: 12,
-        borderWidth: 2,
-        borderColor: '#4285F4',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 8,
-    },
-    radioInner: {
-        height: 12,
-        width: 12,
-        borderRadius: 6,
-        backgroundColor: '#4285F4',
-    },
-    radioText: {
-        fontSize: 16,
-        color: '#333',
-    },
+    radioGroup: { flexDirection: 'row', justifyContent: 'flex-start', marginTop: 5 },
+    radioButton: { flexDirection: 'row', alignItems: 'center', marginRight: 20, paddingVertical: 5 },
+    radioOuter: { height: 24, width: 24, borderRadius: 12, borderWidth: 2, borderColor: BLUE_COLOR, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+    radioInner: { height: 12, width: 12, borderRadius: 6, backgroundColor: BLUE_COLOR },
+    radioText: { fontSize: 16, color: '#333' },
 });
 
 const inputStyles = StyleSheet.create({
-    wrapper: {
-        marginBottom: 15,
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 5,
-        marginLeft: 5,
-    },
-    container: {
-        backgroundColor: '#f5f5f5',
-        borderRadius: 10,
-        height: 50,
-        justifyContent: 'center',
-        paddingHorizontal: 15,
-    },
-    disabledContainer: {
-        backgroundColor: '#e9e9e9',
-    }, // Màu nền cho trường bị khóa
-    textInput: {
-        fontSize: 16,
-        color: '#333',
-        flex: 1,
-        paddingVertical: 0,
-    },
+    wrapper: { marginBottom: 15 },
+    label: { fontSize: 14, fontWeight: 'bold', color: '#333', marginBottom: 5, marginLeft: 5 },
+    container: { backgroundColor: '#f5f5f5', borderRadius: 10, height: 50, justifyContent: 'center', paddingHorizontal: 15 },
+    disabledContainer: { backgroundColor: '#e9e9e9' },
+    textInput: { fontSize: 16, color: '#333', flex: 1, paddingVertical: 0 },
 });
 
 const styles = StyleSheet.create({
-    flexContainer: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
-    center: {
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    loadingText: {
-        marginTop: 10,
-        fontSize: 16,
-        color: '#4285F4'
-    },
-    errorText: {
-        marginTop: 10,
-        fontSize: 16,
-        color: '#D32F2F',
-        textAlign: 'center',
-        marginHorizontal: 30
-    },
-    retryButton: {
-        marginTop: 15,
-        backgroundColor: '#4285F4',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 8
-    },
-    retryButtonText: {
-        color: '#fff',
-        fontWeight: 'bold'
-    },
-    scrollView: {
-        flex: 1,
-    },
-    contentContainer: {
-        paddingHorizontal: 20,
-    },
-    header: {
-        marginBottom: 30,
-    },
-    headerTitle: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    headerSubtitle: {
-        fontSize: 16,
-        color: '#888',
-        marginTop: 5,
-    },
-    avatarContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 40,
-        position: 'relative',
-        alignSelf: 'center',
-    },
-    avatar: {
-        width: 200,
-        height: 200,
-        borderRadius: 50,
-        borderWidth: 3,
-        borderColor: '#eee',
-        backgroundColor: '#f0f0f0', // Thêm màu nền để tránh lỗi loading ảnh
-    },
+    flexContainer: { flex: 1, backgroundColor: '#fff' },
+    center: { justifyContent: 'center', alignItems: 'center' },
+    loadingText: { marginTop: 10, fontSize: 16, color: BLUE_COLOR },
+    errorText: { marginTop: 10, fontSize: 16, color: '#D32F2F', textAlign: 'center', marginHorizontal: 30 },
+    retryButton: { marginTop: 15, backgroundColor: BLUE_COLOR, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+    retryButtonText: { color: '#fff', fontWeight: 'bold' },
+    scrollView: { flex: 1 },
+    contentContainer: { paddingHorizontal: 20 },
+    avatarContainer: { alignItems: 'center', justifyContent: 'center', marginBottom: 40, position: 'relative', alignSelf: 'center' },
+    avatar: { width: 200, height: 200, borderRadius: 100, borderWidth: 3, borderColor: '#eee', backgroundColor: '#f0f0f0' },
     editIconContainer: {
         position: 'absolute',
         bottom: 0,
-        right: -5,
-        backgroundColor: 'transparent', // Giữ trong suốt vì icon đã có nền trắng
-        borderRadius: 15,
-        width: 30,
-        height: 30,
+        right: 0,
+        backgroundColor: BLUE_COLOR,
+        borderRadius: 20,
+        width: 40,
+        height: 40,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: 3,
         borderColor: '#fff',
+        elevation: 3,
+        zIndex: 1
     },
-    editIcon: {
-        fontSize: 16,
-        lineHeight: 20,
-        color: '#fff',
-    },
-    inputSection: {
-        width: '100%',
-        marginBottom: 30,
-    },
-
-    buttonWrapperScrolling: {
-        paddingTop: 30,
-        paddingBottom: 20,
-    },
-    saveButton: {
-        backgroundColor: '#4285F4',
-        paddingVertical: 15,
-        borderRadius: 10,
-        width: '100%',
-        alignItems: 'center',
-    },
-    saveButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
+    inputSection: { width: '100%', marginBottom: 30 },
+    buttonWrapperScrolling: { paddingTop: 30, paddingBottom: 20 },
+    saveButton: { backgroundColor: BLUE_COLOR, paddingVertical: 15, borderRadius: 10, width: '100%', alignItems: 'center' },
+    saveButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
 });

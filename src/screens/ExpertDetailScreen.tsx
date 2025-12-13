@@ -13,17 +13,16 @@ import {
     ImageSourcePropType,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient'; // Import LinearGradient
+import { Ionicons, Feather, FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { ExpertInfo } from '../types/dataModels';
 import { getExpertById } from '../api/expertApi';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-const { width } = Dimensions.get('window');
-
-const defaultAvatar = require('../assets/avatar-default.png');
+const DEFAULT_MAN_AVATAR = require('../assets/avatar/men/men.png');
+const DEFAULT_WOMAN_AVATAR = require('../assets/avatar/women/women.png');
 
 type ExpertDetailScreenProps = NativeStackScreenProps<RootStackParamList, 'ExpertDetailScreen'>;
 
@@ -90,8 +89,6 @@ const ExpertDetailScreen: React.FC<ExpertDetailScreenProps> = ({ route, navigati
     }
 
     const expert = expertData;
-    const skills = expert.specialization.split(' | ').map(s => s.trim());
-    const servicesSummary = expert.specialization.split(' | ').join(' • ');
 
     const displayName = expert.idNavigation?.fullname || expert.nickname;
 
@@ -102,11 +99,16 @@ const ExpertDetailScreen: React.FC<ExpertDetailScreenProps> = ({ route, navigati
         pronounText = gender === true ? '(He/Him)' : '(She/Her)';
     }
 
-    const profileImageSource: ImageSourcePropType =
-        (expert.profilePicture && { uri: expert.profilePicture }) ||
-        (expert.idNavigation?.profilepicture && { uri: expert.idNavigation.profilepicture }) ||
-        defaultAvatar;
+    let profileImageSource: ImageSourcePropType;
 
+    if (expert.profilePicture) {
+        profileImageSource = { uri: expert.profilePicture };
+    } else if (expert.idNavigation?.profilepicture) {
+        profileImageSource = { uri: expert.idNavigation.profilepicture };
+    } else {
+        const isMale = gender === true;
+        profileImageSource = isMale ? DEFAULT_MAN_AVATAR : DEFAULT_WOMAN_AVATAR;
+    }
 
     const fullBioText = `${expert.bio}`;
     const fullServicesText = `${expert.introduction}`;

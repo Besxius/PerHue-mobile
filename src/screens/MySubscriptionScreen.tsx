@@ -348,10 +348,10 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     activeButton: {
-        backgroundColor: '#3B82F6', // Blue for Active
+        backgroundColor: '#3B82F6',
     },
     expiredButton: {
-        backgroundColor: 'red', // Red for Expired
+        backgroundColor: 'red',
     },
     statusButtonText: {
         color: 'white',
