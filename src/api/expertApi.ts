@@ -149,6 +149,23 @@ export const getReviewRequests = async (): Promise<ReviewTestRequest[]> => {
     }
 };
 
+export const getReviewRequestById = async (testRequestId: number): Promise<ReviewTestRequest> => {
+    const url = `${EXPERT_ENDPOINT}/review-requests/${testRequestId}`;
+
+    try {
+        const response = await apiClient.get<ReviewTestRequest>(url);
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error(`Error fetching review request for ID ${testRequestId}:`, error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || `Failed to fetch review request ${testRequestId}.`);
+        } else {
+            console.error(`An unexpected error occurred while fetching review request ${testRequestId}:`, error);
+            throw new Error('An unexpected error occurred.');
+        }
+    }
+};
+
 export const sendVoteForReview = async (data: VoteForReviewRequest): Promise<ExpertTestResponse> => {
     const url = `${EXPERT_ENDPOINT}/vote`;
 
@@ -193,7 +210,6 @@ export const getExpertSalary = async (
     const queryParams: string[] = [];
 
     if (startDate) {
-        // Chuyển đổi Date sang ISO String (YYYY-MM-DDTHH:mm:ss.sssZ) chuẩn Date Time
         queryParams.push(`startDate=${encodeURIComponent(startDate.toISOString())}`);
     }
 

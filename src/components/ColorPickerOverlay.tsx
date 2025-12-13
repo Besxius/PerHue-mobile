@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, PanResponder, Dimensions, Animated, TouchableOpacity, Alert } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // 👈 THÊM DÒNG NÀY
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
     Canvas,
     Image as SkiaImage,
@@ -9,10 +9,8 @@ import {
 } from '@shopify/react-native-skia';
 import { Entypo, Ionicons } from '@expo/vector-icons';
 
-// Kích thước cố định cho Skia Canvas (nên full screen)
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Khai báo kiểu cho các ô màu được chọn
 export type AttributeColor = 'Skin' | 'Hair' | 'Eyes' | 'Lips';
 export type SelectedColors = Record<AttributeColor, { name: string, hex: string }>;
 
@@ -30,22 +28,17 @@ export const DEFAULT_SELECTED_COLORS: SelectedColors = {
     Eyes: { name: 'Eyes', hex: DEFAULT_COLOR_HEX },
     Lips: { name: 'Lips', hex: DEFAULT_COLOR_HEX },
 };
-// Kích thước vòng chọn màu (Eyedropper)
 const PICKER_SIZE = 60;
 const PICKER_RADIUS = PICKER_SIZE / 2;
-// Tọa độ ban đầu (ở giữa màn hình) - Đây là TỌA ĐỘ TÂM (Center)
 const INITIAL_X = screenWidth / 2;
 const INITIAL_Y = screenHeight / 2;
 
 const ColorPickerOverlay: React.FC<ColorPickerOverlayProps> = ({ imageUri, onClose, onDone, initialColors }) => {
-    // 🌟 SỬ DỤNG useSafeAreaInsets
     const insets = useSafeAreaInsets();
 
-    // 1. SKIA Image Loading and Reference
     const loadedSkiaImage = useImage(imageUri);
     const canvasRef = useCanvasRef();
 
-    // 2. State for Color Picker Tool
     const [selectedColors, setSelectedColors] = useState<SelectedColors>(DEFAULT_SELECTED_COLORS);
     const [activeAttribute, setActiveAttribute] = useState<AttributeColor>('Skin');
     const [currentPixelHex, setCurrentPixelHex] = useState<string>('#FFFFFF');
@@ -68,14 +61,11 @@ const ColorPickerOverlay: React.FC<ColorPickerOverlayProps> = ({ imageUri, onClo
         }
     }, [initialColors]);
 
-    // 3. Animated Values for Picker Position (controlled by PanResponder)
     const pickerTranslateX = useRef(new Animated.Value(INITIAL_X)).current;
     const pickerTranslateY = useRef(new Animated.Value(INITIAL_Y)).current;
 
-    // Ref lưu trữ vị trí tuyệt đối hiện tại của TÂM vòng chọn (dạng số thường)
     const currentPositionRef = useRef({ x: INITIAL_X, y: INITIAL_Y });
 
-    // Ref lưu trữ vị trí tâm vòng chọn khi bắt đầu kéo
     const initialTouchPosRef = useRef({ x: INITIAL_X, y: INITIAL_Y });
 
     // 3.1. Animated Listener để cập nhật Ref

@@ -86,11 +86,9 @@ const VerifyExpertScreen: React.FC = () => {
     const navigation = useNavigation();
     const currentUser = useCurrentUser();
 
-    // --- State kiểm tra trạng thái Pending ---
     const [isCheckingStatus, setIsCheckingStatus] = useState(true);
     const [hasPendingRequest, setHasPendingRequest] = useState(false);
 
-    // --- Form State ---
     const [nickname, setNickname] = useState('');
     const [specialization, setSpecialization] = useState('');
     const [bio, setBio] = useState('');
@@ -115,7 +113,6 @@ const VerifyExpertScreen: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
 
-    // --- Effect: Kiểm tra trạng thái Pending khi vào màn hình ---
     useEffect(() => {
         const verifyStatus = async () => {
             setIsCheckingStatus(true);
@@ -220,10 +217,8 @@ const VerifyExpertScreen: React.FC = () => {
 
     const handleCloseModal = () => {
         setIsSuccessModalVisible(false);
-        navigation.goBack(); // Quay lại sau khi đóng modal thành công
+        navigation.goBack();
     };
-
-    // --- Render Logic ---
 
     // 1. Hiển thị Loading khi đang kiểm tra trạng thái
     if (isCheckingStatus) {

@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { AiTestResponse, ExpertTestDetailResponse, ExpertTestResponse, ManualTestResult, ReportPayload, ReportResponse, UserInfo, UserSubscriptionInformation, VerificationPayload } from '../types/dataModels';
-import apiClient, { setAuthToken } from './apiClient';
+import { AiTestResponse, ExpertTestDetailResponse, ExpertTestResponse, ManualTestResult, ReportPayload, ReportResponse, UpdateUserPayload, UserInfo, UserSubscriptionInformation, VerificationPayload } from '../types/dataModels';
+import apiClient from './apiClient';
 
 const USER_ENDPOINT = '/users';
 const TEST_INFO_ENDPOINT = '/testinformation';
@@ -31,6 +31,16 @@ export const loadUserInfo = async (): Promise<UserInfo> => {
 
         console.error('Lỗi khi tải User Info:', error);
         throw new Error(errorMessage);
+    }
+};
+
+export const updateUserInfo = async (id: number, data: UpdateUserPayload) => {
+    try {
+        const response = await apiClient.put(`/users/${id}`, data);
+        return response.data;
+    } catch (error) {
+        console.error("Lỗi khi cập nhật thông tin user:", error);
+        throw error;
     }
 };
 
@@ -281,6 +291,28 @@ export const rateExpertTest = async (
             console.error('An unexpected error occurred while submitting expert test rating:', error);
             throw new Error('An unexpected error occurred.');
         }
+    }
+};
+
+export const sendReviewRequest = async (testRequestId: number): Promise<void> => {
+    const url = `/testresults/request-review/${testRequestId}`;
+
+    try {
+        await apiClient.post(url);
+        console.log(`Đã gửi yêu cầu review cho Test Request ID: ${testRequestId}`);
+
+    } catch (error) {
+        let errorMessage = 'Failed to send review request.';
+
+        if (axios.isAxiosError(error)) {
+            console.error(`Error sending review request for ID ${testRequestId}:`, error.response?.data || error.message);
+            errorMessage = error.response?.data?.message || error.message;
+        } else if (error instanceof Error) {
+            console.error(`An unexpected error occurred while sending review request for ID ${testRequestId}:`, error);
+            errorMessage = error.message;
+        }
+
+        throw new Error(errorMessage);
     }
 };
 

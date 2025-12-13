@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     Alert,
     Platform,
+    KeyboardAvoidingView,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -164,21 +165,31 @@ const HelpAndSupportScreen: FC<HelpAndSupportScreenProps> = ({ navigation }) => 
 
     return (
         <View style={[styles.container, { paddingTop: insets.top - 20 }]}>
-            <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.contentContainer}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
 
-                <View style={styles.faqSection}>
-                    <Text style={styles.sectionHeading}>Frequently Asked Questions (FAQ)</Text>
-                    {FAQ_DATA.map((item) => (
-                        <FAQItem key={item.id} item={item} />
-                    ))}
-                </View>
+                    <View style={styles.faqSection}>
+                        <Text style={styles.sectionHeading}>Frequently Asked Questions (FAQ)</Text>
+                        {FAQ_DATA.map((item) => (
+                            <FAQItem key={item.id} item={item} />
+                        ))}
+                    </View>
 
-                <View style={styles.divider} />
-                <ReportForm />
+                    <View style={styles.divider} />
+                    <ReportForm />
 
-                <View style={{ height: insets.bottom + 20 }} />
+                    <View style={{ height: insets.bottom + 20 }} />
 
-            </ScrollView>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 };
@@ -259,7 +270,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         padding: 15,
         borderRadius: 10,
-        marginBottom: 10,
+        marginBottom: 50,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,

@@ -5,7 +5,8 @@ import { JwtPayload, LoginResponseData } from '../types/dataModels';
 import { jwtDecode } from 'jwt-decode';
 
 const HOST_LAN_IP = '192.168.1.10';
-const AZURE_HOST = 'https://perhue16-b4hadyg9c5avfsa5.southeastasia-01.azurewebsites.net';
+// const AZURE_HOST = 'https://perhue16-b4hadyg9c5avfsa5.southeastasia-01.azurewebsites.net';
+const AZURE_HOST = 'https://api.perhue.dpdns.org';
 const HTTP_PORT = '5009';
 // const HTTP_PORT = '7092';
 const LOCAL_HOST = (Platform.OS === 'android' && __DEV__) ? '10.0.2.2' : HOST_LAN_IP;
@@ -27,7 +28,7 @@ export const apiClient: AxiosInstance = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    // timeout: 10000, 
+    timeout: 100000,
 });
 
 export const setAuthToken = async (token: string | null): Promise<void> => {

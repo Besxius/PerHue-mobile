@@ -62,16 +62,13 @@ export const aiColorTest = async (
         throw new Error("Image file information is incomplete or invalid for FaceImages.");
     }
 
-    // 4. Thêm các trường dữ liệu khác
     formData.append('HairColor', hairColor);
     formData.append('EyesColor', eyesColor);
     formData.append('LipsColor', lipsColor);
     formData.append('SkinColor', skinColor);
 
-    // 5. Gọi API sử dụng apiClient
     try {
         const response = await apiClient.post<AiColorTestResponse>(url, formData, {
-            // Đảm bảo Content-Type là 'multipart/form-data'
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -79,7 +76,6 @@ export const aiColorTest = async (
 
         return response.data;
     } catch (error) {
-        // Xử lý lỗi từ việc gọi API
         console.error("Error in calling AI Color Test API:", error);
         throw new Error("Error in calling AI Color Test API.");
     }
@@ -111,16 +107,13 @@ export const expertColorTest = async (
         throw new Error("Image file information is incomplete or invalid for FaceImages.");
     }
 
-    // 4. Thêm các trường dữ liệu khác
     formData.append('HairColor', hairColor);
     formData.append('EyesColor', eyesColor);
     formData.append('LipsColor', lipsColor);
     formData.append('SkinColor', skinColor);
 
-    // 5. Gọi API sử dụng apiClient
     try {
         const response = await apiClient.post<string>(url, formData, {
-            // Đảm bảo Content-Type là 'multipart/form-data'
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -128,7 +121,6 @@ export const expertColorTest = async (
 
         return response.data;
     } catch (error) {
-        // Xử lý lỗi từ việc gọi API
         console.error("Error in calling AI Color Test API:", error);
         throw new Error("Error in calling AI Color Test API.");
     }

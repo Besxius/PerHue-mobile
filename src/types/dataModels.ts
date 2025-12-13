@@ -61,6 +61,14 @@ export type UserInfo = {
     role: RoleInfo;
 };
 
+export interface UpdateUserPayload {
+    fullname: string;
+    phone: string;
+    gender: boolean;
+    dob: string;
+    profilepicture: string;
+}
+
 export interface ExpertInfo {
     id: number;
     nickname: string;
@@ -258,6 +266,7 @@ export interface ExpertTestResponse {
 export interface ExpertTestDetailResponse {
     testRequest: ExpertRequest;
     responses: ExpertTestResponse[];
+    responsesSimilarityScore?: number | null;
 }
 
 export interface ReviewTestRequest {
