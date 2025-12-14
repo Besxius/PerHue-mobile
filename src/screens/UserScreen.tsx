@@ -10,8 +10,7 @@ import {
     KeyboardAvoidingView,
     ScrollView,
     Image,
-    Alert,
-    ActivityIndicator,
+    ActivityIndicator, // Đã xóa Alert khỏi import
     Modal,
     FlatList,
     TouchableWithoutFeedback,
@@ -22,10 +21,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Ionicons, AntDesign } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import { Asset } from 'expo-asset';
+import Toast from 'react-native-toast-message'; // 1. Import Toast
 
 import { UserInfo } from '../types/dataModels';
 import { loadUserInfo, updateUserInfo, uploadProfilePicture } from '../api/userApi';
 
+// --- ASSETS ---
 const MEN_AVATARS = [
     require('../assets/avatar/men/men.png'),
     require('../assets/avatar/men/men2.png'),
@@ -39,6 +41,8 @@ const WOMEN_AVATARS = [
 ];
 
 const BLUE_COLOR = '#4285F4';
+
+// --- COMPONENTS CON ---
 
 interface InputProps {
     label: string;
@@ -144,13 +148,9 @@ const UserScreen = () => {
     const panResponder = useRef(
         PanResponder.create({
             onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: (_, gestureState) => {
-                return gestureState.dy > 5;
-            },
+            onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 5,
             onPanResponderRelease: (_, gestureState) => {
-                if (gestureState.dy > 100) {
-                    setModalVisible(false);
-                }
+                if (gestureState.dy > 100) setModalVisible(false);
             },
         })
     ).current;
@@ -185,7 +185,6 @@ const UserScreen = () => {
         fetchUserInfo();
     }, [fetchUserInfo]);
 
-
     const displayAvatarSource = useMemo(() => {
         if (userInfo?.profilepicture) {
             return { uri: userInfo.profilepicture };
@@ -194,39 +193,59 @@ const UserScreen = () => {
         return isMale ? MEN_AVATARS[0] : WOMEN_AVATARS[0];
     }, [userInfo, gender]);
 
-
     const performUpload = async (uri: string, mimeType?: string, fileName?: string | null) => {
         setIsUploading(true);
         try {
             const finalFileName = fileName || uri.split('/').pop() || 'avatar.jpg';
             let finalMimeType = mimeType;
+
             if (!finalMimeType) {
                 const match = /\.(\w+)$/.exec(finalFileName);
-                finalMimeType = match ? `image/${match[1]}` : `image/jpeg`;
+                const ext = match ? match[1].toLowerCase() : 'jpg';
+                if (ext === 'png') finalMimeType = 'image/png';
+                else if (ext === 'jpg' || ext === 'jpeg') finalMimeType = 'image/jpeg';
+                else finalMimeType = 'image/jpeg';
             }
 
-            console.log("Uploading...", { uri, finalMimeType, finalFileName });
+            let finalUri = uri;
+            if (Platform.OS === 'android' && !finalUri.startsWith('file://')) {
+                finalUri = `file://${finalUri}`;
+            }
 
-            const response = await uploadProfilePicture(uri, finalMimeType, finalFileName);
+            console.log("Uploading file:", { finalUri, finalMimeType, finalFileName });
+
+            const response = await uploadProfilePicture(finalUri, finalMimeType, finalFileName);
 
             setUserInfo(prev => prev ? { ...prev, profilepicture: response.url } : null);
-            Alert.alert('Success', 'Profile picture updated successfully!');
+
+            Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: 'Profile picture updated successfully!'
+            });
 
         } catch (err: any) {
             console.error("Upload error:", err);
-            Alert.alert('Upload Error', err.message || 'Cannot upload image to server.');
+            Toast.show({
+                type: 'error',
+                text1: 'Upload Error',
+                text2: err.message || 'Cannot upload image to server.'
+            });
         } finally {
             setIsUploading(false);
         }
     };
-
 
     const handleUploadFromLibrary = async () => {
         setModalVisible(false);
 
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'Camera roll permissions are required to select an image.');
+            Toast.show({
+                type: 'error',
+                text1: 'Permission Denied',
+                text2: 'Camera roll permissions are required.'
+            });
             return;
         }
 
@@ -245,25 +264,40 @@ const UserScreen = () => {
 
     const handleSelectSystemAvatar = async (avatarSource: ImageSourcePropType) => {
         setModalVisible(false);
+        setIsUploading(true);
 
         try {
-            const assetSource = Image.resolveAssetSource(avatarSource);
-            const uri = assetSource.uri;
+            const asset = Asset.fromModule(avatarSource as any);
+            await asset.downloadAsync();
 
-            const fileName = `system_avatar_${Date.now()}.png`;
+            if (!asset.localUri) {
+                throw new Error("Failed to download system asset.");
+            }
+
+            const timestamp = new Date().getTime();
+            const fileName = `system_avatar_${timestamp}.png`;
             const mimeType = "image/png";
 
-            await performUpload(uri, mimeType, fileName);
+            await performUpload(asset.localUri, mimeType, fileName);
 
         } catch (error) {
             console.error("Error processing system image:", error);
-            Alert.alert("Error", "Cannot use this image.");
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Cannot process this system image.'
+            });
+            setIsUploading(false);
         }
     };
 
     const handleSaveChanges = async () => {
         if (!userInfo || !userInfo.id) {
-            Alert.alert("Lỗi", "Không tìm thấy thông tin người dùng.");
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'User information not found.'
+            });
             return;
         }
 
@@ -282,18 +316,25 @@ const UserScreen = () => {
 
             await updateUserInfo(userInfo.id, payload);
 
-            Alert.alert("Thành công", "Cập nhật thông tin thành công!");
+            Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: 'Information updated successfully!'
+            });
 
             await fetchUserInfo();
 
         } catch (error: any) {
             console.error("Save error:", error);
-            Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin.");
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: error.message || "Cannot update information."
+            });
         } finally {
             setIsSaving(false);
         }
     };
-
 
     const renderAvatarSelectionModal = () => {
         const currentSystemAvatars = gender === 'Male' ? MEN_AVATARS : WOMEN_AVATARS;
@@ -307,16 +348,10 @@ const UserScreen = () => {
             >
                 <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
                     <View style={modalStyles.overlay}>
-                        <View
-                            style={modalStyles.contentContainer}
-                            {...panResponder.panHandlers}
-                        >
+                        <View style={modalStyles.contentContainer} {...panResponder.panHandlers}>
                             <View style={modalStyles.headerIndicator} />
-
                             <Text style={modalStyles.title}>Update Profile Picture</Text>
-                            <Text style={{ textAlign: 'center', color: '#888', marginBottom: 15, marginTop: -15, fontSize: 12 }}>
-                                (Swipe down to close)
-                            </Text>
+                            <Text style={modalStyles.swipeText}>(Swipe down to close)</Text>
 
                             <TouchableOpacity style={modalStyles.optionButton} onPress={handleUploadFromLibrary}>
                                 <View style={modalStyles.optionIconContainer}>
@@ -392,10 +427,7 @@ const UserScreen = () => {
                 >
                     {/* Avatar Section */}
                     <View style={styles.avatarContainer}>
-                        <Image
-                            source={displayAvatarSource}
-                            style={styles.avatar}
-                        />
+                        <Image source={displayAvatarSource} style={styles.avatar} />
                         <TouchableOpacity
                             style={styles.editIconContainer}
                             onPress={() => setModalVisible(true)}
@@ -486,6 +518,13 @@ const modalStyles = StyleSheet.create({
         color: '#333',
         marginBottom: 20,
         textAlign: 'center',
+    },
+    swipeText: {
+        textAlign: 'center',
+        color: '#888',
+        marginBottom: 15,
+        marginTop: -15,
+        fontSize: 12
     },
     optionButton: {
         flexDirection: 'row',
