@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -7,7 +7,8 @@ import {
     ScrollView,
     ActivityIndicator,
     TouchableOpacity,
-    Linking
+    Linking,
+    ImageSourcePropType
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -17,6 +18,9 @@ import { getExpertInformation } from '../api/expertApi';
 import { ExpertInfo } from '../types/dataModels';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MyExpertInformationScreen'>;
+
+const DEFAULT_MAN_AVATAR = require('../assets/avatar/men/men.png');
+const DEFAULT_WOMAN_AVATAR = require('../assets/avatar/women/women.png');
 
 const MyExpertInformationScreen: React.FC<Props> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
@@ -46,6 +50,20 @@ const MyExpertInformationScreen: React.FC<Props> = ({ navigation }) => {
             Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
         }
     };
+
+    const avatarSource: ImageSourcePropType = useMemo(() => {
+        if (!expertInfo) return DEFAULT_MAN_AVATAR;
+
+        if (expertInfo.profilePicture) {
+            return { uri: expertInfo.profilePicture };
+        }
+        if (expertInfo.idNavigation?.profilepicture) {
+            return { uri: expertInfo.idNavigation.profilepicture };
+        }
+
+        const isMale = expertInfo.idNavigation?.gender === true;
+        return isMale ? DEFAULT_MAN_AVATAR : DEFAULT_WOMAN_AVATAR;
+    }, [expertInfo]);
 
     if (isLoading) {
         return (
@@ -82,7 +100,7 @@ const MyExpertInformationScreen: React.FC<Props> = ({ navigation }) => {
                 {/* Profile Header */}
                 <View style={styles.profileHeader}>
                     <Image
-                        source={{ uri: expertInfo.profilePicture || expertInfo.idNavigation?.profilepicture || 'https://via.placeholder.com/150' }}
+                        source={avatarSource}
                         style={styles.avatar}
                     />
                     <Text style={styles.name}>{expertInfo.nickname || expertInfo.idNavigation?.fullname}</Text>
