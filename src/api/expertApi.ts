@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { CreateResponseRequest, ExpertInfo, ExpertRequest, ExpertRequestDetailResponse, ExpertRequestHistoryItem, ExpertSalaryResponse, ExpertTestResponse, ReviewTestRequest, UpdateResponsePayload, UserInfo, VoteForReviewRequest } from '../types/dataModels';
+import { CreateResponseRequest, ExpertCompletedRequest, ExpertInfo, ExpertRequest, ExpertRequestDetailResponse, ExpertRequestHistoryItem, ExpertSalaryResponse, ExpertTestResponse, ReviewTestRequest, UpdateResponsePayload, VoteForReviewRequest } from '../types/dataModels';
 import apiClient from './apiClient';
 
 const EXPERT_ENDPOINT = '/experts';
@@ -53,24 +53,6 @@ export const getExpertInformation = async (): Promise<ExpertInfo> => {
     }
 };
 
-export const getRequests = async (): Promise<ExpertRequest[]> => {
-    const url = `${EXPERT_ENDPOINT}/requests`;
-
-    try {
-        const response = await apiClient.get<ExpertRequest[]>(url);
-
-        return response.data;
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            console.error('Error fetching expert requests list:', error.response?.data || error.message);
-            throw new Error(error.response?.data?.message || 'Failed to fetch expert requests.');
-        } else {
-            console.error('An unexpected error occurred while fetching expert requests:', error);
-            throw new Error('An unexpected error occurred.');
-        }
-    }
-};
-
 export const getRequestById = async (id: number): Promise<ExpertRequestDetailResponse> => {
     const url = `${EXPERT_ENDPOINT}/requests/${id}`;
 
@@ -89,32 +71,8 @@ export const getRequestById = async (id: number): Promise<ExpertRequestDetailRes
     }
 };
 
-export const updateExpertResponse = async (
-    id: number,
-    data: UpdateResponsePayload
-): Promise<ExpertTestResponse> => {
-
-    const url = `${EXPERT_ENDPOINT}/requests/${id}`;
-
-    try {
-        console.log(url)
-        console.log(data)
-        const response = await apiClient.put<ExpertTestResponse>(url, data);
-
-        return response.data;
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            console.error(`Error submitting expert response for ID ${id}:`, error.response?.data || error.message);
-            throw new Error(error.response?.data?.message || `Failed to submit response for request ID ${id}.`);
-        } else {
-            console.error(`An unexpected error occurred while submitting expert response for ID ${id}:`, error);
-            throw new Error('An unexpected error occurred.');
-        }
-    }
-};
-
 export const createResponse = async (data: CreateResponseRequest): Promise<ExpertTestResponse> => {
-    const url = `${EXPERT_ENDPOINT}/respond`;
+    const url = `${EXPERT_ENDPOINT}/requests/respond`;
 
     try {
         const response = await apiClient.post<ExpertTestResponse>(url, data);
@@ -130,27 +88,104 @@ export const createResponse = async (data: CreateResponseRequest): Promise<Exper
         }
     }
 };
+export const updateExpertResponse = async (
+    testRequestId: number,
+    data: UpdateResponsePayload
+): Promise<ExpertTestResponse> => {
 
-export const getReviewRequests = async (): Promise<ReviewTestRequest[]> => {
-    const url = `${EXPERT_ENDPOINT}/review-requests`;
+    const url = `${EXPERT_ENDPOINT}/requests/respond/${testRequestId}`;
 
     try {
-        const response = await apiClient.get<ReviewTestRequest[]>(url);
+        console.log(url)
+        console.log(data)
+        const response = await apiClient.put<ExpertTestResponse>(url, data);
 
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {
-            console.error('Error fetching review requests:', error.response?.data || error.message);
-            throw new Error(error.response?.data?.message || 'Failed to fetch review requests.');
+            console.error(`Error submitting expert response for ID ${testRequestId}:`, error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || `Failed to submit response for request ID ${testRequestId}.`);
         } else {
-            console.error('An unexpected error occurred while fetching review requests:', error);
+            console.error(`An unexpected error occurred while submitting expert response for ID ${testRequestId}:`, error);
             throw new Error('An unexpected error occurred.');
         }
     }
 };
 
+export const getExpertPendingRequests = async (): Promise<ExpertRequest[]> => {
+    const url = `${EXPERT_ENDPOINT}/requests/pending`;
+
+    try {
+        const response = await apiClient.get<ExpertRequest[]>(url);
+
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('Error fetching expert requests list:', error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || 'Failed to fetch expert requests.');
+        } else {
+            console.error('An unexpected error occurred while fetching expert requests:', error);
+            throw new Error('An unexpected error occurred.');
+        }
+    }
+};
+
+export const getExpertCompletedRequests = async (): Promise<ExpertCompletedRequest[]> => {
+    const url = `${EXPERT_ENDPOINT}/requests/completed`;
+
+    try {
+        const response = await apiClient.get<ExpertCompletedRequest[]>(url);
+        return response.data;
+    } catch (error) {
+        let errorMessage = 'An unknown error occurred while fetching completed requests.';
+
+        if (axios.isAxiosError(error) && error.response) {
+            const serverMessage = error.response.data?.message || error.response.data?.error;
+            if (error.response.status === 401) {
+                errorMessage = 'Access denied. Please log in again.';
+            } else if (serverMessage) {
+                errorMessage = serverMessage;
+            } else {
+                errorMessage = `Server Error ${error.response.status}: Failed to load completed requests.`;
+            }
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+
+        console.error('Error calling API getExpertCompletedRequests:', error);
+        throw new Error(errorMessage);
+    }
+};
+
+export const getExpertExpiredRequests = async (): Promise<ExpertCompletedRequest[]> => {
+    const url = `${EXPERT_ENDPOINT}/requests/expired`;
+
+    try {
+        const response = await apiClient.get<ExpertCompletedRequest[]>(url);
+        return response.data;
+    } catch (error) {
+        let errorMessage = 'An unknown error occurred while fetching completed requests.';
+
+        if (axios.isAxiosError(error) && error.response) {
+            const serverMessage = error.response.data?.message || error.response.data?.error;
+            if (error.response.status === 401) {
+                errorMessage = 'Access denied. Please log in again.';
+            } else if (serverMessage) {
+                errorMessage = serverMessage;
+            } else {
+                errorMessage = `Server Error ${error.response.status}: Failed to load completed requests.`;
+            }
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+
+        console.error('Error calling API getExpertCompletedRequests:', error);
+        throw new Error(errorMessage);
+    }
+};
+
 export const getReviewRequestById = async (testRequestId: number): Promise<ReviewTestRequest> => {
-    const url = `${EXPERT_ENDPOINT}/review-requests/${testRequestId}`;
+    const url = `${EXPERT_ENDPOINT}/reviews/${testRequestId}`;
 
     try {
         const response = await apiClient.get<ReviewTestRequest>(url);
@@ -167,7 +202,7 @@ export const getReviewRequestById = async (testRequestId: number): Promise<Revie
 };
 
 export const sendVoteForReview = async (data: VoteForReviewRequest): Promise<ExpertTestResponse> => {
-    const url = `${EXPERT_ENDPOINT}/vote`;
+    const url = `${EXPERT_ENDPOINT}/reviews/vote`;
 
     try {
         const response = await apiClient.post<ExpertTestResponse>(url, data);
@@ -184,21 +219,84 @@ export const sendVoteForReview = async (data: VoteForReviewRequest): Promise<Exp
     }
 };
 
-export const getRequestHistory = async (): Promise<ExpertRequestHistoryItem[]> => {
-    const url = `${EXPERT_ENDPOINT}/all-requests`;
+export const getExpertPendingReviews = async (): Promise<ReviewTestRequest[]> => {
+    const url = `${EXPERT_ENDPOINT}/reviews/pending`;
 
     try {
-        const response = await apiClient.get<ExpertRequestHistoryItem[]>(url);
-
+        const response = await apiClient.get<ReviewTestRequest[]>(url);
         return response.data;
     } catch (error) {
-        if (axios.isAxiosError(error)) {
-            console.error('Error fetching expert request history:', error.response?.data || error.message);
-            throw new Error(error.response?.data?.message || 'Failed to fetch expert request history.');
-        } else {
-            console.error('An unexpected error occurred while fetching expert request history:', error);
-            throw new Error('An unexpected error occurred.');
+        let errorMessage = 'An unknown error occurred while fetching pending reviews.';
+
+        if (axios.isAxiosError(error) && error.response) {
+            const serverMessage = error.response.data?.message || error.response.data?.error;
+            if (error.response.status === 401) {
+                errorMessage = 'Access denied. Please log in again.';
+            } else if (serverMessage) {
+                errorMessage = serverMessage;
+            } else {
+                errorMessage = `Server Error ${error.response.status}: Failed to load pending reviews.`;
+            }
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
         }
+
+        console.error('Error calling API getExpertPendingReviews:', error);
+        throw new Error(errorMessage);
+    }
+};
+
+export const getExpertCompletedReviews = async (): Promise<ReviewTestRequest[]> => {
+    const url = '/experts/reviews/completed';
+
+    try {
+        const response = await apiClient.get<ReviewTestRequest[]>(url);
+        return response.data;
+    } catch (error) {
+        let errorMessage = 'An unknown error occurred while fetching completed reviews.';
+
+        if (axios.isAxiosError(error) && error.response) {
+            const serverMessage = error.response.data?.message || error.response.data?.error;
+            if (error.response.status === 401) {
+                errorMessage = 'Access denied. Please log in again.';
+            } else if (serverMessage) {
+                errorMessage = serverMessage;
+            } else {
+                errorMessage = `Server Error ${error.response.status}: Failed to load completed reviews.`;
+            }
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+
+        console.error('Error calling API getExpertCompletedReviews:', error);
+        throw new Error(errorMessage);
+    }
+};
+
+export const getExpertExpiredReviews = async (): Promise<ReviewTestRequest[]> => {
+    const url = '/experts/reviews/expired';
+
+    try {
+        const response = await apiClient.get<ReviewTestRequest[]>(url);
+        return response.data;
+    } catch (error) {
+        let errorMessage = 'An unknown error occurred while fetching expired reviews.';
+
+        if (axios.isAxiosError(error) && error.response) {
+            const serverMessage = error.response.data?.message || error.response.data?.error;
+            if (error.response.status === 401) {
+                errorMessage = 'Access denied. Please log in again.';
+            } else if (serverMessage) {
+                errorMessage = serverMessage;
+            } else {
+                errorMessage = `Server Error ${error.response.status}: Failed to load expired reviews.`;
+            }
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+
+        console.error('Error calling API getExpertExpiredReviews:', error);
+        throw new Error(errorMessage);
     }
 };
 

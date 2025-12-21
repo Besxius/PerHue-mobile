@@ -1,21 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+
+// --- SCREENS ---
 import HomeScreen from '../screens/HomeScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import UserScreen from '../screens/UserScreen';
 import PackageScreen from '../screens/PackageScreen';
-import CustomTabBar from '../components/CustomTabBar';
 import NotificationScreen from '../screens/NotificationScreen';
-import { AuthProvider, useAuth } from '../screens/auth/AuthContext';
 import SettingScreen from '../screens/SettingScreen';
-import AuthNavigator from './AuthNavigator';
 import CameraScreen from '../screens/CameraScreen';
 import CapsuleScreen from '../screens/CapsuleScreen';
 import ExpertDetailScreen from '../screens/ExpertDetailScreen';
-import { ExpertInfo } from '../types/dataModels';
 import ManualTestResultDetailScreen from '../screens/ManualTestResultDetailScreen';
 import VerifyExpertScreen from '../screens/VerifyExpertScreen';
 import AiTestResultDetailScreen from '../screens/AiTestResultDetailScreen';
@@ -30,43 +28,71 @@ import MyExpertInformationScreen from '../screens/MyExpertInformationScreen';
 import MySalaryScreen from '../screens/MySalaryScreen';
 import ExpertReviewDetailScreen from '../screens/ExpertReviewDetailScreen ';
 
+import CustomTabBar from '../components/CustomTabBar';
+import { AuthProvider, useAuth } from '../screens/auth/AuthContext';
+import AuthNavigator from './AuthNavigator';
+import { Color, ExpertInfo } from '../types/dataModels';
+
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
 export type TabName = 'home' | 'capsule' | 'camera' | 'history' | 'menu';
 
+export type TabParamList = {
+  Home: undefined;
+  Capsule: undefined;
+  Camera: undefined;
+  History: {
+    initialTab?: string
+    initialStatus?: string;
+  };
+  Menu: undefined;
+};
+
 export type RootStackParamList = {
-  Tabs: undefined;
+  Tabs: NavigatorScreenParams<TabParamList>;
+  Auth: undefined;
+
   PackageScreen: undefined;
   NotificationScreen: undefined;
-  Auth: undefined;
   WelcomeScreen: undefined;
   CameraScreen: undefined;
   UserScreen: undefined;
+
   ExpertDetailScreen: { expert: ExpertInfo };
   VerifyExpertScreen: undefined;
   ManualTestResultDetailScreen: { id: number };
-  CreateExpertTestResponse: { id: number },
   AiTestResultDetailScreen: { id: number };
+  ExpertTestResponseDetailScreen: { id: number };
+  ExpertReviewDetailScreen: { id: number };
+
   MySubscriptionScreen: undefined;
   MyPaymentHistoryScreen: undefined;
   TermAndPoliciesScreen: undefined;
   HelpAndSupportScreen: undefined;
-  ExpertTestResponseDetailScreen: { id: number };
   MyExpertInformationScreen: undefined;
+  MySalaryScreen: undefined;
+
+  CreateExpertTestResponse: {
+    id: number;
+    initialBestColors?: Color[];
+    initialWorstColors?: Color[];
+    initialColorTypeId?: number;
+    initialNote?: string;
+  };
+
   ColorTestOnImageScreen: {
     imageUri: string;
-    testRequestId?: number;
+    testRequestId: number;
+    currentBestColors?: Color[];
+    currentWorstColors?: Color[];
+    colorTypeId?: number;
+    currentNote?: string;
   };
-  MySalaryScreen: undefined;
-  ExpertReviewDetailScreen: { id: number };
 };
 
 
-// --- NAVIGATORS ---
 const Tab = createBottomTabNavigator<Record<TabRouteName, undefined>>();
-// Cập nhật RootStack để sử dụng kiểu mới
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
-// --- Các hàm map route (Giữ nguyên) ---
 const mapRouteToTabName = (routeName: TabRouteName): TabName => {
   switch (routeName) {
     case 'Home': return 'home';
@@ -100,7 +126,6 @@ const CustomTab = ({ state, navigation }: any) => {
 
   const handleTabPress = (tabName: TabName) => {
     const routeToNavigate: TabRouteName = mapTabNameToRoute(tabName);
-
     const route = state.routes.find((r: any) => r.name === routeToNavigate);
 
     if (route) {
@@ -124,7 +149,7 @@ const CustomTab = ({ state, navigation }: any) => {
   );
 };
 
-// --- COMPONENT TAB NAVIGATOR CON (Giữ nguyên) ---
+// --- COMPONENT TAB NAVIGATOR CON ---
 const TabNavigator = () => (
   <Tab.Navigator
     initialRouteName="Home"
@@ -135,17 +160,14 @@ const TabNavigator = () => (
   >
     <Tab.Screen name="Home" component={HomeScreen} />
     <Tab.Screen name="Capsule" component={CapsuleScreen} />
-    <Tab.Screen
-      name="Camera"
-      component={CameraScreen}
-    />
+    <Tab.Screen name="Camera" component={CameraScreen} />
     <Tab.Screen name="History" component={HistoryScreen} />
     <Tab.Screen name="Menu" component={SettingScreen} />
   </Tab.Navigator>
 );
 
 
-// --- COMPONENT ROOT NAVIGATOR CHA (CẬP NHẬT) ---
+// --- COMPONENT ROOT NAVIGATOR CHA ---
 const RootNavigationStack = () => {
   const { isLoggedIn, isLoading } = useAuth();
 
@@ -161,7 +183,7 @@ const RootNavigationStack = () => {
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
       {isLoggedIn ? (
-        // HIỂN THỊ MÀN HÌNH ỨNG DỤNG (ĐÃ ĐĂNG NHẬP)
+        // --- AUTHENTICATED STACK ---
         <>
           <RootStack.Screen
             name="Tabs"
@@ -170,141 +192,89 @@ const RootNavigationStack = () => {
           <RootStack.Screen
             name="PackageScreen"
             component={PackageScreen}
-            options={{
-              headerShown: true,
-              title: 'Test packages'
-            }}
+            options={{ headerShown: true, title: 'Test packages' }}
           />
           <RootStack.Screen
             name="NotificationScreen"
             component={NotificationScreen}
-            options={{
-              headerShown: true,
-              title: 'Notification center'
-            }}
+            options={{ headerShown: true, title: 'Notification center' }}
           />
           <RootStack.Screen
             name="UserScreen"
             component={UserScreen}
-            options={{
-              headerShown: true,
-              title: 'User profile'
-            }}
+            options={{ headerShown: true, title: 'User profile' }}
           />
           <RootStack.Screen
             name="ExpertDetailScreen"
             component={ExpertDetailScreen}
-            options={{
-              headerShown: false,
-            }}
           />
           <RootStack.Screen
             name="ManualTestResultDetailScreen"
             component={ManualTestResultDetailScreen}
-            options={{
-              headerShown: false,
-              title: 'Manual Test Result'
-            }}
+            options={{ title: 'Manual Test Result' }}
           />
           <RootStack.Screen
             name="AiTestResultDetailScreen"
             component={AiTestResultDetailScreen}
-            options={{
-              headerShown: false,
-              title: 'AI Test Result'
-            }}
+            options={{ title: 'AI Test Result' }}
           />
           <RootStack.Screen
             name="CreateExpertTestResponse"
             component={CreateExpertTestResponse}
             options={{
               headerShown: false,
-              title: '',
               headerTransparent: true,
             }}
           />
           <RootStack.Screen
             name="VerifyExpertScreen"
             component={VerifyExpertScreen}
-            options={{
-              headerShown: true,
-              title: 'Register Expert information'
-            }}
+            options={{ headerShown: true, title: 'Register Expert information' }}
           />
           <RootStack.Screen
             name="MySubscriptionScreen"
             component={MySubscriptionScreen}
-            options={{
-              headerShown: true,
-              title: 'My subscription'
-            }}
+            options={{ headerShown: true, title: 'My subscription' }}
           />
           <RootStack.Screen
             name="MyPaymentHistoryScreen"
             component={MyPaymentHistoryScreen}
-            options={{
-              headerShown: true,
-              title: 'My Payment History'
-            }}
+            options={{ headerShown: true, title: 'My Payment History' }}
           />
           <RootStack.Screen
             name="TermAndPoliciesScreen"
             component={TermAndPoliciesScreen}
-            options={{
-              headerShown: true,
-              title: 'Terms of Service & Privacy Policy'
-            }}
+            options={{ headerShown: true, title: 'Terms of Service & Privacy Policy' }}
           />
           <RootStack.Screen
             name="HelpAndSupportScreen"
             component={HelpAndSupportScreen}
-            options={{
-              headerShown: true,
-              title: 'Help & Support'
-            }}
+            options={{ headerShown: true, title: 'Help & Support' }}
           />
           <RootStack.Screen
             name="ColorTestOnImageScreen"
             component={ColorTestOnImageScreen}
-            options={{
-              headerShown: false,
-              title: 'Image Expert Color Test'
-            }}
+            options={{ title: 'Image Expert Color Test' }}
           />
           <RootStack.Screen
             name="ExpertTestResponseDetailScreen"
             component={ExpertTestResponseDetailScreen}
-            options={{
-              headerShown: false,
-              title: 'Image Expert Color Test'
-            }}
           />
           <RootStack.Screen
             name="MyExpertInformationScreen"
             component={MyExpertInformationScreen}
-            options={{
-              headerShown: false,
-              title: ''
-            }}
           />
           <RootStack.Screen
             name="MySalaryScreen"
             component={MySalaryScreen}
-            options={{
-              headerShown: false,
-              title: ''
-            }}
           />
           <RootStack.Screen
             name="ExpertReviewDetailScreen"
             component={ExpertReviewDetailScreen}
-            options={{
-              headerShown: false,
-              title: ''
-            }}
           />
         </>
       ) : (
+        // --- GUEST / AUTH STACK ---
         <RootStack.Screen
           name="Auth"
           component={AuthNavigator}

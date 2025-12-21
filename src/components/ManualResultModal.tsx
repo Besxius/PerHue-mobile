@@ -27,7 +27,6 @@ interface ManualResultModalProps {
     onClose: () => void;
     resultData: ManualColorTestResponse | null;
     currentPhotoUri: string | null;
-    // [CẬP NHẬT] Loại bỏ onNavigateToDetail vì xử lý nội bộ
 }
 
 const getContrastTextColor = (hex: string) => {
@@ -52,7 +51,6 @@ const ManualResultModal: React.FC<ManualResultModalProps> = ({
     resultData,
     currentPhotoUri
 }) => {
-    // [CẬP NHẬT] Sử dụng useNavigation
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
     const panY = useRef(new Animated.Value(0)).current;
@@ -89,7 +87,7 @@ const ManualResultModal: React.FC<ManualResultModalProps> = ({
 
     const handleNavigateToDetail = () => {
         if (resultData?.id) {
-            onClose(); // Đóng modal trước khi chuyển màn hình
+            onClose();
             navigation.navigate('ManualTestResultDetailScreen', { id: resultData.id });
         }
     };
@@ -214,7 +212,6 @@ const ManualResultModal: React.FC<ManualResultModalProps> = ({
                             <Text style={modalStyles.noColorText}>No matching palettes found.</Text>
                         )}
 
-                        {/* [CẬP NHẬT] Nút điều hướng gọi hàm nội bộ */}
                         <TouchableOpacity style={modalStyles.detailButton} onPress={handleNavigateToDetail}>
                             <Text style={modalStyles.detailButtonText}>
                                 VIEW DETAILED ANALYSIS
@@ -305,7 +302,7 @@ const modalStyles = StyleSheet.create({
     },
     imageWrapperFull: {
         width: '100%',
-        height: 250,
+        height: 500,
         borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#F5F5F5',

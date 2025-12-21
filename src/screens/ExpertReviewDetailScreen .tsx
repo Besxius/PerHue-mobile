@@ -11,15 +11,15 @@ import {
     Alert,
     TextInput,
     Modal,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import {
     ReviewTestRequest,
-    ExpertTestResponse,
     Color,
     VoteForReviewRequest
 } from '../types/dataModels';
@@ -169,6 +169,7 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         try {
             await sendVoteForReview(payload);
             setIsSuccessModalVisible(true);
+            fetchReviewData();
         } catch (err: any) {
             Alert.alert("Submission Failed", err.message || "Could not submit vote.");
         } finally {
@@ -178,8 +179,28 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
     const handleSuccessClose = () => {
         setIsSuccessModalVisible(false);
-        navigation.goBack();
+        navigation.navigate('Tabs', {
+            screen: 'History',
+            params: {
+                initialTab: 'Review Request',
+                initialStatus: 'Completed'
+            }
+        });
     };
+
+    // [LOGIC MỚI] Lọc danh sách response để hiển thị
+    const displayResponses = useMemo(() => {
+        if (!data?.previousResponses) return [];
+
+        // Nếu đã vote (votedResponseId không null)
+        if (data.votedResponseId != null) {
+            // Ẩn các response có type là "Review"
+            return data.previousResponses.filter(res => res.type !== 'Review');
+        }
+
+        // Nếu chưa vote, hiển thị tất cả
+        return data.previousResponses;
+    }, [data]);
 
     if (isLoading) {
         return (
@@ -201,8 +222,11 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         );
     }
 
-    const { testRequest, previousResponses } = data;
+    const { testRequest, votedResponseId, canEdit } = data;
     const clientPictureUri = testRequest.pictures?.[0]?.source;
+
+    // Kiểm tra xem đã vote chưa
+    const hasVoted = votedResponseId !== null;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -214,105 +238,130 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                 <Text style={styles.headerTitle}>Review Request #{testRequest.id}</Text>
                 <View style={{ width: 40 }} />
             </View>
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 120}
+            >
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
 
-                {/* 1. Client Info Section */}
-                <View style={styles.clientInfoCard}>
-                    <Text style={styles.sectionHeader}>Client Profile</Text>
-                    {clientPictureUri && (
-                        <View style={styles.clientImageContainer}>
-                            <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
-                        </View>
-                    )}
-                    <ColorDetailDisplay
-                        skinColor={testRequest.skinColor}
-                        hairColor={testRequest.hairColor}
-                        eyesColor={testRequest.eyesColor}
-                        lipsColor={testRequest.lipsColor}
-                    />
-                </View>
-
-                {/* 2. Responses List */}
-                <Text style={styles.sectionTitle}>Previous Expert Opinions</Text>
-
-                {previousResponses.map((response, index) => {
-                    const isSelected = selectedResponseId === response.id;
-                    const bestColors = hexStringToColorList(response.bestColor || '');
-                    const worstColors = hexStringToColorList(response.worstColor || '');
-
-                    return (
-                        <View key={response.id} style={[styles.responseCard, isSelected && styles.responseCardSelected]}>
-                            <View style={styles.responseHeader}>
-                                <Text style={styles.expertName}>Expert Response #{index + 1}</Text>
-                                <Text style={styles.responseDate}>{new Date(response.createdDate).toLocaleDateString()}</Text>
+                    {/* 1. Client Info Section */}
+                    <View style={styles.clientInfoCard}>
+                        <Text style={styles.sectionHeader}>Client Profile</Text>
+                        {clientPictureUri && (
+                            <View style={styles.clientImageContainer}>
+                                <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
                             </View>
+                        )}
+                        <ColorDetailDisplay
+                            skinColor={testRequest.skinColor}
+                            hairColor={testRequest.hairColor}
+                            eyesColor={testRequest.eyesColor}
+                            lipsColor={testRequest.lipsColor}
+                        />
+                    </View>
 
-                            <View style={styles.resultSummary}>
-                                <View style={styles.resultChip}>
-                                    <Text style={styles.resultLabel}>Type:</Text>
-                                    <Text style={styles.resultValue}>{response.colorTypeName || 'N/A'}</Text>
-                                </View>
-                            </View>
+                    {/* 2. Responses List */}
+                    <Text style={styles.sectionTitle}>Previous Expert Opinions</Text>
 
-                            <Text style={styles.noteText}>"{response.note}"</Text>
+                    {displayResponses.map((response, index) => {
+                        const isSelected = selectedResponseId === response.id;
+                        const bestColors = hexStringToColorList(response.bestColor || '');
+                        const worstColors = hexStringToColorList(response.worstColor || '');
 
-                            <View style={styles.swatchesContainer}>
-                                <ColorSwatchDisplay colors={bestColors} title="Suggested Colors" colorType="best" />
-                                <ColorSwatchDisplay colors={worstColors} title="Avoided Colors" colorType="worst" />
-                            </View>
+                        const isVotedItem = hasVoted && response.id === votedResponseId;
 
-                            {/* Vote Button */}
-                            <TouchableOpacity
-                                style={[styles.voteButton, isSelected ? styles.voteButtonActive : styles.voteButtonInactive]}
-                                onPress={() => handleVotePress(response.id)}
-                                disabled={isSubmitting}
+                        return (
+                            <View
+                                key={response.id}
+                                style={[
+                                    styles.responseCard,
+                                    isSelected && styles.responseCardSelected,
+                                    isVotedItem && styles.responseCardVoted
+                                ]}
                             >
-                                <FontAwesome5
-                                    name={isSelected ? "check-circle" : "vote-yea"}
-                                    size={18}
-                                    color={isSelected ? "#fff" : BLUE_COLOR}
-                                />
-                                <Text style={[styles.voteButtonText, isSelected && { color: '#fff' }]}>
-                                    {isSelected ? 'Voting for this option' : 'Vote for this option'}
-                                </Text>
-                            </TouchableOpacity>
+                                {isVotedItem && (
+                                    <View style={styles.votedTagContainer}>
+                                        <Ionicons name="checkmark-circle" size={18} color="#B45309" />
+                                        <Text style={styles.votedTagText}>You has voted to this result</Text>
+                                    </View>
+                                )}
 
-                            {/* Dropdown Note Input & Submit */}
-                            {isSelected && (
-                                <View style={styles.voteFormContainer}>
-                                    <Text style={styles.inputLabel}>Why do you agree with this result?</Text>
-                                    <TextInput
-                                        style={styles.voteInput}
-                                        placeholder="Add your expert opinion/reasoning here..."
-                                        multiline
-                                        numberOfLines={4}
-                                        value={voteNote}
-                                        onChangeText={setVoteNote}
-                                        textAlignVertical="top"
-                                    />
+                                <View style={styles.responseHeader}>
+                                    <Text style={styles.expertName}>Expert Response #{index + 1}</Text>
+                                    <Text style={styles.responseDate}>{new Date(response.createdDate).toLocaleDateString()}</Text>
+                                </View>
 
+                                <View style={styles.resultSummary}>
+                                    <View style={styles.resultChip}>
+                                        <Text style={styles.resultLabel}>Type:</Text>
+                                        <Text style={styles.resultValue}>{response.colorTypeName || 'N/A'}</Text>
+                                    </View>
+                                </View>
+
+                                <Text style={styles.noteText}>"{response.note}"</Text>
+
+                                <View style={styles.swatchesContainer}>
+                                    <ColorSwatchDisplay colors={bestColors} title="Suggested Colors" colorType="best" />
+                                    <ColorSwatchDisplay colors={worstColors} title="Avoided Colors" colorType="worst" />
+                                </View>
+
+                                {!hasVoted && canEdit && (
                                     <TouchableOpacity
-                                        style={styles.submitButton}
-                                        onPress={handlePreSubmit}
+                                        style={[styles.voteButton, isSelected ? styles.voteButtonActive : styles.voteButtonInactive]}
+                                        onPress={() => handleVotePress(response.id)}
                                         disabled={isSubmitting}
                                     >
-                                        {isSubmitting ? (
-                                            <ActivityIndicator color="#fff" size="small" />
-                                        ) : (
-                                            <Text style={styles.submitButtonText}>Send Review</Text>
-                                        )}
+                                        <FontAwesome5
+                                            name={isSelected ? "check-circle" : "vote-yea"}
+                                            size={18}
+                                            color={isSelected ? "#fff" : BLUE_COLOR}
+                                        />
+                                        <Text style={[styles.voteButtonText, isSelected && { color: '#fff' }]}>
+                                            {isSelected ? 'Voting for this option' : 'Vote for this option'}
+                                        </Text>
                                     </TouchableOpacity>
-                                </View>
-                            )}
-                        </View>
-                    );
-                })}
+                                )}
 
-                <View style={{ height: 40 }} />
-            </ScrollView>
+                                {isSelected && !hasVoted && (
+                                    <View style={styles.voteFormContainer}>
+                                        <Text style={styles.inputLabel}>Why do you agree with this result?</Text>
+                                        <TextInput
+                                            style={styles.voteInput}
+                                            placeholder="Add your expert opinion/reasoning here..."
+                                            multiline
+                                            numberOfLines={4}
+                                            value={voteNote}
+                                            onChangeText={setVoteNote}
+                                            textAlignVertical="top"
+                                        />
 
-            {/* CONFIRMATION MODAL */}
+                                        <TouchableOpacity
+                                            style={styles.submitButton}
+                                            onPress={handlePreSubmit}
+                                            disabled={isSubmitting}
+                                        >
+                                            {isSubmitting ? (
+                                                <ActivityIndicator color="#fff" size="small" />
+                                            ) : (
+                                                <Text style={styles.submitButtonText}>Send Review</Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+                        );
+                    })}
+
+                    <View style={{ height: 40 }} />
+                </ScrollView>
+            </KeyboardAvoidingView>
+
             <Modal
                 transparent
                 visible={isConfirmModalVisible}
@@ -345,7 +394,6 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                 </View>
             </Modal>
 
-            {/* SUCCESS MODAL */}
             <Modal
                 transparent
                 visible={isSuccessModalVisible}
@@ -393,7 +441,6 @@ const styles = StyleSheet.create({
 
     scrollContent: { padding: 15 },
 
-    // Client Info
     clientInfoCard: {
         backgroundColor: '#fff',
         padding: 15,
@@ -407,7 +454,7 @@ const styles = StyleSheet.create({
     },
     sectionHeader: { fontSize: 18, fontWeight: 'bold', color: BLUE_COLOR, marginBottom: 10 },
     clientImageContainer: {
-        width: '100%', height: 200, borderRadius: 8, backgroundColor: '#eee', marginBottom: 10, overflow: 'hidden'
+        width: '100%', height: 500, borderRadius: 8, backgroundColor: '#eee', marginBottom: 10, overflow: 'hidden'
     },
     clientImage: { width: '100%', height: '100%' },
     colorDisplayContainer: { marginTop: 5 },
@@ -437,6 +484,30 @@ const styles = StyleSheet.create({
         borderColor: BLUE_COLOR,
         borderWidth: 2,
         backgroundColor: '#F5F9FF',
+    },
+    // [STYLE MỚI] Style cho card được vote
+    responseCardVoted: {
+        backgroundColor: '#FFFBEB', // Vàng nhạt
+        borderColor: '#FCD34D',     // Viền vàng đậm hơn
+        borderWidth: 2,
+    },
+    // [STYLE MỚI] Tag thông báo
+    votedTagContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FEF3C7',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        marginBottom: 15,
+        gap: 8,
+        borderWidth: 1,
+        borderColor: '#FCD34D',
+    },
+    votedTagText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#B45309', // Màu chữ nâu vàng
     },
     responseHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
     expertName: { fontSize: 16, fontWeight: 'bold', color: '#333' },

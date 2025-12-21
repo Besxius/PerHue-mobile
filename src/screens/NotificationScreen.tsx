@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -76,9 +76,11 @@ interface TabContentProps {
     data: Notification[];
     isLoading: boolean;
     onNotificationPress: (id: number) => void;
+    refreshing: boolean;
+    onRefresh: () => void;
 }
 
-const TabContent: React.FC<TabContentProps> = ({ data, isLoading, onNotificationPress }) => {
+const TabContent: React.FC<TabContentProps> = ({ data, isLoading, onNotificationPress, refreshing, onRefresh }) => {
     const groupedData = useMemo(() => groupNotificationsByType(data), [data]);
     const notificationTypes = Object.keys(groupedData);
 
@@ -88,29 +90,43 @@ const TabContent: React.FC<TabContentProps> = ({ data, isLoading, onNotification
                 <View style={[styles.loadingContainer]}>
                     <ActivityIndicator size="large" color="#0000ff" />
                 </View>
-            ) : data.length === 0 ? (
-                <View style={[styles.loadingContainer]}>
-                    <Text style={styles.emptyText}>No notifications found.</Text>
-                </View>
             ) : (
+                // Nếu data rỗng vẫn cần ScrollView để có thể vuốt làm mới được
                 <ScrollView
-                    contentContainerStyle={styles.scrollContentContainer}
+                    contentContainerStyle={data.length === 0 ? styles.emptyScrollContainer : styles.scrollContentContainer}
                     showsVerticalScrollIndicator={false}
+                    // [3] Gắn RefreshControl vào ScrollView
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={['#4285F4']} // Màu spinner Android
+                            tintColor="#4285F4"  // Màu spinner iOS
+                        />
+                    }
                 >
-                    {notificationTypes.map(type => (
-                        <View key={type} style={styles.notificationGroup}>
-                            <Text style={styles.groupTitle}>{getIconProps(type).groupName}</Text>
-
-                            {groupedData[type].map(notification => (
-                                <NotificationItem
-                                    key={notification.id}
-                                    {...notification}
-                                    onReadPress={onNotificationPress}
-                                />
-                            ))}
+                    {data.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>No notifications found.</Text>
                         </View>
-                    ))}
-                    <View style={{ height: 40 }} />
+                    ) : (
+                        <>
+                            {notificationTypes.map(type => (
+                                <View key={type} style={styles.notificationGroup}>
+                                    <Text style={styles.groupTitle}>{getIconProps(type).groupName}</Text>
+
+                                    {groupedData[type].map(notification => (
+                                        <NotificationItem
+                                            key={notification.id}
+                                            {...notification}
+                                            onReadPress={onNotificationPress}
+                                        />
+                                    ))}
+                                </View>
+                            ))}
+                            <View style={{ height: 40 }} />
+                        </>
+                    )}
                 </ScrollView>
             )}
         </View>
@@ -121,19 +137,21 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
     const [activeTab, setActiveTab] = useState<NotificationTab>('currentMonth');
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
     const translateX = useSharedValue(0);
 
-    const fetchNotifications = useCallback(async () => {
-        setIsLoading(true);
+    const fetchNotifications = useCallback(async (isBackgroundRefresh = false) => {
+        if (!isBackgroundRefresh) {
+            setIsLoading(true);
+        }
         try {
             const data = await getNotifications();
-            setNotifications(data.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())); // Sắp xếp theo thời gian mới nhất
+            setNotifications(data.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()));
         } catch (e) {
             console.error(e);
             Toast.show({ type: 'error', text1: 'Load Failed', text2: 'Could not load notifications from API.', visibilityTime: 3000 });
-            setNotifications([]);
         } finally {
             setIsLoading(false);
         }
@@ -141,6 +159,12 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
 
     useEffect(() => {
         fetchNotifications();
+    }, [fetchNotifications]);
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await fetchNotifications(true);
+        setRefreshing(false);
     }, [fetchNotifications]);
 
     const getMonthStart = (date: Date) => {
@@ -298,12 +322,16 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
                         data={filteredCurrentMonth}
                         isLoading={isLoading}
                         onNotificationPress={handleNotificationPress}
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
                     />
 
                     <TabContent
                         data={filteredAllTime}
                         isLoading={isLoading}
                         onNotificationPress={handleNotificationPress}
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
                     />
                 </Animated.View>
             </View>
@@ -311,7 +339,6 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
     );
 };
 
-// --- StyleSheet ---
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -322,6 +349,17 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    emptyScrollContainer: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: 200,
     },
     emptyText: {
         fontSize: 16,

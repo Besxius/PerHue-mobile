@@ -687,11 +687,9 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                         style={[styles.sendButton, { bottom: insets.bottom + 70 }]}
                         onPress={captureMode === 'manual' ? handleManualTest : handleColorTest}
                     >
-                        {!isUserExpert && (
-                            <View style={styles.sendButtonContent}>
-                                <Text style={styles.buttonText}>SEND</Text>
-                            </View>
-                        )}
+                        <View style={styles.sendButtonContent}>
+                            <Text style={styles.buttonText}>SEND</Text>
+                        </View>
                     </TouchableOpacity>
                     {capturedColors && (
                         <View style={[styles.paletteContainer, { bottom: 150 + insets.bottom }]}>

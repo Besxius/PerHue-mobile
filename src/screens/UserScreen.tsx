@@ -10,19 +10,19 @@ import {
     KeyboardAvoidingView,
     ScrollView,
     Image,
-    ActivityIndicator, // Đã xóa Alert khỏi import
+    ActivityIndicator,
     Modal,
     FlatList,
     TouchableWithoutFeedback,
     ImageSourcePropType,
-    PanResponder
+    PanResponder,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Ionicons, AntDesign } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { Asset } from 'expo-asset';
-import Toast from 'react-native-toast-message'; // 1. Import Toast
+import Toast from 'react-native-toast-message';
 
 import { UserInfo } from '../types/dataModels';
 import { loadUserInfo, updateUserInfo, uploadProfilePicture } from '../api/userApi';
@@ -412,7 +412,7 @@ const UserScreen = () => {
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={styles.flexContainer}
-                keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+                keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 120}
             >
                 <ScrollView
                     style={styles.scrollView}

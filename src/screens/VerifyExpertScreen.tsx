@@ -251,8 +251,9 @@ const VerifyExpertScreen: React.FC = () => {
     return (
         <View style={styles.container}>
             <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 120}
             >
                 <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
 
@@ -268,6 +269,7 @@ const VerifyExpertScreen: React.FC = () => {
                             value={nickname}
                             onChangeText={setNickname}
                             placeholder="Dr. Jane"
+                            placeholderTextColor='#999'
                         />
 
                         <Text style={styles.label}>Specialization *</Text>
@@ -276,6 +278,7 @@ const VerifyExpertScreen: React.FC = () => {
                             value={specialization}
                             onChangeText={setSpecialization}
                             placeholder="Dermatology, Color Analysis..."
+                            placeholderTextColor='#999'
                         />
 
                         <Text style={styles.label}>Years of Experience *</Text>
@@ -285,6 +288,7 @@ const VerifyExpertScreen: React.FC = () => {
                             onChangeText={text => setYearsOfExperience(text.replace(/[^0-9]/g, ''))}
                             keyboardType="numeric"
                             placeholder="5"
+                            placeholderTextColor='#999'
                         />
 
                         <Text style={styles.label}>Bio *</Text>
@@ -295,6 +299,7 @@ const VerifyExpertScreen: React.FC = () => {
                             multiline
                             numberOfLines={4}
                             placeholder="Brief introduction about yourself..."
+                            placeholderTextColor='#999'
                         />
                     </View>
 
@@ -307,6 +312,7 @@ const VerifyExpertScreen: React.FC = () => {
                             value={languages}
                             onChangeText={setLanguages}
                             placeholder="e.g., English, Vietnamese"
+                            placeholderTextColor='#999'
                         />
 
                         <Text style={styles.label}>Certification / License *</Text>
@@ -315,6 +321,7 @@ const VerifyExpertScreen: React.FC = () => {
                             value={certification}
                             onChangeText={setCertification}
                             placeholder="e.g., Board Certified Dermatologist"
+                            placeholderTextColor='#999'
                         />
                     </View>
 
@@ -380,18 +387,21 @@ const VerifyExpertScreen: React.FC = () => {
                             value={facebookAccount}
                             onChangeText={setFacebookAccount}
                             placeholder="Facebook URL"
+                            placeholderTextColor='#999'
                         />
                         <TextInput
                             style={styles.input}
                             value={linkedInAccount}
                             onChangeText={setLinkedInAccount}
                             placeholder="LinkedIn URL"
+                            placeholderTextColor='#999'
                         />
                         <TextInput
                             style={styles.input}
                             value={instagramAccount}
                             onChangeText={setInstagramAccount}
                             placeholder="Instagram URL"
+                            placeholderTextColor='#999'
                         />
                     </View>
 
