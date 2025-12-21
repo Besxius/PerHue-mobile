@@ -31,7 +31,6 @@ interface AiResultModalProps {
     onClose: () => void;
     resultData: AiColorTestResponse | null;
     currentPhotoUri: string | null;
-    // [CẬP NHẬT] Loại bỏ onNavigateToDetail
 }
 
 const getContrastTextColor = (hex: string) => {
@@ -55,7 +54,6 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
     resultData,
     currentPhotoUri,
 }) => {
-    // [CẬP NHẬT] Sử dụng useNavigation
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
     const panY = useRef(new Animated.Value(0)).current;
@@ -287,7 +285,7 @@ const modalStyles = StyleSheet.create({
     },
     imageWrapperFull: {
         width: '100%',
-        height: 250,
+        height: 500,
         borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#F5F5F5',

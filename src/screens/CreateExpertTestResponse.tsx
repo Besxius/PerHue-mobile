@@ -10,6 +10,8 @@ import {
     Alert,
     Image,
     Dimensions,
+    KeyboardAvoidingView,
+    Platform
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { getRequestById, createResponse, updateExpertResponse } from '../api/expertApi';
@@ -19,19 +21,8 @@ import { getColorType } from '../api/capsulePaletteApi';
 import ColorPickerPopup from '../components/ColorPickerPopup';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getColorsByType, getCorlorListSpectrum } from '../api/colorApi';
-import { FontAwesome } from '@expo/vector-icons';
-
-type RootStackParamList = {
-    CreateExpertTestResponse: {
-        id: number;
-        initialBestColors?: Color[];
-        initialWorstColors?: Color[];
-    };
-    ColorTestOnImageScreen: {
-        imageUri: string;
-        testRequestId: number;
-    };
-};
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
+import { RootStackParamList } from '../navigation/AppNavigator';
 
 type CreateResponseScreenProps = NativeStackScreenProps<
     RootStackParamList,
@@ -43,6 +34,22 @@ type ColorPickerMode = 'BEST' | 'WORST' | null;
 const { width } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
 
+const areColorsEqual = (arr1: Color[], arr2: Color[]) => {
+    if (arr1.length !== arr2.length) return false;
+    const hex1 = arr1.map(c => c.hexCode.toUpperCase()).sort().join(',');
+    const hex2 = arr2.map(c => c.hexCode.toUpperCase()).sort().join(',');
+    return hex1 === hex2;
+};
+
+const getContrastTextColor = (hex: string) => {
+    const cleanHex = hex.replace('#', '');
+    if (cleanHex.length !== 6) return '#FFFFFF';
+    const r = parseInt(cleanHex.substr(0, 2), 16);
+    const g = parseInt(cleanHex.substr(2, 2), 16);
+    const b = parseInt(cleanHex.substr(4, 2), 16);
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return (yiq >= 128) ? '#000000' : '#FFFFFF';
+};
 
 const useResources = () => {
     const [colorTypes, setColorTypes] = useState<ColorType[]>([]);
@@ -95,7 +102,7 @@ const ColorDetailDisplay: FC<ColorDetailDisplayProps> = ({ skinColor, hairColor,
 
     return (
         <View style={styles.colorDisplayContainer}>
-            <Text style={styles.cardSectionTitle}>Client's Color Profile</Text>
+            <Text style={styles.cardSectionTitle}>User's Color Profile</Text>
             {colorData.map((data, index) => (
                 <View key={index} style={styles.colorRow}>
                     <Text style={styles.colorLabel}>{data.label}:</Text>
@@ -112,43 +119,43 @@ const ColorDetailDisplay: FC<ColorDetailDisplayProps> = ({ skinColor, hairColor,
 interface SelectedColorsDisplayProps {
     colors: Color[];
     onRemove: (colorId: number) => void;
+    disabled?: boolean;
 }
 
-const SelectedColorsDisplay: FC<SelectedColorsDisplayProps> = ({ colors, onRemove }) => {
+const SelectedColorsDisplay: FC<SelectedColorsDisplayProps> = ({ colors, onRemove, disabled }) => {
     if (colors.length === 0) return null;
 
     return (
         <View style={styles.selectedColorsContainer}>
-            {colors.map((color) => (
-                <View key={color.id} style={styles.colorSquareWrapper}>
-                    <View style={[styles.colorSquare, { backgroundColor: color.hexCode }]}>
-                        <Text style={styles.colorSquareHexText}>{color.hexCode.toUpperCase()}</Text>
+            {colors.map((color) => {
+                const textColor = getContrastTextColor(color.hexCode);
+                return (
+                    <View key={color.id} style={styles.colorSquareWrapper}>
+                        <View style={[styles.colorSquare, { backgroundColor: color.hexCode }]}>
+                            <Text style={[styles.colorSquareHexText, { color: textColor }]}>
+                                {color.hexCode.toUpperCase()}
+                            </Text>
+                        </View>
+                        {!disabled && (
+                            <TouchableOpacity
+                                style={styles.removeButtonSquare}
+                                onPress={() => onRemove(color.id)}
+                            >
+                                <Text style={styles.removeButtonText}>X</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
-                    <TouchableOpacity
-                        style={styles.removeButtonSquare}
-                        onPress={() => onRemove(color.id)}
-                    >
-                        <Text style={styles.removeButtonText}>X</Text>
-                    </TouchableOpacity>
-                </View>
-            ))}
+                );
+            })}
         </View>
     );
 };
-
-const isRequestExpired = (createdDate: string | Date, daysLimit: number = 2): boolean => {
-    const creationTime = new Date(createdDate).getTime();
-    const currentTime = Date.now();
-    const expiryTime = creationTime + daysLimit * 24 * 60 * 60 * 1000;
-    return currentTime > expiryTime;
-};
-
 
 const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
 
     const testRequestId = route.params.id;
-    const { initialBestColors, initialWorstColors } = route.params;
+    const { initialBestColors, initialWorstColors, initialColorTypeId, initialNote } = route.params;
     const { colorTypes, colorFiltersSpectrum, isLoadingResources } = useResources();
 
     const [clientRequest, setClientRequest] = useState<ExpertRequest | null>(null);
@@ -156,10 +163,19 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
     const [error, setError] = useState<string | null>(null);
     const [responsesHistory, setResponsesHistory] = useState<ExpertTestResponse[]>([]);
 
+    const [canEdit, setCanEdit] = useState(true);
+
     const [note, setNote] = useState('');
     const [bestColorsList, setBestColorsList] = useState<Color[]>([]);
     const [worstColorsList, setWorstColorsList] = useState<Color[]>([]);
     const [colorTypeId, setColorTypeId] = useState<number | null>(null);
+
+    const [originalData, setOriginalData] = useState<{
+        note: string;
+        colorTypeId: number | null;
+        best: Color[];
+        worst: Color[];
+    }>({ note: '', colorTypeId: null, best: [], worst: [] });
 
     const [colorFiltersByType, setColorFiltersByType] = useState<Color[]>([]);
     const [isLoadingColorFilters, setIsLoadingColorFilters] = useState(false);
@@ -170,13 +186,78 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
     const [initialPickerHex, setInitialPickerHex] = useState('#4C7BE2');
 
     const hasExistingResponse = useMemo(() => responsesHistory.length > 0, [responsesHistory]);
-
     const clientPictureUri = useMemo(() => clientRequest?.pictures?.[0]?.source, [clientRequest]);
 
-    const isExpired = useMemo(() => {
-        if (!clientRequest?.createdDate) return false;
-        return isRequestExpired(clientRequest.createdDate, 2);
-    }, [clientRequest]);
+    const goBackToHistory = useCallback(() => {
+        navigation.navigate('Tabs', {
+            screen: 'History',
+            params: {
+                initialTab: 'Test Request',
+                initialStatus: hasExistingResponse ? 'Completed' : 'Pending'
+            }
+        });
+    }, [navigation, hasExistingResponse]);
+
+    const hasUnsavedChanges = useMemo(() => {
+        if (!canEdit) return false;
+
+        const isNoteChanged = note.trim() !== originalData.note.trim();
+        const isTypeChanged = colorTypeId !== originalData.colorTypeId;
+        const isBestChanged = !areColorsEqual(bestColorsList, originalData.best);
+        const isWorstChanged = !areColorsEqual(worstColorsList, originalData.worst);
+
+        return isNoteChanged || isTypeChanged || isBestChanged || isWorstChanged;
+    }, [note, colorTypeId, bestColorsList, worstColorsList, originalData, canEdit]);
+
+    const handleHeaderBackPress = useCallback(() => {
+        if (hasUnsavedChanges && !isSubmitting) {
+            Alert.alert(
+                'Discard Changes?',
+                'You have unsaved changes. Are you sure you want to discard them and leave?',
+                [
+                    { text: "No", style: 'cancel' },
+                    {
+                        text: 'Yes',
+                        style: 'destructive',
+                        onPress: goBackToHistory
+                    },
+                ]
+            );
+        } else {
+            goBackToHistory();
+        }
+    }, [hasUnsavedChanges, isSubmitting, goBackToHistory]);
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+            if (!hasUnsavedChanges || isSubmitting) {
+                return;
+            }
+
+            e.preventDefault();
+
+            Alert.alert(
+                'Discard Changes?',
+                'You have unsaved changes. Are you sure you want to discard them and leave?',
+                [
+                    { text: "No", style: 'cancel', onPress: () => { } },
+                    {
+                        text: 'Yes',
+                        style: 'destructive',
+                        onPress: () => navigation.navigate('Tabs', {
+                            screen: 'History',
+                            params: {
+                                initialTab: 'Test Request',
+                                initialStatus: 'Completed'
+                            }
+                        }),
+                    },
+                ]
+            );
+        });
+
+        return unsubscribe;
+    }, [navigation, hasUnsavedChanges, isSubmitting]);
 
     const updateColorStrings = useCallback((bestList: Color[], worstList: Color[]) => {
         const bestHex = bestList.map(c => c.hexCode).join(',');
@@ -189,7 +270,6 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         try {
             const colors = await getColorsByType(typeId);
             setColorFiltersByType(colors);
-            console.log(`Loaded ${colors.length} colors for type ${typeId}`);
         } catch (error) {
             console.error(`Failed to load colors for type ${typeId}:`, error);
             setColorFiltersByType([]);
@@ -218,9 +298,9 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         return type ? type.name : '';
     }, [colorTypeId, colorTypes]);
 
-    // [CẬP NHẬT] Hàm xử lý sự kiện bấm nút thêm màu
     const handleColorFieldPress = (mode: ColorPickerMode) => {
-        // Kiểm tra colorTypeId cho cả 2 trường hợp
+        if (!canEdit) return;
+
         if (!colorTypeId) {
             Alert.alert(
                 'Selection Required',
@@ -278,26 +358,55 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
             const data = await getRequestById(testRequestId);
             setClientRequest(data.testRequest);
             setResponsesHistory(data.responses || []);
+            setCanEdit(data.canEdit);
 
             if (data.responses && data.responses.length > 0) {
                 const latestResponse = data.responses[data.responses.length - 1];
 
-                setNote(latestResponse.note || '');
-                const initialColorTypeId = latestResponse.colorTypeId || null;
-                setColorTypeId(latestResponse.colorTypeId || null);
+                if (!initialBestColors && !initialWorstColors && !initialNote) {
 
-                let initialColorFilterList: Color[] = colorFiltersSpectrum;
-                if (initialColorTypeId) {
-                    const loadedFiltersByType = await getColorsByType(initialColorTypeId);
-                    setColorFiltersByType(loadedFiltersByType);
-                    initialColorFilterList = loadedFiltersByType;
+                    const dbNote = latestResponse.note || '';
+                    const dbTypeId = latestResponse.colorTypeId || null;
+
+                    setNote(dbNote);
+                    setColorTypeId(dbTypeId);
+
+                    let initialColorFilterList: Color[] = colorFiltersSpectrum;
+                    if (dbTypeId) {
+                        const loadedFiltersByType = await getColorsByType(dbTypeId);
+                        setColorFiltersByType(loadedFiltersByType);
+                        initialColorFilterList = loadedFiltersByType;
+                    }
+
+                    const dbBest = hexStringToColorList(latestResponse.bestColor || '', initialColorFilterList);
+                    const dbWorst = hexStringToColorList(latestResponse.worstColor || '', colorFiltersSpectrum);
+
+                    setBestColorsList(dbBest);
+                    setWorstColorsList(dbWorst);
+
+                    setOriginalData({
+                        note: dbNote,
+                        colorTypeId: dbTypeId,
+                        best: dbBest,
+                        worst: dbWorst
+                    });
+                } else {
+                    const latestResponse = data.responses[data.responses.length - 1];
+                    const dbTypeId = latestResponse.colorTypeId || null;
+
+                    let initialColorFilterList: Color[] = colorFiltersSpectrum;
+                    if (dbTypeId) {
+                        const loadedFiltersByType = await getColorsByType(dbTypeId);
+                        initialColorFilterList = loadedFiltersByType;
+                    }
+
+                    setOriginalData({
+                        note: latestResponse.note || '',
+                        colorTypeId: dbTypeId,
+                        best: hexStringToColorList(latestResponse.bestColor || '', initialColorFilterList),
+                        worst: hexStringToColorList(latestResponse.worstColor || '', colorFiltersSpectrum)
+                    });
                 }
-
-                const initialBest = hexStringToColorList(latestResponse.bestColor || '', initialColorFilterList);
-                const initialWorst = hexStringToColorList(latestResponse.worstColor || '', colorFiltersSpectrum);
-
-                setBestColorsList(initialBest);
-                setWorstColorsList(initialWorst);
             }
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
@@ -305,28 +414,31 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         } finally {
             setIsLoadingRequest(false);
         }
-    }, [testRequestId, hexStringToColorList, colorFiltersSpectrum]);
+    }, [testRequestId, hexStringToColorList, colorFiltersSpectrum, initialBestColors, initialWorstColors, initialNote]);
 
     useEffect(() => {
-        if (initialBestColors || initialWorstColors) {
-            if (initialBestColors) {
-                setBestColorsList(prev => {
-                    const existingHexes = new Set(prev.map(c => c.hexCode.toUpperCase()));
-                    const newUniqueColors = initialBestColors.filter(c => !existingHexes.has(c.hexCode.toUpperCase()));
-                    return [...prev, ...newUniqueColors];
-                });
-            }
-
-            if (initialWorstColors) {
-                setWorstColorsList(prev => {
-                    const existingHexes = new Set(prev.map(c => c.hexCode.toUpperCase()));
-                    const newUniqueColors = initialWorstColors.filter(c => !existingHexes.has(c.hexCode.toUpperCase()));
-                    return [...prev, ...newUniqueColors];
-                });
-            }
+        if (initialColorTypeId !== undefined) {
+            setColorTypeId(initialColorTypeId);
         }
-    }, [initialBestColors, initialWorstColors]);
+        if (initialNote !== undefined) {
+            setNote(initialNote);
+        }
+        if (initialBestColors) {
+            setBestColorsList(prev => {
+                const existingHexes = new Set(prev.map(c => c.hexCode.toUpperCase()));
+                const newUniqueColors = initialBestColors.filter(c => !existingHexes.has(c.hexCode.toUpperCase()));
+                return [...prev, ...newUniqueColors];
+            });
+        }
 
+        if (initialWorstColors) {
+            setWorstColorsList(prev => {
+                const existingHexes = new Set(prev.map(c => c.hexCode.toUpperCase()));
+                const newUniqueColors = initialWorstColors.filter(c => !existingHexes.has(c.hexCode.toUpperCase()));
+                return [...prev, ...newUniqueColors];
+            });
+        }
+    }, [initialBestColors, initialWorstColors, initialColorTypeId, initialNote]);
 
     useEffect(() => {
         if (colorTypeId !== null) {
@@ -344,6 +456,11 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
 
     const handleSubmit = useCallback(async () => {
+        if (!canEdit) {
+            Toast.show({ type: 'error', text1: 'Action Denied', text2: 'You cannot edit this request anymore.' });
+            return;
+        }
+
         const { bestHex, worstHex } = updateColorStrings(bestColorsList, worstColorsList);
 
         if (!testRequestId || !note.trim() || bestColorsList.length === 0 || worstColorsList.length === 0 || !colorTypeId) {
@@ -363,24 +480,19 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         try {
             if (hasExistingResponse) {
                 const updatePayload: UpdateResponsePayload = commonPayload;
-
                 await updateExpertResponse(testRequestId, updatePayload);
-
                 Toast.show({
                     type: 'success',
                     text1: 'Update Successful!',
                     text2: 'Your analysis has been successfully updated.',
                     visibilityTime: 4000,
                 });
-
             } else {
                 const createPayload: CreateResponseRequest = {
                     ...commonPayload,
                     testRequestId: testRequestId,
                 };
-
                 await createResponse(createPayload);
-
                 Toast.show({
                     type: 'success',
                     text1: 'Response Sent!',
@@ -389,7 +501,20 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                 });
             }
 
-            navigation.goBack();
+            setOriginalData({
+                note: note.trim(),
+                colorTypeId,
+                best: bestColorsList,
+                worst: worstColorsList
+            });
+
+            navigation.navigate('Tabs', {
+                screen: 'History',
+                params: {
+                    initialTab: 'Test Request',
+                    initialStatus: 'Completed'
+                }
+            });
 
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Submission failed.';
@@ -397,7 +522,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         } finally {
             setIsSubmitting(false);
         }
-    }, [testRequestId, note, bestColorsList, worstColorsList, colorTypeId, navigation, updateColorStrings, hasExistingResponse]);
+    }, [testRequestId, note, bestColorsList, worstColorsList, colorTypeId, navigation, updateColorStrings, hasExistingResponse, canEdit]);
 
     const colorPickerProps = useMemo(() => {
         if (pickerMode === 'BEST') {
@@ -431,8 +556,12 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         navigation.navigate('ColorTestOnImageScreen', {
             imageUri: clientPictureUri,
             testRequestId: testRequestId,
+            currentBestColors: bestColorsList,
+            currentWorstColors: worstColorsList,
+            colorTypeId: colorTypeId || undefined,
+            currentNote: note,
         });
-    }, [navigation, clientPictureUri, testRequestId]);
+    }, [navigation, clientPictureUri, testRequestId, bestColorsList, worstColorsList, colorTypeId, note]);
 
     if (isLoading) {
         return (
@@ -454,130 +583,155 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         );
     }
 
+    const getSubmitButtonText = () => {
+        if (!canEdit) return 'Modification Locked';
+        if (hasExistingResponse) return 'Update Response';
+        return 'Submit Response';
+    };
+
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            <ScrollView
-                contentContainerStyle={[
-                    styles.scrollViewContent,
-                    { paddingBottom: styles.scrollViewContent.paddingBottom + insets.bottom }
-                ]}
+            <View style={styles.header}>
+                <TouchableOpacity
+                    onPress={handleHeaderBackPress}
+                    style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Expert Response #{testRequestId}</Text>
+                <View style={{ width: 40 }} />
+            </View>
+
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} // Điều chỉnh offset nếu cần
             >
 
-                <View style={styles.clientInfoCard}>
-                    <Text style={styles.cardTitle}>Client Request Details #{clientRequest.id}</Text>
-                    {clientPictureUri && (
-                        <View style={styles.clientImageContainer}>
-                            <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
+                <ScrollView
+                    contentContainerStyle={[
+                        styles.scrollViewContent,
+                        { paddingBottom: styles.scrollViewContent.paddingBottom + insets.bottom }
+                    ]}
+                    keyboardShouldPersistTaps="handled"
+                >
 
+                    <View style={styles.clientInfoCard}>
+                        <Text style={styles.cardTitle}>User photo</Text>
+                        {clientPictureUri && (
+                            <View style={styles.clientImageContainer}>
+                                <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
+
+                                <TouchableOpacity
+                                    style={styles.colorTestButton}
+                                    onPress={handleNavigateToColorTestOnImage}
+                                >
+                                    <FontAwesome name="camera" size={24} color="white" />
+                                    <Text style={styles.colorTestButtonText}>Test</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        <ColorDetailDisplay
+                            skinColor={clientRequest.skinColor}
+                            hairColor={clientRequest.hairColor}
+                            eyesColor={clientRequest.eyesColor}
+                            lipsColor={clientRequest.lipsColor}
+                        />
+
+                        <Text style={styles.dateTimeText}>Received on: {new Date(clientRequest.createdDate).toLocaleDateString()}</Text>
+                    </View>
+
+                    <Text style={styles.sectionHeader}>Expert Response Form</Text>
+
+                    <Text style={styles.label}>Color Type Assignment *</Text>
+                    <View style={styles.colorTypeSelectorContainer}>
+                        {colorTypes.map((type) => (
                             <TouchableOpacity
-                                style={styles.colorTestButton}
-                                onPress={handleNavigateToColorTestOnImage}
+                                key={type.id}
+                                style={[
+                                    styles.colorTypeButton,
+                                    colorTypeId === type.id && styles.colorTypeButtonActive,
+                                    !canEdit && styles.colorTypeButtonDisabled // Style mới khi disabled
+                                ]}
+                                onPress={() => canEdit && setColorTypeId(type.id)}
+                                disabled={!canEdit || isSubmitting}
                             >
-                                <FontAwesome name="camera" size={24} color="white" />
-                                <Text style={styles.colorTestButtonText}>Test</Text>
+                                <Text style={[
+                                    colorTypeId === type.id ? styles.colorTypeButtonTextActive : styles.colorTypeButtonText,
+                                    !canEdit && styles.colorTypeTextDisabled
+                                ]}>
+                                    {type.name}
+                                </Text>
                             </TouchableOpacity>
-                        </View>
-                    )}
+                        ))}
+                    </View>
 
-                    <ColorDetailDisplay
-                        skinColor={clientRequest.skinColor}
-                        hairColor={clientRequest.hairColor}
-                        eyesColor={clientRequest.eyesColor}
-                        lipsColor={clientRequest.lipsColor}
+                    <Text style={styles.label}>Expert Note *</Text>
+                    <TextInput
+                        style={[styles.textArea, !canEdit && styles.disabledInput]}
+                        value={note}
+                        onChangeText={setNote}
+                        placeholder="Enter your detailed analysis and suggestions here..."
+                        multiline
+                        numberOfLines={5}
+                        editable={canEdit && !isSubmitting}
                     />
 
-                    <Text style={styles.dateTimeText}>Received on: {new Date(clientRequest.createdDate).toLocaleDateString()}</Text>
-                </View>
-
-                <Text style={styles.sectionHeader}>Expert Response Form</Text>
-
-                <Text style={styles.label}>Color Type Assignment *</Text>
-                <View style={styles.colorTypeSelectorContainer}>
-                    {colorTypes.map((type) => (
+                    <Text style={styles.label}>Best Colors (Click to add color) *</Text>
+                    <SelectedColorsDisplay
+                        colors={bestColorsList}
+                        onRemove={(id) => handleRemoveColor(id, 'Best')}
+                        disabled={!canEdit}
+                    />
+                    {canEdit && (
                         <TouchableOpacity
-                            key={type.id}
-                            style={[
-                                styles.colorTypeButton,
-                                colorTypeId === type.id && styles.colorTypeButtonActive,
-                            ]}
-                            onPress={() => setColorTypeId(type.id)}
-                            disabled={isSubmitting}
+                            style={styles.addColorButton}
+                            onPress={() => handleColorFieldPress('BEST')}
+                            disabled={isSubmitting || isLoadingColorFilters}
                         >
-                            <Text style={colorTypeId === type.id ? styles.colorTypeButtonTextActive : styles.colorTypeButtonText}>
-                                {type.name}
-                            </Text>
+                            <Text style={styles.addColorButtonText}>+ Add Best Color</Text>
                         </TouchableOpacity>
-                    ))}
-                </View>
+                    )}
 
-                <Text style={styles.label}>Expert Note *</Text>
-                <TextInput
-                    style={styles.textArea}
-                    value={note}
-                    onChangeText={setNote}
-                    placeholder="Enter your detailed analysis and suggestions here..."
-                    multiline
-                    numberOfLines={5}
-                    editable={!isSubmitting}
-                />
+                    <Text style={styles.label}>Worst Colors (Click to add color) *</Text>
+                    <SelectedColorsDisplay
+                        colors={worstColorsList}
+                        onRemove={(id) => handleRemoveColor(id, 'Worst')}
+                        disabled={!canEdit}
+                    />
+                    {canEdit && (
+                        <TouchableOpacity
+                            style={styles.addColorButton}
+                            onPress={() => handleColorFieldPress('WORST')}
+                            disabled={isSubmitting || isLoadingResources}
+                        >
+                            <Text style={styles.addColorButtonText}>+ Add Worst Color</Text>
+                        </TouchableOpacity>
+                    )}
 
-                <Text style={styles.label}>Best Colors (Click to add color) *</Text>
-                <SelectedColorsDisplay
-                    colors={bestColorsList}
-                    onRemove={(id) => handleRemoveColor(id, 'Best')}
-                />
-                <TouchableOpacity
-                    style={styles.addColorButton}
-                    onPress={() => handleColorFieldPress('BEST')}
-                    // [CẬP NHẬT] Đã xóa kiểm tra `!colorTypeId` khỏi disabled
-                    disabled={isSubmitting || isLoadingColorFilters}
-                >
-                    <Text style={styles.addColorButtonText}>+ Add Best Color</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.label}>Worst Colors (Click to add color) *</Text>
-                <SelectedColorsDisplay
-                    colors={worstColorsList}
-                    onRemove={(id) => handleRemoveColor(id, 'Worst')}
-                />
-                <TouchableOpacity
-                    style={styles.addColorButton}
-                    onPress={() => handleColorFieldPress('WORST')}
-                    disabled={isSubmitting || isLoadingResources}
-                >
-                    <Text style={styles.addColorButtonText}>+ Add Worst Color</Text>
-                </TouchableOpacity>
-
-                <View style={{ height: 30 }} />
-            </ScrollView>
+                    <View style={{ height: 30 }} />
+                </ScrollView>
+            </KeyboardAvoidingView>
 
             <View
                 style={[
                     styles.footer,
-                    { paddingBottom: styles.footer.padding + insets.bottom }
+                    { paddingBottom: 20 + insets.bottom }
                 ]}
             >
                 <TouchableOpacity
-                    style={[styles.backButtonFooter]}
-                    onPress={() => navigation.goBack()}
-                    disabled={isSubmitting}
-                >
-                    <Text style={styles.backButtonText}>Back</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
                     style={[
                         styles.submitButton,
-                        (isSubmitting || isExpired) && styles.submitButtonDisabled
+                        (!canEdit || isSubmitting) && styles.submitButtonDisabled
                     ]}
                     onPress={handleSubmit}
-                    disabled={isSubmitting || isExpired}
+                    disabled={!canEdit || isSubmitting}
                 >
                     {isSubmitting ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
                         <Text style={styles.submitButtonText}>
-                            {hasExistingResponse ? 'Update Response' : 'Submit Response'}
+                            {getSubmitButtonText()}
                         </Text>
                     )}
                 </TouchableOpacity>
@@ -604,9 +758,28 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f5f5f5',
     },
+    // [CẬP NHẬT] Style Header
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    backButton: {
+        padding: 5,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+    },
     scrollViewContent: {
         padding: 15,
-        paddingBottom: 80,
+        paddingBottom: 100,
     },
     centered: {
         flex: 1,
@@ -665,7 +838,7 @@ const styles = StyleSheet.create({
     },
     clientImageContainer: {
         width: '100%',
-        height: 200,
+        height: 500,
         borderRadius: 8,
         marginBottom: 10,
         backgroundColor: '#eee',
@@ -762,6 +935,7 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         minHeight: 100,
         textAlignVertical: 'top',
+        color: '#333',
     },
     colorTypeSelectorContainer: {
         flexDirection: 'row',
@@ -792,6 +966,15 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
+    // [CẬP NHẬT] Style cho nút Color Type khi disabled
+    colorTypeButtonDisabled: {
+        opacity: 0.6,
+        backgroundColor: '#e9ecef',
+        borderColor: '#ced4da',
+    },
+    colorTypeTextDisabled: {
+        color: '#6c757d',
+    },
     selectedColorsContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -817,11 +1000,11 @@ const styles = StyleSheet.create({
     },
     colorSquareHexText: {
         fontSize: 12,
-        color: '#fff',
-        textShadowColor: 'rgba(0, 0, 0, 0.7)',
+        textShadowColor: 'rgba(0, 0, 0, 0.2)',
         textShadowOffset: { width: 0.5, height: 0.5 },
         textShadowRadius: 1,
         marginBottom: 2,
+        fontWeight: 'bold',
     },
     removeButtonSquare: {
         position: 'absolute',
@@ -864,35 +1047,34 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#eee',
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         alignItems: 'center',
     },
     submitButton: {
-        flex: 3,
+        width: '80%',
         backgroundColor: '#28a745',
         padding: 15,
         borderRadius: 10,
         alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
     },
     submitButtonDisabled: {
-        backgroundColor: '#90ee90',
+        backgroundColor: '#A0AEC0',
+        shadowOpacity: 0,
+        elevation: 0,
     },
     submitButtonText: {
         color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
     },
-    backButtonFooter: {
-        flex: 1,
-        backgroundColor: '#e0e0e0',
-        padding: 15,
-        borderRadius: 10,
-        alignItems: 'center',
-        marginRight: 10,
-    },
-    backButtonText: {
-        color: '#333',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
+    disabledInput: {
+        backgroundColor: '#E9ECEF',
+        color: '#495057',
+        borderColor: '#CED4DA',
+    }
 });

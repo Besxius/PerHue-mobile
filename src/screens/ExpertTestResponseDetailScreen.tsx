@@ -16,8 +16,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, AntDesign, MaterialIcons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { ExpertRequest, ExpertTestResponse, Color, ExpertTestDetailResponse } from '../types/dataModels';
-import { getExpertTestResultsById, rateExpertTest, sendReviewRequest } from '../api/userApi'; // Đảm bảo đã import sendReviewRequest
+import { ExpertTestResponse, Color, ExpertTestDetailResponse } from '../types/dataModels';
+import { getExpertTestResultsById, rateExpertTest, sendReviewRequest } from '../api/userApi';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type DetailScreenProps = NativeStackScreenProps<
@@ -269,6 +269,7 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
         try {
             const result = await getExpertTestResultsById(testRequestId);
             setData(result);
+            data?.isSentReview ? setIsReviewRequested(true) : setIsReviewRequested(false);
             // Kiểm tra trạng thái nếu cần (ví dụ: result.testRequest.status === 'ReviewRequested')
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
@@ -588,7 +589,7 @@ const styles = StyleSheet.create({
     },
     clientImageContainer: {
         width: '100%',
-        height: 200,
+        height: 500,
         borderRadius: 8,
         marginBottom: 10,
         backgroundColor: '#eee',
@@ -651,12 +652,12 @@ const styles = StyleSheet.create({
         textAlign: 'right',
     },
     statusChip: {
-        backgroundColor: '#FFEB3B',
+        // backgroundColor: '#FFEB3B',
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 4,
         fontWeight: 'bold',
-        color: '#333',
+        color: SUCCESS_COLOR,
     },
     // Response Card Styles
     responseCard: {

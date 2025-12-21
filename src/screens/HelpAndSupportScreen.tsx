@@ -168,7 +168,7 @@ const HelpAndSupportScreen: FC<HelpAndSupportScreenProps> = ({ navigation }) => 
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 120}
             >
                 <ScrollView
                     contentContainerStyle={styles.contentContainer}

@@ -241,6 +241,29 @@ export interface ExpertRequest {
     pictures: RequestPicture[];
 }
 
+export interface ExpertCompletedRequest {
+    id: number;
+    hairColor: string;
+    eyesColor: string;
+    lipsColor: string;
+    skinColor: string;
+    status: string;
+    createdDate: string;
+    typeOfTest: string;
+    userAccountId: number;
+    aiPictures: {
+        id: number;
+        source: string;
+        note: string;
+    }[];
+    pictures: {
+        id: number;
+        source: string;
+    }[];
+    expertStatus: string;
+    assignmentDate: string;
+}
+
 export interface CreateResponseRequest {
     testRequestId: number;
     note: string;
@@ -267,12 +290,15 @@ export interface ExpertTestDetailResponse {
     testRequest: ExpertRequest;
     responses: ExpertTestResponse[];
     responsesSimilarityScore?: number | null;
+    isSentReview: boolean;
 }
 
 export interface ReviewTestRequest {
     expertTestRequestId: number;
     testRequest: ExpertRequest;
     previousResponses: ExpertTestResponse[];
+    canEdit: boolean;
+    votedResponseId?: number;
 }
 
 export interface VoteForReviewRequest {
@@ -445,6 +471,7 @@ export interface ReportResponse {
 export interface ExpertRequestDetailResponse {
     testRequest: ExpertRequest;
     responses: ExpertTestResponse[];
+    canEdit: boolean;
 }
 
 export interface UpdateResponsePayload {

@@ -128,7 +128,6 @@ const LoginScreen: React.FC = () => {
             if (responseData && responseData.accessToken) {
                 try {
                     const decoded: JwtPayload = jwtDecode(responseData.accessToken);
-                    console.log("Decoded Role at Login:", decoded.role);
 
                     setUserRole(decoded.role || 'User');
                     if (decoded.unique_name) {

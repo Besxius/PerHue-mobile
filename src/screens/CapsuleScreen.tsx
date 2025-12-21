@@ -6,11 +6,11 @@ import {
     TouchableOpacity,
     StatusBar,
     FlatList,
-    Dimensions,
     ActivityIndicator,
     Modal,
     TouchableWithoutFeedback,
     TextInput,
+    RefreshControl
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from '@expo/vector-icons';
@@ -22,8 +22,6 @@ import { ColorType, CapsulePaletteModel, Color } from '../types/dataModels';
 import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
 
 interface TabItem extends ColorType { }
-
-const { width } = Dimensions.get('window');
 
 interface ColorDetailProps {
     color: Color;
@@ -134,10 +132,10 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
     const [selectedPaletteId, setSelectedPaletteId] = useState<number | null>(null);
 
     const [searchText, setSearchText] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
 
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [selectedDetailPalette, setSelectedDetailPalette] = useState<CapsulePaletteModel | null>(null);
-
 
     const filteredPalettes = useMemo(() => {
         if (!searchText) {
@@ -153,7 +151,6 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
             );
         });
     }, [palettes, searchText]);
-
 
     useEffect(() => {
         const fetchColorTypes = async () => {
@@ -177,38 +174,54 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
         fetchColorTypes();
     }, []);
 
-
-    useEffect(() => {
+    const fetchPalettesData = useCallback(async (isRefresh = false) => {
         if (activeTabId === null) return;
 
-        const fetchPalettes = async () => {
-            try {
+        try {
+            // Nếu đang refresh thì không hiện loading giữa màn hình, chỉ hiện spinner ở trên
+            if (!isRefresh) {
                 setPaletteLoading(true);
+            }
+            // Nếu refresh thì setPalettes([]) hoặc giữ lại tùy UX. 
+            // Ở đây giữ lại data cũ để không bị nháy màn hình.
+            if (!isRefresh) {
                 setPalettes([]);
+            }
 
-                const data = await getCapsulePalettesByType(activeTabId);
-                const activeColorType = colorTypes.find(t => t.id === activeTabId);
+            const data = await getCapsulePalettesByType(activeTabId);
+            const activeColorType = colorTypes.find(t => t.id === activeTabId);
 
-                const palettesWithColorType = data.map(p => ({
-                    ...p,
-                    colorType: p.colorType || activeColorType
-                }));
+            const palettesWithColorType = data.map(p => ({
+                ...p,
+                colorType: p.colorType || activeColorType
+            }));
 
-                setPalettes(palettesWithColorType);
-                setPaletteError(null);
-                setSelectedPaletteId(null);
+            setPalettes(palettesWithColorType);
+            setPaletteError(null);
+            setSelectedPaletteId(null);
 
-            } catch (e: any) {
-                console.error(`Lỗi tải Palettes cho ID ${activeTabId}:`, e);
-                setPaletteError(e.message || "Không thể tải bảng màu.");
-                setPalettes([]);
-            } finally {
+        } catch (e: any) {
+            console.error(`Lỗi tải Palettes cho ID ${activeTabId}:`, e);
+            setPaletteError(e.message || "Không thể tải bảng màu.");
+            setPalettes([]);
+        } finally {
+            if (!isRefresh) {
                 setPaletteLoading(false);
             }
-        };
-
-        fetchPalettes();
+        }
     }, [activeTabId, colorTypes]);
+
+
+    useEffect(() => {
+        fetchPalettesData(false);
+    }, [fetchPalettesData]);
+
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await fetchPalettesData(true);
+        setRefreshing(false);
+    }, [fetchPalettesData]);
 
 
     const handlePalettePress = useCallback((palette: CapsulePaletteModel) => {
@@ -357,6 +370,14 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
                     ListEmptyComponent={renderEmptyComponent}
                     showsVerticalScrollIndicator={false}
                     ListFooterComponent={<View style={{ height: 60 + insets.bottom }} />}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={["#4285F4"]} //android
+                            tintColor="#4285F4" //ios
+                        />
+                    }
                 />
             )}
 

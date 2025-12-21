@@ -29,7 +29,6 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const DEFAULT_COLOR: Color = { id: 0, name: 'Default Transparent', hexCode: 'transparent' };
 
-// Define dimensions for the color overlay mask
 const OVAL_WIDTH = screenWidth * 0.8;
 const OVAL_HEIGHT = screenWidth * 1.0;
 const OVAL_RADIUS_X = OVAL_WIDTH / 2;
@@ -37,36 +36,75 @@ const OVAL_RADIUS_Y = OVAL_HEIGHT / 2;
 const OVAL_CENTER_X = screenWidth / 2;
 const OVAL_CENTER_Y = screenHeight / 2;
 
-// Define type for list mode
 type ColorListMode = 'best' | 'worst';
 
 const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
-    // Lấy ID testRequestId từ params để truyền lại (nếu cần)
-    const { imageUri, testRequestId } = route.params as { imageUri: string, testRequestId?: number };
+    const {
+        imageUri,
+        testRequestId,
+        currentBestColors,
+        currentWorstColors,
+        colorTypeId,
+        currentNote
+    } = route.params as {
+        imageUri: string,
+        testRequestId?: number,
+        currentBestColors?: Color[],
+        currentWorstColors?: Color[],
+        colorTypeId?: number,
+        currentNote?: string
+    };
 
-    const [bestColors, setBestColors] = useState<Color[]>([]);
-    const [worstColors, setWorstColors] = useState<Color[]>([]);
+    const [bestColors, setBestColors] = useState<Color[]>(currentBestColors || []);
+    const [worstColors, setWorstColors] = useState<Color[]>(currentWorstColors || []);
     const [selectedColorInfo, setSelectedColorInfo] = useState<Color>(DEFAULT_COLOR);
     const [activeColorListMode, setActiveColorListMode] = useState<ColorListMode>('best');
 
-    // Popups States
     const [showColorPickerPopup, setShowColorPickerTool] = useState(false);
     const [showColorPopup, setShowColorPicker] = useState(false);
     const [showPalettPopup, setShowPalettePicker] = useState(false);
     const [showSavedColorPopup, setShowSavedColorPopup] = useState(false);
 
-    // API Data States
-    const [colorFilters, setColorFilters] = useState<Color[]>([]);
+    const [allColors, setAllColors] = useState<Color[]>([]);
+    const [pickerColors, setPickerColors] = useState<Color[]>([]);
+
     const [colorTypes, setColorTypes] = useState<ColorType[]>([]);
     const [palettesBySeason, setPalettesBySeason] = useState<CapsulePaletteModel[]>([]);
     const [isLoadingPalettes, setIsLoadingPalettes] = useState(false);
     const [selectedTabName, setSelectedTabName] = useState<string>('');
 
-    // Dynamic color list: Based on active mode
+    const isSavingRef = useRef(false);
+
     const activeColorList = activeColorListMode === 'best' ? bestColors : worstColors;
 
-    // --- Data Loading Effects ---
+    const colorTypeName = useMemo(() => {
+        if (!colorTypeId) return null;
+        const type = colorTypes.find(t => t.id === colorTypeId);
+        return type ? type.name : null;
+    }, [colorTypeId, colorTypes]);
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+            if (isSavingRef.current) {
+                return;
+            }
+
+            e.preventDefault();
+
+            isSavingRef.current = true;
+
+            navigation.navigate('CreateExpertTestResponse', {
+                id: testRequestId,
+                initialBestColors: bestColors,
+                initialWorstColors: worstColors,
+                initialColorTypeId: colorTypeId,
+                initialNote: currentNote,
+            });
+        });
+
+        return unsubscribe;
+    }, [navigation, bestColors, worstColors, testRequestId, colorTypeId, currentNote]);
 
     const loadPalettesByTypeId = useCallback(async (colorTypeId: number, seasonName: string) => {
         setIsLoadingPalettes(true);
@@ -85,18 +123,29 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
         }
     }, []);
 
-    const fetchColorFilters = useCallback(async () => {
+    const fetchColors = useCallback(async () => {
         try {
-            const data = await getCorlorListSpectrum();
-            setColorFilters(data);
+            // 1. Luôn lấy Full Spectrum cho ColorPopup (Tab All)
+            const fullSpectrum = await getCorlorListSpectrum();
+            setAllColors(fullSpectrum);
+
+            // 2. Lấy dữ liệu cho Picker Tool (dựa vào colorTypeId)
+            if (colorTypeId) {
+                console.log(`Loading picker colors for type: ${colorTypeId}`);
+                const typeColors = await getColorsByType(colorTypeId);
+                setPickerColors(typeColors);
+            } else {
+                // Nếu không có Type, Picker Tool cũng dùng Full Spectrum
+                setPickerColors(fullSpectrum);
+            }
         } catch (error) {
             console.error('Error loading colors from API:', error);
             Alert.alert('Color Load Error', 'Could not load color data from API.');
         }
-    }, []);
+    }, [colorTypeId]);
 
     useEffect(() => {
-        fetchColorFilters();
+        fetchColors();
         const loadInitialData = async () => {
             if (colorTypes.length > 0) return;
             try {
@@ -113,12 +162,20 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
             }
         };
         loadInitialData();
-    }, [fetchColorFilters, loadPalettesByTypeId, colorTypes.length]);
+    }, [fetchColors, loadPalettesByTypeId, colorTypes.length, colorTypeId]);
 
     // --- Handlers ---
 
     const handleGoBack = () => {
-        navigation.goBack();
+        isSavingRef.current = true;
+
+        navigation.navigate('CreateExpertTestResponse', {
+            id: testRequestId,
+            initialBestColors: bestColors,
+            initialWorstColors: worstColors,
+            initialColorTypeId: colorTypeId,
+            initialNote: currentNote,
+        });
     };
 
     const handleColorSelect = (color: Color) => {
@@ -190,7 +247,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
         );
     };
 
-
     const handleDeleteColor = (colorId: number, mode: ColorListMode) => {
         const setList = mode === 'best' ? setBestColors : setWorstColors;
         const listName = mode === 'best' ? 'Best' : 'Worst';
@@ -211,28 +267,16 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
     };
 
     const handleTestSubmit = () => {
-        if (bestColors.length === 0 || worstColors.length === 0) {
-            Toast.show({
-                type: 'error',
-                text1: 'Lỗi',
-                text2: 'Vui lòng chọn ít nhất một màu Best Color và Worst Color.',
-                visibilityTime: 3000,
-            });
-            return;
-        }
+        isSavingRef.current = true;
 
         navigation.navigate('CreateExpertTestResponse', {
             id: testRequestId,
             initialBestColors: bestColors,
             initialWorstColors: worstColors,
+            initialColorTypeId: colorTypeId,
+            initialNote: currentNote,
         });
 
-        Toast.show({
-            type: 'success',
-            text1: 'Data Submitted',
-            text2: 'Best/Worst colors ready for expert response.',
-            visibilityTime: 2000,
-        });
     };
 
     const handleShowSavedColorPopup = (mode: ColorListMode) => {
@@ -271,7 +315,7 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                         </View>
                     ))}
                     {colors.length === 0 && (
-                        <Text style={styles.emptyListText}>Chưa có màu nào được lưu</Text>
+                        <Text style={styles.emptyListText}>No colors were saved.</Text>
                     )}
                 </ScrollView>
             </View>
@@ -317,7 +361,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                 </View>
             )}
 
-            {/* Top Controls */}
             <View style={[styles.topControls, { paddingTop: insets.top + 10 }]}>
                 <TouchableOpacity style={styles.topControlButton} onPress={handleGoBack}>
                     <Ionicons name="arrow-back" size={30} color="white" />
@@ -325,9 +368,7 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                 <View style={styles.topControlButtonPlaceholder} />
             </View>
 
-            {/* Vertical Right Controls (Tool Bar) */}
             <View style={[styles.rightControls, { top: insets.top + 80 }]}>
-                {/* 1. Color Picker Popup */}
                 <TouchableOpacity
                     style={styles.leftControlButton}
                     onPress={() => setShowColorPickerTool(true)}
@@ -335,7 +376,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                     <Ionicons name="color-filter" size={24} color="white" />
                 </TouchableOpacity>
 
-                {/* 2. Color List (Spectrum) Popup */}
                 <TouchableOpacity
                     style={styles.leftControlButton}
                     onPress={() => setShowColorPicker(true)}
@@ -343,7 +383,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                     <Ionicons name="color-palette" size={24} color="white" />
                 </TouchableOpacity>
 
-                {/* 3. Palette Popup */}
                 <TouchableOpacity
                     style={styles.leftControlButton}
                     onPress={() => setShowPalettePicker(true)}
@@ -353,7 +392,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
 
                 <View style={styles.separator} />
 
-                {/* --- BEST COLOR LIST (Open Manager Popup) --- */}
                 <TouchableOpacity
                     style={[styles.leftControlButton, { backgroundColor: 'rgba(76, 175, 80, 0.7)' }]}
                     onPress={() => handleShowSavedColorPopup('best')}
@@ -361,7 +399,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                     <MaterialIcons name="thumb-up" size={24} color="white" />
                 </TouchableOpacity>
 
-                {/* --- WORST COLOR LIST (Open Manager Popup) --- */}
                 <TouchableOpacity
                     style={[styles.leftControlButton, { backgroundColor: 'rgba(244, 67, 54, 0.7)' }]}
                     onPress={() => handleShowSavedColorPopup('worst')}
@@ -370,7 +407,6 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                 </TouchableOpacity>
             </View>
 
-            {/* Current Selected Color and Save Button (Positioned near the oval) */}
             <View style={styles.filterTagContainer}>
                 <View style={styles.filterRow}>
                     {selectedColorInfo.id !== DEFAULT_COLOR.id && (
@@ -396,28 +432,28 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
             </View>
 
             {/* Best/Worst Color Lists and Submit Button (Bottom Area) */}
-            <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 10 }]}>
-                {/* <View style={styles.colorListsWrapper}>
+            {/* <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 10 }]}> */}
+            {/* <View style={styles.colorListsWrapper}>
                     {renderSavedColorTags('best')}
                     {renderSavedColorTags('worst')}
                 </View> */}
 
-                {/* Test Button */}
-                <TouchableOpacity
+            {/* Test Button */}
+            {/* <TouchableOpacity
                     style={styles.testButton}
                     onPress={handleTestSubmit}
                     disabled={bestColors.length === 0 || worstColors.length === 0}
                 >
-                    <Text style={styles.testButtonText}>SUBMIT COLORS TO EXPERT</Text>
+                    <Text style={styles.testButtonText}>Back To Detail Screen</Text>
                     <Ionicons name="send" size={20} color="white" style={{ marginLeft: 10 }} />
-                </TouchableOpacity>
-            </View>
+                </TouchableOpacity> */}
+            {/* </View> */}
 
             {/* --- Popups (rest of the popups remain unchanged) --- */}
             <ColorPopup
                 showColorPicker={showColorPopup}
                 setShowColorPicker={setShowColorPicker}
-                allColorFilters={colorFilters}
+                allColorFilters={allColors}
                 selectedColorInfo={selectedColorInfo}
                 handleColorSelect={handleColorSelect}
                 title="SELECT COLOR SPECTRUM"
@@ -430,12 +466,13 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                 onClose={() => setShowColorPickerTool(false)}
                 onColorSelected={handleColorSelect}
                 initialColorHex={selectedColorInfo.hexCode}
-                colorFilters={colorFilters}
+                colorFilters={pickerColors}
+                colorTitle={colorTypeName ? `PerHue Colors for ${colorTypeName}` : 'Select Color'}
             />
             <PalettePopup
                 showPalettePicker={showPalettPopup}
                 setShowPalettePicker={setShowPalettePicker}
-                colorFilters={colorFilters}
+                colorFilters={allColors}
                 handleColorSelect={handleColorSelect}
                 colorTypes={colorTypes}
                 palettesBySeason={palettesBySeason}

@@ -162,7 +162,6 @@ export async function signInWithGoogle(): Promise<SignInResult> {
 export const logout = async (): Promise<void> => {
     try {
         await apiClient.post<ApiResponse<any>>(`${USER_ENDPOINT}/logout`);
-        console.log('User successfully signed out via API.');
     } catch (error) {
         // Vẫn phải xóa token khỏi client ngay cả khi gọi API thất bại.
         if (axios.isAxiosError(error)) {

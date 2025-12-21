@@ -19,4 +19,5 @@ export interface BaseHistoryItem {
     isOrder: boolean;
     extraInfo?: string;
     isExpert: boolean;
+    originalDate?: Date;
 }
