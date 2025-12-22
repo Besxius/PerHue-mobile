@@ -270,7 +270,6 @@ const ExpertTestResponseDetailScreen: React.FC<DetailScreenProps> = ({ route, na
             const result = await getExpertTestResultsById(testRequestId);
             setData(result);
             data?.isSentReview ? setIsReviewRequested(true) : setIsReviewRequested(false);
-            // Kiểm tra trạng thái nếu cần (ví dụ: result.testRequest.status === 'ReviewRequested')
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
             setError(`Failed to load details: ${errorMessage}`);

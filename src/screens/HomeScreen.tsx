@@ -244,7 +244,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={styles.userNameText}>{displayFirstName}</Text>
             <Text style={styles.subGreetingText}>Ready to find your best colors?</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('UserScreen')} style={styles.profileLinkButton}>
+          <TouchableOpacity onPress={() => navigation.navigate('Camera')} style={styles.profileLinkButton}>
             <Ionicons name="arrow-forward-circle-outline" size={32} color="#000000ff" />
           </TouchableOpacity>
         </View>

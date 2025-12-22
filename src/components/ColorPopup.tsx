@@ -11,36 +11,32 @@ import {
     Dimensions,
     Alert,
     ActivityIndicator,
-    FlatList
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    ToastAndroid,
 } from "react-native";
+import Toast from 'react-native-toast-message';
 import { Ionicons } from "@expo/vector-icons";
 import { Color, ColorType } from "../types/dataModels";
-
-// --- Kết thúc Mock ---
-
-// Định nghĩa giao diện TabItem
+import * as Clipboard from 'expo-clipboard';
 interface TabItem extends ColorType {
     isAll?: boolean;
 }
 
-// Cập nhật Props để làm cho các trường tùy chọn và nullable
 interface ColorPopupProps {
     showColorPicker: boolean;
     setShowColorPicker: (visible: boolean) => void;
-
-    // Nguồn dữ liệu tất cả màu
     allColorFilters: Color[];
-
     selectedColorInfo: Color;
+
     handleColorSelect: (color: Color) => void;
     onDeleteColor?: (colorId: number) => void;
+    onImportColors?: (colors: Color[]) => void;
+
     canDelete?: boolean;
     title?: string;
-
-    // NEW: Kiểm soát việc hiển thị tab
     showTabs?: boolean;
-
-    // Hàm API thực tế (nullable)
     getColorTypeApi?: () => Promise<ColorType[]>;
     getColorsByTypeApi?: (id: number) => Promise<Color[]>;
 }
@@ -55,26 +51,25 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
     selectedColorInfo,
     handleColorSelect,
     onDeleteColor,
+    onImportColors,
     canDelete = false,
     title = "SELECT COLOR FILTER",
-    showTabs = false, // Mặc định là false
+    showTabs = false,
     getColorTypeApi,
     getColorsByTypeApi,
 }) => {
     const [searchText, setSearchText] = useState('');
     const [showColorNames, setShowColorNames] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importText, setImportText] = useState('');
 
-    // --- State cho Tabs và Data Load ---
     const [colorTypeTabs, setColorTypeTabs] = useState<TabItem[]>([]);
     const [activeTabId, setActiveTabId] = useState<number>(ALL_TAB_ID);
     const [currentFilteredList, setCurrentFilteredList] = useState<Color[]>(allColorFilters);
     const [isLoadingColors, setIsLoadingColors] = useState(false);
-    // ----------------------------------
 
-    // Kiểm tra tính hợp lệ của Tab/API
     const isTabEnabled = showTabs && getColorTypeApi && getColorsByTypeApi;
 
-    // 1. Load Color Types khi component mount (chỉ 1 lần)
     useEffect(() => {
         if (!isTabEnabled) return;
 
@@ -97,7 +92,6 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
     }, [isTabEnabled, getColorTypeApi]);
 
 
-    // 2. Load Colors theo Type khi tab thay đổi
     const loadColorsForType = useCallback(async (typeId: number) => {
         if (!isTabEnabled) return;
 
@@ -122,11 +116,8 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
         }
     }, [isTabEnabled, allColorFilters, getColorsByTypeApi]);
 
-    // --- Khởi tạo và đồng bộ khi Popup mở ---
     useEffect(() => {
         if (showColorPicker) {
-            // Khi mở, luôn bắt đầu với allColorFilters nếu Tab không được bật
-            // Hoặc đồng bộ list hiện tại với allColorFilters nếu đang ở tab All
             if (!isTabEnabled || activeTabId === ALL_TAB_ID) {
                 setCurrentFilteredList(allColorFilters);
             }
@@ -134,7 +125,6 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
     }, [showColorPicker, isTabEnabled, allColorFilters]);
 
 
-    // 3. Lọc màu dựa trên Search Text VÀ Tab đã chọn
     const finalFilteredColors = useMemo(() => {
         if (!searchText) {
             return currentFilteredList;
@@ -145,7 +135,6 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
             color.hexCode.toLowerCase().includes(lowerCaseSearch)
         );
     }, [currentFilteredList, searchText]);
-    // --------------------------------------------
 
     const handleLongPress = (color: Color) => {
         if (!canDelete || !onDeleteColor) return;
@@ -163,12 +152,56 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
                     style: "destructive",
                     onPress: () => {
                         onDeleteColor(color.id);
-                        // Cập nhật UI ngay sau khi xóa (chỉ cần cập nhật list hiện tại)
                         setCurrentFilteredList(prev => prev.filter(c => c.id !== color.id));
                     }
                 }
             ]
         );
+    };
+
+    const handleCopyColor = async (color: Color) => {
+        await Clipboard.setStringAsync(color.hexCode);
+
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied ${color.hexCode} to clipboard!`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `Color code ${color.hexCode} copied!`);
+        }
+    };
+
+    const handleProcessImport = () => {
+        if (!importText.trim()) {
+            setShowImportModal(false);
+            return;
+        }
+
+        const rawColors = importText.split(',');
+        const validColors: Color[] = [];
+
+        const hexRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+
+        rawColors.forEach((item, index) => {
+            let hex = item.trim();
+            if (!hex.startsWith('#') && (hex.length === 3 || hex.length === 6)) {
+                hex = '#' + hex;
+            }
+
+            if (hexRegex.test(hex)) {
+                validColors.push({
+                    id: Date.now() + index + Math.random(),
+                    name: hex.toUpperCase(),
+                    hexCode: hex.toUpperCase()
+                });
+            }
+        });
+
+        if (validColors.length > 0 && onImportColors) {
+            onImportColors(validColors);
+            setImportText('');
+            setShowImportModal(false);
+        } else {
+            Alert.alert("Lỗi", "Không tìm thấy mã màu hợp lệ. Vui lòng nhập dạng #FFFFFF,#000000");
+        }
     };
 
     const renderTabItem = ({ item }: { item: TabItem }) => (
@@ -205,14 +238,12 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
                     {isSelected && <Ionicons name="checkmark" size={24} color="white" />}
                 </TouchableOpacity>
 
-                {canDelete && (
-                    <TouchableOpacity
-                        style={styles.deleteIconOverlay}
-                        onPress={() => handleLongPress(color)} // Trigger deletion alert
-                    >
-                        <Ionicons name="close" size={14} color="red" />
-                    </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                    style={styles.actionIconOverlay}
+                    onPress={() => handleCopyColor(color)}
+                >
+                    <Ionicons name="copy-outline" size={12} color="#999" />
+                </TouchableOpacity>
 
                 {showColorNames && (
                     <Text style={styles.colorNameText} numberOfLines={1}>
@@ -273,6 +304,15 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
                                     )}
                                 </View>
 
+                                {onImportColors && (
+                                    <TouchableOpacity
+                                        style={styles.toggleButton}
+                                        onPress={() => setShowImportModal(true)}
+                                    >
+                                        <Ionicons name="download-outline" size={20} color="white" />
+                                    </TouchableOpacity>
+                                )}
+
                                 <TouchableOpacity
                                     style={[styles.toggleButton, showColorNames && styles.toggleButtonActive]}
                                     onPress={() => setShowColorNames(prev => !prev)}
@@ -302,7 +342,47 @@ const ColorPopup: React.FC<ColorPopupProps> = ({
                                     </View>
                                 )}
                             </ScrollView>
-
+                            <Modal
+                                animationType="fade"
+                                transparent={true}
+                                visible={showImportModal}
+                                onRequestClose={() => setShowImportModal(false)}
+                            >
+                                <KeyboardAvoidingView
+                                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                                    style={styles.importModalOverlay}
+                                    keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+                                >
+                                    <View style={styles.importModalContainer}>
+                                        <Text style={styles.importModalTitle}>Import Colors</Text>
+                                        <Text style={styles.importModalDesc}>
+                                            Enter hex codes separated by commas (e.g. #FF0000, #00FF00)
+                                        </Text>
+                                        <TextInput
+                                            style={styles.importInput}
+                                            placeholder="#FFFFFF, #000000..."
+                                            placeholderTextColor="#888"
+                                            multiline
+                                            value={importText}
+                                            onChangeText={setImportText}
+                                        />
+                                        <View style={styles.importButtonRow}>
+                                            <TouchableOpacity
+                                                style={[styles.importBtn, styles.cancelBtn]}
+                                                onPress={() => setShowImportModal(false)}
+                                            >
+                                                <Text style={styles.importBtnText}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.importBtn, styles.confirmBtn]}
+                                                onPress={handleProcessImport}
+                                            >
+                                                <Text style={styles.importBtnText}>Import</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </KeyboardAvoidingView>
+                            </Modal>
                         </View>
                     </TouchableWithoutFeedback>
                 </View>
@@ -339,6 +419,64 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 10,
+    },
+    importModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    importModalContainer: {
+        width: '85%',
+        backgroundColor: '#2C2C2C',
+        borderRadius: 15,
+        padding: 20,
+        alignItems: 'center',
+    },
+    importModalTitle: {
+        color: 'white',
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+    importModalDesc: {
+        color: '#BBB',
+        fontSize: 14,
+        textAlign: 'center',
+        marginBottom: 15,
+    },
+    importInput: {
+        width: '100%',
+        height: 100,
+        backgroundColor: '#1E1E1E',
+        borderRadius: 10,
+        padding: 10,
+        color: 'white',
+        textAlignVertical: 'top',
+        marginBottom: 20,
+    },
+    importButtonRow: {
+        flexDirection: 'row',
+        width: '100%',
+        justifyContent: 'space-between',
+    },
+    importBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    cancelBtn: {
+        backgroundColor: '#444',
+        marginRight: 10,
+    },
+    confirmBtn: {
+        backgroundColor: '#007AFF',
+        marginLeft: 10,
+    },
+    importBtnText: {
+        color: 'white',
+        fontWeight: 'bold',
     },
 
     // --- Tab Styles ---
@@ -405,11 +543,13 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         paddingHorizontal: 10,
+        overflow: 'hidden',
     },
     toggleButton: {
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
         padding: 10,
         borderRadius: 10,
+        marginLeft: 10,
     },
     toggleButtonActive: {
         backgroundColor: '#007AFF',
@@ -472,13 +612,13 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255, 0, 0, 0.5)',
     },
-    deleteIconOverlay: {
+    actionIconOverlay: {
         position: 'absolute',
         top: 0,
         right: 0,
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
         borderRadius: 10,
-        padding: 2,
+        padding: 4,
         zIndex: 10,
     },
     colorNameText: {

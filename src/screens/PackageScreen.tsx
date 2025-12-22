@@ -41,6 +41,14 @@ const formatPrice = (price: number): string => {
     return `${price.toLocaleString('vi-VN')}₫`;
 };
 
+const chunkPackages = (packages: PackageUI[], size: number): PackageUI[][] => {
+    const chunked: PackageUI[][] = [];
+    for (let i = 0; i < packages.length; i += size) {
+        chunked.push(packages.slice(i, i + size));
+    }
+    return chunked;
+};
+
 interface PaymentModalProps {
     visible: boolean;
     packageDetails: PackageUI | null;
@@ -297,6 +305,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
 
                                 <View style={modalStyles.divider} />
 
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 }}>
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Text style={{ color: '#888', fontSize: 12 }}>Duration</Text>
+                                        <Text style={{ fontWeight: 'bold', fontSize: 16 }}>{packageDetails.duration || 1} Month</Text>
+                                    </View>
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Text style={{ color: '#888', fontSize: 12 }}>Uses</Text>
+                                        <Text style={{ fontWeight: 'bold', fontSize: 16 }}>{packageDetails.uses || 'Unlimited'}</Text>
+                                    </View>
+                                </View>
+
                                 <Text style={modalStyles.sectionTitle}>Phương thức thanh toán</Text>
                                 <View style={modalStyles.infoBox}>
                                     <MaterialCommunityIcons name="link-variant" size={24} color={BLUE_COLOR} />
@@ -356,17 +375,19 @@ const PackageItem: React.FC<PackageItemProps> = ({ pkg, style, onPress }) => (
         <Text style={styles.packageDescription}>
             {pkg.description.replace(/\r\n/g, ' ')}
         </Text>
+        <View style={styles.specsContainer}>
+            <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Duration</Text>
+                <Text style={styles.specValue}>{pkg.duration || 1} Month</Text>
+            </View>
+            <View style={styles.verticalDivider} />
+            <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Uses</Text>
+                <Text style={styles.specValue}>{pkg.uses || 'Unl.'}</Text>
+            </View>
+        </View>
     </TouchableOpacity>
 );
-
-const chunkPackages = (packages: PackageUI[], size: number): PackageUI[][] => {
-    const chunked: PackageUI[][] = [];
-    for (let i = 0; i < packages.length; i += size) {
-        chunked.push(packages.slice(i, i + size));
-    }
-    return chunked;
-};
-
 
 const PackageScreen: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'AI Test' | 'Expert suggestion'>(
@@ -396,12 +417,19 @@ const PackageScreen: React.FC = () => {
         try {
             const data: ServicePackage[] = await getServicePackage();
 
-            const mappedData: PackageUI[] = data.map((pkg, index) => ({
-                ...pkg,
-                isAITest: pkg.name.toLowerCase().includes('test') || pkg.name.toLowerCase().includes('freemium'),
-                isExpert: pkg.name.toLowerCase().includes('expert') || pkg.name.toLowerCase().includes('suggestion'),
-                isChecked: pkg.price === 0,
-            }));
+            const mappedData: PackageUI[] = data.map((pkg) => {
+                const typeLowerCase = pkg.type ? pkg.type.toLowerCase() : '';
+
+                const isAITest = typeLowerCase.includes('ai') || typeLowerCase.includes('test');
+                const isExpert = typeLowerCase.includes('expert') || typeLowerCase.includes('suggestion') || typeLowerCase.includes('manual');
+
+                return {
+                    ...pkg,
+                    isAITest: isAITest,
+                    isExpert: isExpert || (!isAITest),
+                    isChecked: pkg.price === 0,
+                };
+            });
 
             setServicePackages(mappedData);
         } catch (err) {
@@ -431,22 +459,24 @@ const PackageScreen: React.FC = () => {
     const aiTestRows = chunkPackages(aiTestPackages, 2);
     const expertRows = chunkPackages(expertPackages, 2);
 
-    const renderPackages = (packages: PackageUI[][]) => {
-        if (packages.length === 0) {
-            return <Text style={styles.noDataText}>Không có gói dịch vụ nào để hiển thị.</Text>;
+    const renderRows = (rows: PackageUI[][]) => {
+        if (rows.length === 0 && rows.length === 0) { // Check gốc
+            return <Text style={styles.noDataText}>No service packages are available to display.</Text>;
         }
 
-        return packages.map((row, index) => (
-            <View key={index} style={styles.cardRow}>
-                {row.map((pkg, pkgIndex) => (
+        return rows.map((row, index) => (
+            <View key={index} style={styles.rowContainer}>
+                {row.map((pkg) => (
                     <PackageItem
                         key={pkg.id}
                         pkg={pkg}
-                        style={{ flex: 1 }}
+                        // Style flex để item chiếm đều không gian
+                        style={styles.gridItem}
                         onPress={handlePackagePress}
                     />
                 ))}
-                {row.length === 1 && <View style={{ flex: 1 }} />}
+                {/* Nếu hàng lẻ (chỉ có 1 item), thêm View rỗng để item kia không bị giãn ra full */}
+                {row.length === 1 && <View style={[styles.gridItem, { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0 }]} />}
             </View>
         ));
     };
@@ -456,7 +486,7 @@ const PackageScreen: React.FC = () => {
             <SafeAreaView style={styles.container}>
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={BLUE_COLOR} />
-                    <Text style={styles.loadingText}>Đang tải gói dịch vụ...</Text>
+                    <Text style={styles.loadingText}>Loading Service Package</Text>
                 </View>
             </SafeAreaView>
         );
@@ -466,9 +496,9 @@ const PackageScreen: React.FC = () => {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>Lỗi: {error}</Text>
+                    <Text style={styles.errorText}>Erorr: {error}</Text>
                     <TouchableOpacity onPress={fetchServicePackages} style={styles.retryButton}>
-                        <Text style={styles.retryButtonText}>Thử lại</Text>
+                        <Text style={styles.retryButtonText}>Try Aggain</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -514,11 +544,7 @@ const PackageScreen: React.FC = () => {
                 style={styles.mainContent}
                 contentContainerStyle={styles.scrollViewContent}
                 showsVerticalScrollIndicator={false}>
-                {activeTab === 'AI Test' ? (
-                    renderPackages(aiTestRows)
-                ) : (
-                    renderPackages(expertRows)
-                )}
+                {activeTab === 'AI Test' ? renderRows(aiTestRows) : renderRows(expertRows)}
             </ScrollView>
 
             {/* Payment Modal */}
@@ -549,154 +575,109 @@ const styles = StyleSheet.create({
     tabTextActive: { color: '#000' },
 
     mainContent: { flex: 1 },
-    scrollViewContent: { paddingVertical: 10, paddingHorizontal: 10 },
-    cardRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
+    scrollViewContent: { paddingVertical: 20, paddingHorizontal: 16 },
 
-    packageCard: { alignItems: 'center', marginBottom: 30, maxWidth: '50%', paddingHorizontal: 5 },
-    iconCircle: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: BLUE_COLOR, alignItems: 'center', justifyContent: 'center', marginBottom: 10, position: 'relative' },
-    circleNumber: { fontSize: 14, fontWeight: 'bold', color: BLUE_COLOR, textAlign: 'center' },
-    checkMark: { position: 'absolute', top: 0, right: 0, backgroundColor: '#fff', borderRadius: 10, padding: 2 },
-    packageTitle: { fontSize: 18, fontWeight: 'bold', color: '#000', marginBottom: 5, textAlign: 'center' },
-    packageDescription: { fontSize: 14, color: '#555', textAlign: 'center', maxWidth: 180 },
-});
-
-
-const modalStyles = StyleSheet.create({
-    overlay: {
-        flex: 1,
-        justifyContent: 'flex-end',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    },
-    modalContainer: {
-        backgroundColor: 'white',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        maxHeight: '80%',
-        paddingTop: 10,
-    },
-    header: {
+    // --- Grid Styles ---
+    rowContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        marginBottom: 16, // Khoảng cách giữa các hàng
+        gap: 12, // Khoảng cách giữa 2 cột
     },
-    headerText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    closeButton: {
-        padding: 5,
-    },
-    content: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#eee',
-        marginVertical: 20,
+    gridItem: {
+        flex: 1, // Chiếm 50%
     },
 
-    packageInfo: {
+    // --- Package Card Updated ---
+    packageCard: {
         alignItems: 'center',
-        marginBottom: 10,
-    },
-    packageName: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#000',
-        marginBottom: 5,
-    },
-    packagePrice: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: BLUE_COLOR,
-        marginBottom: 10,
-    },
-    packageDescription: {
-        fontSize: 14,
-        color: '#555',
-        textAlign: 'center',
-        marginTop: 5,
-    },
-
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 10,
-    },
-
-    infoBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 15,
-        backgroundColor: '#e5f3ff',
-        borderRadius: 8,
-        borderLeftWidth: 4,
-        borderLeftColor: BLUE_COLOR,
-        marginBottom: 10,
-    },
-    infoText: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 14,
-        color: '#333',
-    },
-
-    webViewHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
         backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3.84,
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: '#f0f0f0',
+        minHeight: 220, // Đảm bảo chiều cao tối thiểu cho đẹp
+        justifyContent: 'space-between'
     },
-    webViewHeaderText: {
-        fontSize: 17,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-
-    footer: {
-        flexDirection: 'row',
-        padding: 20,
-        borderTopWidth: 1,
-        borderTopColor: '#eee',
-        paddingBottom: Platform.OS === 'android' ? 20 : 0,
-    },
-    cancelBtn: {
-        flex: 1,
-        padding: 15,
-        borderRadius: 10,
-        backgroundColor: '#f0f0f0',
-        marginRight: 10,
-        alignItems: 'center',
-    },
-    cancelBtnText: {
-        color: '#555',
-        fontWeight: 'bold',
-        fontSize: 16,
-    },
-    checkoutBtn: {
-        flex: 2,
-        padding: 15,
-        borderRadius: 10,
-        backgroundColor: BLUE_COLOR,
+    iconCircle: {
+        width: 60, // Nhỏ lại để vừa cột
+        height: 60,
+        borderRadius: 30,
+        borderWidth: 2,
+        borderColor: BLUE_COLOR,
         alignItems: 'center',
         justifyContent: 'center',
+        marginBottom: 8,
+        position: 'relative',
+        backgroundColor: '#f9fcff'
     },
-    checkoutBtnText: {
-        color: 'white',
+    circleNumber: { fontSize: 12, fontWeight: 'bold', color: BLUE_COLOR, textAlign: 'center' },
+    checkMark: { position: 'absolute', top: -2, right: -2, backgroundColor: '#fff', borderRadius: 10 },
+    packageTitle: { fontSize: 16, fontWeight: 'bold', color: '#000', marginBottom: 4, textAlign: 'center' },
+    packageDescription: { fontSize: 12, color: '#666', textAlign: 'center', lineHeight: 16, paddingHorizontal: 4, marginBottom: 12, height: 32 }, // Cố định height description
+
+    // --- Styles cho phần Duration/Uses ---
+    specsContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#f5f7fa',
+        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'space-around'
+    },
+    specItem: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    verticalDivider: {
+        width: 1,
+        height: '80%',
+        backgroundColor: '#ddd',
+    },
+    specLabel: {
+        fontSize: 10,
+        color: '#888',
+        marginBottom: 2,
+        textTransform: 'uppercase'
+    },
+    specValue: {
+        fontSize: 12,
         fontWeight: 'bold',
-        fontSize: 16,
+        color: '#333'
     },
+
+    // Modal Styles (Giữ nguyên)
+});
+
+const modalStyles = StyleSheet.create({
+    overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
+    modalContainer: { backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingTop: 10 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
+    headerText: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+    closeButton: { padding: 5 },
+    content: { paddingHorizontal: 20, paddingVertical: 10 },
+    divider: { height: 1, backgroundColor: '#eee', marginVertical: 20 },
+    packageInfo: { alignItems: 'center', marginBottom: 10 },
+    packageName: { fontSize: 22, fontWeight: 'bold', color: '#000', marginBottom: 5 },
+    packagePrice: { fontSize: 24, fontWeight: 'bold', color: BLUE_COLOR, marginBottom: 10 },
+    packageDescription: { fontSize: 14, color: '#555', textAlign: 'center', marginTop: 5 },
+    sectionTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 10 },
+    infoBox: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#e5f3ff', borderRadius: 8, borderLeftWidth: 4, borderLeftColor: BLUE_COLOR, marginBottom: 10 },
+    infoText: { flex: 1, marginLeft: 10, fontSize: 14, color: '#333' },
+    webViewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: '#fff' },
+    webViewHeaderText: { fontSize: 17, fontWeight: 'bold', color: '#333' },
+    footer: { flexDirection: 'row', padding: 20, borderTopWidth: 1, borderTopColor: '#eee', paddingBottom: Platform.OS === 'android' ? 20 : 0 },
+    cancelBtn: { flex: 1, padding: 15, borderRadius: 10, backgroundColor: '#f0f0f0', marginRight: 10, alignItems: 'center' },
+    cancelBtnText: { color: '#555', fontWeight: 'bold', fontSize: 16 },
+    checkoutBtn: { flex: 2, padding: 15, borderRadius: 10, backgroundColor: BLUE_COLOR, alignItems: 'center', justifyContent: 'center' },
+    checkoutBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });
 
 export default PackageScreen;

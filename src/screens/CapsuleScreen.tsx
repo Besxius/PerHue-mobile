@@ -10,7 +10,10 @@ import {
     Modal,
     TouchableWithoutFeedback,
     TextInput,
-    RefreshControl
+    RefreshControl,
+    Platform,
+    ToastAndroid,
+    Alert
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from '@expo/vector-icons';
@@ -43,6 +46,12 @@ const ColorDetailCard: React.FC<ColorDetailProps> = ({ color }) => {
 
     const handleCopy = async () => {
         await Clipboard.setStringAsync(color.hexCode);
+
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied ${color.hexCode} to clipboard!`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `Color code ${color.hexCode} copied!`);
+        }
     };
 
     return (

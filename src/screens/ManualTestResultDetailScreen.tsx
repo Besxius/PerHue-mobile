@@ -8,7 +8,9 @@ import {
     Image,
     Dimensions,
     Alert,
-    TouchableOpacity
+    TouchableOpacity,
+    Platform,
+    ToastAndroid,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +19,7 @@ import CapsulePalette from '../components/CapsulePalette';
 import { ManualTestResult } from '../types/dataModels';
 import { getManualTestResultById } from '../api/userApi';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import * as Clipboard from 'expo-clipboard';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ManualTestResultDetailScreen'>;
 
@@ -40,9 +43,30 @@ const ColorBoxDisplay: React.FC<{ colorsString: string, title: string }> = ({ co
 
     if (colorCodes.length === 0) return null;
 
+    const handleCopy = async (hexCode: string) => {
+        await Clipboard.setStringAsync(hexCode);
+
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied list hexcodes to clipboard!`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `Color list hexcodes copied!`);
+        }
+    };
+
     return (
         <View style={styles.card}>
-            <Text style={styles.cardTitle}>{title} ({colorCodes.length})</Text>
+            <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>{title} ({colorCodes.length})</Text>
+                <TouchableOpacity
+                    style={styles.copyButton}
+                    onPress={(e) => {
+                        e.stopPropagation();
+                        handleCopy(colorsString);
+                    }}
+                >
+                    <Ionicons name="copy-outline" size={24} color="gray" />
+                </TouchableOpacity>
+            </View>
             <View style={styles.colorGrid}>
                 {colorCodes.map((hex, index) => (
                     <View key={index} style={[styles.colorBox, { backgroundColor: hex }]}>
@@ -115,7 +139,7 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
         );
     }
 
-    const colorType = result.colorType?.name || 'Undetermined';
+    const colorType = result.colorTypeName || 'Undetermined';
     const profilePictureUri = result.picture;
     const validCapsulePalettes = result.capsulePalettes
         .map(palette => {
@@ -129,6 +153,16 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
             return null;
         })
         .filter((p): p is { id: number, colors: [string, string, string, string] } => p !== null);
+
+    const handleCopy = async (hexCode: string) => {
+        await Clipboard.setStringAsync(hexCode);
+
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied list hexcodes to clipboard!`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `Color list hexcodes copied!`);
+        }
+    };
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -401,6 +435,11 @@ const styles = StyleSheet.create({
         color: '#888',
         fontStyle: 'italic',
         marginTop: 10,
+    },
+    copyButton: {
+        padding: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 5,
     }
 });
 
