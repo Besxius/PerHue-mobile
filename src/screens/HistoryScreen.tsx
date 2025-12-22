@@ -63,12 +63,12 @@ interface SectionData {
 
 const transformManualTestResult = (result: ManualTestResult): BaseHistoryItem => {
     const imageSource: ImageSource[] = result.picture ? [{ uri: result.picture }] : [];
-    const subtitle = `ColorType: ${result.colorType?.name || 'Unknown'}`;
+    const subtitle = `ColorType: ${result.colorTypeName || 'Unknown'}`;
     return {
         id: result.id,
-        title: `#${result.id} - ${result.type || 'Manual Test'}`,
+        title: `#${result.id} - Manual Test`,
         subTitle: subtitle,
-        date: new Date(result.createdDate).toLocaleDateString('en-US'),
+        date: new Date(result.createdDate).toLocaleDateString('vi-VN'),
         status: 'Completed',
         imageSources: imageSource,
         buttonText: 'View Detail',
@@ -79,20 +79,20 @@ const transformManualTestResult = (result: ManualTestResult): BaseHistoryItem =>
     };
 };
 
-const transformAiTestResult = (response: AiTestResponse, colorMap: Record<number, string>): BaseHistoryItem => {
+const transformAiTestResult = (response: AiTestResponse): BaseHistoryItem => {
     const id = response.id;
     const imageSource: ImageSource[] = response.imageUrl ? [{ uri: response.imageUrl }] : [];
     const resultModel = response.newAiTestResultResponseModel;
     const suggestedColors = resultModel?.suggestedColor || 'N/A';
     const colorTypeId = resultModel?.colorTypeId;
-    const colorTypeName = (colorTypeId && colorMap[colorTypeId]) ? colorMap[colorTypeId] : 'Unknown';
+    const colorTypeName = response.colorTypeName || 'Unknown';
 
     return {
         id: id,
-        title: `#${id} - ${response.typeOfTest || 'AI Test'}`,
+        title: `#${id} - AI Test`,
         subTitle: `ColorType: ${colorTypeName}`,
-        date: new Date(response.createdDate).toLocaleDateString('en-US'),
-        status: response.status || 'N/A',
+        date: new Date(response.createdDate).toLocaleDateString('vi-VN'),
+        status: response.colorTypeId ? 'Completed' : 'Failed',
         imageSources: imageSource,
         buttonText: 'View Detail',
         isOrder: false,
@@ -111,7 +111,7 @@ const transformExpertTestResult = (response: ExpertTestResponse): BaseHistoryIte
         id: id,
         title: `#${id} - Expert Suggestion`,
         subTitle: '',
-        date: new Date(response.createdDate).toLocaleDateString('en-US'),
+        date: new Date(response.createdDate).toLocaleDateString('vi-VN'),
         status: response.status || 'N/A',
         imageSources: imageSource,
         buttonText: 'View Detail',
@@ -131,7 +131,7 @@ const transformExpertRequest = (request: ExpertRequest): BaseHistoryItem => {
         id: id,
         title: `#${id} - ${request.typeOfTest || 'Client Request'}`,
         subTitle: `User ID: ${request.userAccountId}`,
-        date: new Date(request.createdDate).toLocaleDateString('en-US'),
+        date: new Date(request.createdDate).toLocaleDateString('vi-VN'),
         status: request.status || 'Pending',
         imageSources: imageSource,
         buttonText: 'Response Now',
@@ -154,7 +154,7 @@ const transformExpertCompletedRequest = (item: ExpertCompletedRequest): BaseHist
         id: id,
         title: `#${id} - ${item.typeOfTest || 'Client Test'}`,
         subTitle: `Status: ${statusText}`,
-        date: new Date(item.createdDate).toLocaleDateString('en-US'),
+        date: new Date(item.createdDate).toLocaleDateString('vi-VN'),
         status: statusText,
         imageSources: imageSource,
         buttonText: 'View Detail',
@@ -333,15 +333,8 @@ const HistoryScreen: FC<HistoryScreenProps> = ({ navigation, route }) => {
                     rawItems = results.map(transformManualTestResult);
                 }
                 else if (activeMainTab === 'AI Test') {
-                    const [results, colorTypes] = await Promise.all([
-                        getAiTestResults(),
-                        getColorType()
-                    ]);
-                    const colorMap: Record<number, string> = {};
-                    if (Array.isArray(colorTypes)) {
-                        colorTypes.forEach(t => colorMap[t.id] = t.name);
-                    }
-                    rawItems = results.map(item => transformAiTestResult(item, colorMap));
+                    const results = await getAiTestResults();
+                    rawItems = results.map(transformAiTestResult);
                 }
                 else if (activeMainTab === 'Expert Suggestion') {
                     const results = await getExpertTestResults();

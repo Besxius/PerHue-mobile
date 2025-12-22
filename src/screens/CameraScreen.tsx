@@ -265,6 +265,35 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         }
     };
 
+    const handleImportColors = (newColors: Color[]) => {
+        setSavedColors(prevColors => {
+            // Lọc để tránh thêm màu đã tồn tại (dựa vào hexCode)
+            const existingHexCodes = new Set(prevColors.map(c => c.hexCode.toLowerCase()));
+
+            const uniqueNewColors = newColors.filter(c =>
+                !existingHexCodes.has(c.hexCode.toLowerCase())
+            );
+
+            if (uniqueNewColors.length === 0) {
+                Toast.show({
+                    type: 'info',
+                    text1: 'Thông tin',
+                    text2: 'Tất cả các màu nhập vào đã tồn tại.',
+                });
+                return prevColors;
+            }
+
+            Toast.show({
+                type: 'success',
+                text1: 'Import thành công',
+                text2: `Đã thêm ${uniqueNewColors.length} màu mới!`,
+            });
+
+            // Thêm màu mới lên đầu danh sách
+            return [...uniqueNewColors, ...prevColors];
+        });
+    };
+
     const handleDeleteSavedColor = (colorId: number) => {
         setSavedColors(prevColors => {
             const updatedColors = prevColors.filter(color => color.id !== colorId);
@@ -886,6 +915,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 title="SAVED COLORS"
                 canDelete={true}
                 onDeleteColor={handleDeleteSavedColor}
+                onImportColors={handleImportColors}
             />
 
             <ManualResultModal

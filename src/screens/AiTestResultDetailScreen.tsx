@@ -9,6 +9,8 @@ import {
     Dimensions,
     Alert,
     TouchableOpacity,
+    Platform,
+    ToastAndroid,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -18,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CapsulePalette from '../components/CapsulePalette';
 import { getColorTypeById } from '../api/capsulePaletteApi';
+import * as Clipboard from 'expo-clipboard';
 
 type AiTestDetailScreenProps = NativeStackScreenProps<
     RootStackParamList,
@@ -48,9 +51,30 @@ const ColorBoxDisplay: React.FC<{ colors: Color[], title: string }> = ({ colors,
         );
     }
 
+    const handleCopy = async (hexCode: string) => {
+        await Clipboard.setStringAsync(hexCode);
+
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied list hexcodes to clipboard!`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `Color list hexcodes copied!`);
+        }
+    };
+
     return (
         <View style={styles.card}>
-            <Text style={styles.cardTitle}>{title} ({colors.length})</Text>
+            <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>{title} ({colors.length})</Text>
+                <TouchableOpacity
+                    style={styles.copyButton}
+                    onPress={(e) => {
+                        e.stopPropagation();
+                        handleCopy(colors.map(c => c.hexCode).join(', '));
+                    }}
+                >
+                    <Ionicons name="copy-outline" size={24} color="gray" />
+                </TouchableOpacity>
+            </View>
             <View style={styles.colorGrid}>
                 {colors.map((colorItem, index) => (
                     <View key={index} style={[styles.colorBox, { backgroundColor: colorItem.hexCode }]}>
@@ -456,4 +480,9 @@ const styles = StyleSheet.create({
         color: '#555',
         lineHeight: 20,
     },
+    copyButton: {
+        padding: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 5,
+    }
 });

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { CapsulePaletteModel, Color, ColorType } from "../types/dataModels";
-import { Modal, ScrollView, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, Text, StyleSheet, Dimensions, FlatList, Alert } from "react-native";
+import { Modal, ScrollView, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, Text, StyleSheet, Dimensions, FlatList, Alert, Platform, ToastAndroid } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from 'expo-clipboard';
 import CapsulePalette from "./CapsulePalette";
@@ -63,6 +63,12 @@ const PaletteDetailView: React.FC<PaletteDetailViewProps> = ({ palette, onBack, 
 
     const handleCopy = async (hexCode: string) => {
         await Clipboard.setStringAsync(hexCode);
+
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied ${hexCode} to clipboard!`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `Color code ${hexCode} copied!`);
+        }
     };
 
     return (

@@ -283,7 +283,6 @@ const styles = StyleSheet.create({
     },
 
     cardHeader: {
-        flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 10,

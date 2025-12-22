@@ -604,7 +604,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} // Điều chỉnh offset nếu cần
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
 
                 <ScrollView
@@ -646,19 +646,26 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     <Text style={styles.label}>Color Type Assignment *</Text>
                     <View style={styles.colorTypeSelectorContainer}>
                         {colorTypes.map((type) => (
+
                             <TouchableOpacity
                                 key={type.id}
                                 style={[
                                     styles.colorTypeButton,
-                                    colorTypeId === type.id && styles.colorTypeButtonActive,
-                                    !canEdit && styles.colorTypeButtonDisabled // Style mới khi disabled
+                                    (colorTypeId === type.id) && styles.colorTypeButtonActive,
+
+                                    !canEdit && (
+                                        (colorTypeId === type.id)
+                                            ? styles.selectedDisabledItem
+                                            : styles.unselectedDisabledItem
+                                    )
                                 ]}
                                 onPress={() => canEdit && setColorTypeId(type.id)}
                                 disabled={!canEdit || isSubmitting}
                             >
                                 <Text style={[
-                                    colorTypeId === type.id ? styles.colorTypeButtonTextActive : styles.colorTypeButtonText,
-                                    !canEdit && styles.colorTypeTextDisabled
+                                    (colorTypeId === type.id) ? styles.colorTypeButtonTextActive : styles.colorTypeButtonText,
+
+                                    (!canEdit && (colorTypeId !== type.id)) && styles.colorTypeTextDisabled
                                 ]}>
                                     {type.name}
                                 </Text>
@@ -966,11 +973,22 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
-    // [CẬP NHẬT] Style cho nút Color Type khi disabled
     colorTypeButtonDisabled: {
         opacity: 0.6,
         backgroundColor: '#e9ecef',
         borderColor: '#ced4da',
+    },
+    selectedDisabledItem: {
+        opacity: 1,
+        backgroundColor: BLUE_COLOR,
+        borderColor: BLUE_COLOR,
+        borderWidth: 1,
+    },
+
+    unselectedDisabledItem: {
+        opacity: 0.5,
+        backgroundColor: '#e9ecef',
+        borderColor: 'transparent',
     },
     colorTypeTextDisabled: {
         color: '#6c757d',

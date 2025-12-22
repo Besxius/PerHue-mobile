@@ -10,6 +10,7 @@ import {
     Platform,
     TouchableWithoutFeedback,
     Animated,
+    Keyboard,
 } from "react-native";
 import ColorWheel from 'react-native-wheel-color-picker';
 import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -99,6 +100,7 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
 
     // 1. Animation Hooks
     const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+    const scrollViewRef = useRef<ScrollView>(null);
     const [shouldRender, setShouldRender] = useState(isVisible);
 
     // 2. State Hooks
@@ -150,6 +152,19 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
             setIsDropdownVisible(false);
         }
     }, [isVisible, initialHex]);
+
+    useEffect(() => {
+        const keyboardDidShowListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            () => {
+                // Cuộn xuống một khoảng đủ lớn để thấy input
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+            }
+        );
+        return () => {
+            keyboardDidShowListener.remove();
+        };
+    }, []);
 
     if (!shouldRender) return null;
 
@@ -246,30 +261,35 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
     return (
         <TouchableWithoutFeedback onPress={onClose}>
             <View style={colorPickerToolStyles.modalOverlay}>
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === "ios" ? "padding" : "height"}
-                    style={colorPickerToolStyles.keyboardAvoidingView}
+                <Animated.View
+                    style={[
+                        colorPickerToolStyles.modalContent,
+                        {
+                            height: MODAL_HEIGHT,
+                            transform: [{ translateY: slideAnim }]
+                        }
+                    ]}
                 >
-                    <Animated.View
-                        style={[
-                            colorPickerToolStyles.modalContent,
-                            {
-                                height: MODAL_HEIGHT,
-                                transform: [{ translateY: slideAnim }]
-                            }
-                        ]}
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === "ios" ? "padding" : "height"}
+                        style={colorPickerToolStyles.keyboardAvoidingView}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 100}
+
                     >
                         {/* Bọc nội dung bên trong để chặn sự kiện nhấn (tránh đóng modal) */}
                         <TouchableOpacity activeOpacity={1} onPress={() => { }} style={colorPickerToolStyles.modalContentInner}>
 
                             {/* [UPDATED] Thêm ScrollView để cuộn được trên màn hình nhỏ */}
                             <ScrollView
+                                ref={scrollViewRef}
                                 contentContainerStyle={{
                                     paddingTop: insets.top + 10,
                                     paddingBottom: insets.bottom + 20,
                                     paddingHorizontal: 20
                                 }}
                                 showsVerticalScrollIndicator={false}
+                                keyboardShouldPersistTaps="handled"
+                                keyboardDismissMode="on-drag"
                             >
                                 {/* --- Color Picker Wheel --- */}
                                 <View style={colorPickerToolStyles.colorPickerContainer}>
@@ -347,10 +367,11 @@ const ColorPickerPopup: React.FC<ColorPickerPopupProps> = ({
                                         <Text style={colorPickerToolStyles.buttonText}>OK</Text>
                                     </TouchableOpacity>
                                 </View>
+                                <View style={{ height: 20 }} />
                             </ScrollView>
                         </TouchableOpacity>
-                    </Animated.View>
-                </KeyboardAvoidingView>
+                    </KeyboardAvoidingView>
+                </Animated.View>
             </View>
         </TouchableWithoutFeedback>
     );

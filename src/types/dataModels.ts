@@ -153,6 +153,7 @@ export interface ServicePackage {
     price: number;
     duration: number;
     uses: number
+    type: string;
     createdDate: string;
     updatedDate: string | null;
 }
@@ -193,6 +194,7 @@ export interface AiColorTestResponse {
     suggestedColor: string;
     avoidedColor: string;
     colorTypeId: number;
+    colorTypeName: string;
 }
 
 // Interface cho đối tượng file ảnh đầu vào
@@ -311,8 +313,8 @@ export interface ManualTestResult {
     id: number;
     userId: number;
     picture: string | null;
-    type: string | null;
     colorTypeId: number;
+    colorTypeName: string;
     createdDate: string;
     chosenColor: string;
     suggestedColor: string;
@@ -350,6 +352,8 @@ export interface AiTestResponse {
     typeOfTest: string;
     fullname: string;
     imageUrl: string;
+    colorTypeId: number;
+    colorTypeName: string;
     newAiTestResultResponseModel: AiTestResultModel;
 }
 

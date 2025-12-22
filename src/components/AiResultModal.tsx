@@ -104,7 +104,7 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
         ? resultData.avoidedColor.split(',').map(createDisplayColor)
         : [];
 
-    const colorTypeName = `Color Type ID: ${resultData.colorTypeId}`;
+    const colorTypeName = `Color Type: ${resultData.colorTypeName}`;
 
     const renderColorSummaryBlock = (color: DisplayColor) => (
         <View key={color.hexCode} style={[modalStyles.colorBox, { backgroundColor: color.hexCode }]}>
