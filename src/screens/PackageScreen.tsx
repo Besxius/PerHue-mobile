@@ -14,11 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, AntDesign, MaterialCommunityIcons } from '@expo/vector-icons';
-import { PaymentCallbackParams, ServicePackage } from '../types/dataModels';
-import { getServicePackage } from '../api/dataApi';
+import { PaymentCallbackParams, ServicePackage, UserSubscriptionInformation } from '../types/dataModels';
+import { getActiveSubscriptions, getServicePackage } from '../api/dataApi';
 import WebView from 'react-native-webview';
 import { getPaymentLink, getPaymentSuccess, getPaymentCancel } from '../api/paymentApi';
 import Toast from 'react-native-toast-message';
+import CustomConfirmModal, { AlertConfig } from '../components/CustomConfirmModal';
 
 interface PackageUI extends ServicePackage {
     isAITest: boolean;
@@ -52,16 +53,21 @@ const chunkPackages = (packages: PackageUI[], size: number): PackageUI[][] => {
 interface PaymentModalProps {
     visible: boolean;
     packageDetails: PackageUI | null;
+    activeSubscriptions: UserSubscriptionInformation[];
     onClose: (refetchData?: boolean) => void;
     onDeepLinkDetected: (url: string) => void;
 }
 
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, onClose, onDeepLinkDetected }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, activeSubscriptions, onClose, onDeepLinkDetected }) => {
     const [paymentLink, setPaymentLink] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isWebViewOpen, setIsWebViewOpen] = useState(false);
     const [isLoadingWebView, setIsLoadingWebView] = useState(true);
+
+    const [internalAlert, setInternalAlert] = useState<AlertConfig>({
+        visible: false, title: '', message: '', type: 'info'
+    });
 
     const APP_SCHEME = 'perhue';
     const handleDeepLinkProcessing = useCallback(async (url: string) => {
@@ -74,7 +80,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
         const isSuccess = fullPath.includes('success');
 
         if (!fullPath.startsWith('payment/')) {
-            console.log('Deep Link bị bỏ qua do không phải kết quả thanh toán.');
+            console.log('Deep Link was ignored because it was not a payment result.');
             return;
         }
 
@@ -95,7 +101,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
             };
 
             if (!params.code && !params.id && !params.orderCode) {
-                throw new Error("Tham số Deep Link không hợp lệ hoặc bị thiếu.");
+                throw new Error("The Deep Link parameter is invalid or missing.");
             }
 
             let apiResult;
@@ -120,7 +126,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
             }
 
         } catch (e) {
-            console.error('Lỗi khi phân tích hoặc gọi API xử lý Deep Link:', e);
+            console.error('Error when parsing or calling the Deep Link processing API:', e);
             Toast.show({
                 type: 'error',
                 text1: 'Processing Error',
@@ -154,9 +160,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
         return true;
     }, [onDeepLinkDetected, handleDeepLinkProcessing]);
 
-
-    const handleCheckout = useCallback(async () => {
+    const proceedPayment = async () => {
         if (!packageDetails) return;
+
+        setInternalAlert(prev => ({ ...prev, visible: false }));
 
         if (packageDetails.price === 0) {
             Toast.show({
@@ -189,7 +196,30 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
         } finally {
             setIsProcessing(false);
         }
-    }, [packageDetails, onClose]);
+    };
+
+    const handleCheckout = useCallback(() => {
+        if (!packageDetails) return;
+
+        const duplicateSubscription = activeSubscriptions.find(
+            sub => sub.servicePackage.type === packageDetails.type && sub.status === true
+        );
+
+        if (duplicateSubscription) {
+            setInternalAlert({
+                visible: true,
+                title: 'Duplicate Subscription',
+                message: 'You are currently using a package of the same type. Please consider that if you continue, the old package will be deactivated.',
+                type: 'warning',
+                confirmText: 'Continue',
+                cancelText: 'Cancel',
+                onConfirm: () => proceedPayment(),
+                onCancel: () => setInternalAlert(prev => ({ ...prev, visible: false }))
+            });
+        } else {
+            proceedPayment();
+        }
+    }, [packageDetails, activeSubscriptions, onClose]);
 
     useEffect(() => {
         if (visible) {
@@ -224,29 +254,40 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
                 transparent={false}
                 visible={isWebViewOpen}
                 onRequestClose={() => {
-                    Alert.alert(
-                        'Xác nhận Hủy',
-                        'Giao dịch thanh toán chưa hoàn tất. Bạn có muốn hủy?',
-                        [
-                            { text: 'Tiếp tục', style: 'cancel', onPress: () => setIsWebViewOpen(true) },
-                            { text: 'Hủy giao dịch', onPress: () => onClose(false), style: 'destructive' },
-                        ]
-                    );
+                    setInternalAlert({
+                        visible: true,
+                        title: 'Cancellation Confirmation',
+                        message: 'The payment transaction has not been completed. Are you sure you want to cancel?',
+                        type: 'error',
+                        confirmText: 'Cancel Transaction',
+                        cancelText: 'Continue',
+                        onConfirm: () => {
+                            setInternalAlert(prev => ({ ...prev, visible: false }));
+                            setIsWebViewOpen(false);
+                            onClose(false);
+                        },
+                        onCancel: () => setInternalAlert(prev => ({ ...prev, visible: false }))
+                    });
                 }}
             >
                 <SafeAreaView style={{ flex: 1 }}>
                     <View style={modalStyles.webViewHeader}>
                         <TouchableOpacity
                             onPress={() => {
-                                setIsWebViewOpen(false);
-                                Alert.alert(
-                                    'Xác nhận Hủy',
-                                    'Bạn có chắc chắn muốn hủy giao dịch đang tiến hành?',
-                                    [
-                                        { text: 'Tiếp tục thanh toán', style: 'cancel', onPress: () => setIsWebViewOpen(true) },
-                                        { text: 'Hủy giao dịch', onPress: () => onClose(false), style: 'destructive' },
-                                    ]
-                                );
+                                setInternalAlert({
+                                    visible: true,
+                                    title: 'Cancellation Confirmation',
+                                    message: 'The payment transaction has not been completed. Are you sure you want to cancel?',
+                                    type: 'error',
+                                    confirmText: 'Cancel Transaction',
+                                    cancelText: 'Continue',
+                                    onConfirm: () => {
+                                        setInternalAlert(prev => ({ ...prev, visible: false }));
+                                        setIsWebViewOpen(false);
+                                        onClose(false);
+                                    },
+                                    onCancel: () => setInternalAlert(prev => ({ ...prev, visible: false }))
+                                });
                             }}
                             style={modalStyles.closeButton}>
                             <AntDesign name="close" size={24} color="#333" />
@@ -264,12 +305,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
 
                     <WebView
                         source={{ uri: paymentLink }}
-                        // Sử dụng onShouldStartLoadWithRequest
                         onShouldStartLoadWithRequest={handleShouldStartLoad}
                         onLoadEnd={() => setIsLoadingWebView(false)}
                         startInLoadingState={true}
                         style={{ flex: 1 }}
                     />
+
+                    <CustomConfirmModal {...internalAlert} />
                 </SafeAreaView>
             </Modal>
         );
@@ -342,14 +384,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, on
                                 >
                                     <Text style={modalStyles.checkoutBtnText}>
                                         {isProcessing
-                                            ? 'Đang tạo link...'
+                                            ? 'Creating link...'
                                             : packageDetails.price === 0
-                                                ? 'Kích hoạt'
-                                                : `Thanh toán ${formatPrice(packageDetails.price)}`
+                                                ? 'Activate'
+                                                : `Checkout ${formatPrice(packageDetails.price)}`
                                         }
                                     </Text>
                                 </TouchableOpacity>
                             </View>
+
+                            <CustomConfirmModal {...internalAlert} />
                         </View>
                     </TouchableWithoutFeedback>
                 </View>
@@ -394,11 +438,16 @@ const PackageScreen: React.FC = () => {
         'AI Test'
     );
     const [servicePackages, setServicePackages] = useState<PackageUI[]>([]);
+    const [activeSubscriptions, setActiveSubscriptions] = useState<UserSubscriptionInformation[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [selectedPackage, setSelectedPackage] = useState<PackageUI | null>(null);
+
+    const [globalAlert, setGlobalAlert] = useState<AlertConfig>({
+        visible: false, title: '', message: '', type: 'error'
+    });
 
     const handlePackagePress = (pkg: PackageUI) => {
         setSelectedPackage(pkg);
@@ -413,29 +462,33 @@ const PackageScreen: React.FC = () => {
 
     const fetchServicePackages = useCallback(async () => {
         setIsLoading(true);
-        setError(null);
         try {
-            const data: ServicePackage[] = await getServicePackage();
+            const [data, subscriptions] = await Promise.all([
+                getServicePackage(),
+                getActiveSubscriptions()
+            ]);
+            setActiveSubscriptions(subscriptions);
 
             const mappedData: PackageUI[] = data.map((pkg) => {
-                const typeLowerCase = pkg.type ? pkg.type.toLowerCase() : '';
-
-                const isAITest = typeLowerCase.includes('ai') || typeLowerCase.includes('test');
-                const isExpert = typeLowerCase.includes('expert') || typeLowerCase.includes('suggestion') || typeLowerCase.includes('manual');
-
-                return {
-                    ...pkg,
-                    isAITest: isAITest,
-                    isExpert: isExpert || (!isAITest),
-                    isChecked: pkg.price === 0,
-                };
+                const typeLC = pkg.type?.toLowerCase() || '';
+                const isAITest = typeLC.includes('ai') || typeLC.includes('test');
+                const isExpert = typeLC.includes('expert') || typeLC.includes('suggestion') || typeLC.includes('manual');
+                return { ...pkg, isAITest, isExpert: isExpert || (!isAITest), isChecked: pkg.price === 0 };
             });
-
             setServicePackages(mappedData);
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi không xác định.';
-            setError(message);
-            Alert.alert('Lỗi tải dữ liệu', message);
+            const message = err instanceof Error ? err.message : 'An unknown error has occurred.';
+            setGlobalAlert({
+                visible: true,
+                title: 'Data loading error',
+                message: message,
+                type: 'error',
+                confirmText: 'Try again',
+                onConfirm: () => {
+                    setGlobalAlert(prev => ({ ...prev, visible: false }));
+                    fetchServicePackages();
+                }
+            });
         } finally {
             setIsLoading(false);
         }
@@ -460,7 +513,7 @@ const PackageScreen: React.FC = () => {
     const expertRows = chunkPackages(expertPackages, 2);
 
     const renderRows = (rows: PackageUI[][]) => {
-        if (rows.length === 0 && rows.length === 0) { // Check gốc
+        if (rows.length === 0 && rows.length === 0) {
             return <Text style={styles.noDataText}>No service packages are available to display.</Text>;
         }
 
@@ -470,12 +523,10 @@ const PackageScreen: React.FC = () => {
                     <PackageItem
                         key={pkg.id}
                         pkg={pkg}
-                        // Style flex để item chiếm đều không gian
                         style={styles.gridItem}
                         onPress={handlePackagePress}
                     />
                 ))}
-                {/* Nếu hàng lẻ (chỉ có 1 item), thêm View rỗng để item kia không bị giãn ra full */}
                 {row.length === 1 && <View style={[styles.gridItem, { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0 }]} />}
             </View>
         ));
@@ -551,8 +602,18 @@ const PackageScreen: React.FC = () => {
             <PaymentModal
                 visible={isModalVisible}
                 packageDetails={selectedPackage}
+                activeSubscriptions={activeSubscriptions}
                 onClose={handleModalClose}
                 onDeepLinkDetected={handleDeepLinkDetected}
+            />
+
+            <CustomConfirmModal
+                {...globalAlert}
+                onCancel={globalAlert.type === 'error' ? undefined : () => setGlobalAlert(prev => ({ ...prev, visible: false }))}
+                onConfirm={() => {
+                    globalAlert.onConfirm?.();
+                    setGlobalAlert(prev => ({ ...prev, visible: false }));
+                }}
             />
         </View>
     );
@@ -581,11 +642,11 @@ const styles = StyleSheet.create({
     rowContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 16, // Khoảng cách giữa các hàng
-        gap: 12, // Khoảng cách giữa 2 cột
+        marginBottom: 16,
+        gap: 12,
     },
     gridItem: {
-        flex: 1, // Chiếm 50%
+        flex: 1,
     },
 
     // --- Package Card Updated ---
@@ -601,11 +662,11 @@ const styles = StyleSheet.create({
         elevation: 3,
         borderWidth: 1,
         borderColor: '#f0f0f0',
-        minHeight: 220, // Đảm bảo chiều cao tối thiểu cho đẹp
+        minHeight: 220,
         justifyContent: 'space-between'
     },
     iconCircle: {
-        width: 60, // Nhỏ lại để vừa cột
+        width: 60,
         height: 60,
         borderRadius: 30,
         borderWidth: 2,
@@ -619,7 +680,7 @@ const styles = StyleSheet.create({
     circleNumber: { fontSize: 12, fontWeight: 'bold', color: BLUE_COLOR, textAlign: 'center' },
     checkMark: { position: 'absolute', top: -2, right: -2, backgroundColor: '#fff', borderRadius: 10 },
     packageTitle: { fontSize: 16, fontWeight: 'bold', color: '#000', marginBottom: 4, textAlign: 'center' },
-    packageDescription: { fontSize: 12, color: '#666', textAlign: 'center', lineHeight: 16, paddingHorizontal: 4, marginBottom: 12, height: 32 }, // Cố định height description
+    packageDescription: { fontSize: 12, color: '#666', textAlign: 'center', lineHeight: 16, paddingHorizontal: 4, marginBottom: 12, height: 32 },
 
     // --- Styles cho phần Duration/Uses ---
     specsContainer: {
@@ -652,8 +713,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#333'
     },
-
-    // Modal Styles (Giữ nguyên)
 });
 
 const modalStyles = StyleSheet.create({

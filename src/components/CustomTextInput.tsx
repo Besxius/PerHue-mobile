@@ -5,35 +5,30 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 interface CustomTextInputProps extends TextInputProps {
     iconName?: string;
+    error?: boolean;
 }
 
-const CustomTextInput: React.FC<CustomTextInputProps> = ({ iconName, style, secureTextEntry, ...props }) => {
-    // 1. Khởi tạo state để ẩn/hiện mật khẩu. Mặc định là secureTextEntry
+const CustomTextInput: React.FC<CustomTextInputProps> = ({ iconName, style, secureTextEntry, error, ...props }) => {
     const [isSecure, setIsSecure] = useState(secureTextEntry);
 
-    // 2. Xác định xem có phải là trường mật khẩu không
     const isPasswordField = secureTextEntry !== undefined;
 
-    // 3. Chọn icon cho nút chuyển đổi (nếu có)
     const toggleIconName = isSecure ? 'eye-off-outline' : 'eye-outline';
 
-    // 4. Hàm chuyển đổi trạng thái
     const toggleSecureEntry = () => {
         setIsSecure(!isSecure);
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, error && styles.errorContainer]}>
             {iconName && <Icon name={iconName} size={20} color="#888" style={styles.icon} />}
             <TextInput
                 style={[styles.input, style]}
                 placeholderTextColor="#888"
-                // Sử dụng state isSecure cho prop secureTextEntry
                 secureTextEntry={isSecure}
                 {...props}
             />
 
-            {/* 5. Nút chuyển đổi (chỉ hiển thị nếu là trường mật khẩu) */}
             {isPasswordField && (
                 <TouchableOpacity onPress={toggleSecureEntry} style={styles.toggleButton}>
                     <Icon name={toggleIconName} size={20} color="#888" />
@@ -55,6 +50,10 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#e0e0e0',
     },
+    errorContainer: {
+        borderColor: '#f87c7cff',
+        backgroundColor: '#fff5f5',
+    },
     icon: {
         marginRight: 10,
     },
@@ -63,7 +62,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
     },
-    // THÊM: Style cho nút chuyển đổi
     toggleButton: {
         paddingLeft: 10,
         paddingVertical: 5,

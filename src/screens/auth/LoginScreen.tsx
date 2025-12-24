@@ -10,6 +10,7 @@ import {
     Alert,
     Switch,
     ScrollView,
+    ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ import { configureGoogleSignIn } from '../../api/config/googleAuthConfig';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { JwtPayload, RegisterCredentials } from '../../types/dataModels';
 import { jwtDecode } from 'jwt-decode';
+import CustomConfirmModal, { AlertConfig } from '../../components/CustomConfirmModal';
 
 configureGoogleSignIn();
 
@@ -63,6 +65,13 @@ const LoginScreen: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
     const [loading, setLoading] = useState<boolean>(false);
 
+    const [modalConfig, setModalConfig] = useState<AlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
+
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [rememberMe, setRememberMe] = useState<boolean>(false);
@@ -78,6 +87,14 @@ const LoginScreen: React.FC = () => {
     const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
 
     const [profilePicture, setProfilePicture] = useState<string>('');
+
+    const [errors, setErrors] = useState<{
+        fullName?: boolean;
+        registerEmail?: boolean;
+        registerPassword?: boolean;
+        confirmPassword?: boolean;
+        phoneNo?: boolean;
+    }>({});
 
     const [showToast, setShowToast] = useState<boolean>(false);
     const [toastMessage, setToastMessage] = useState<string>('');
@@ -107,15 +124,76 @@ const LoginScreen: React.FC = () => {
         setShowDatePicker(true);
     };
 
+    const clearError = (field: keyof typeof errors) => {
+        if (errors[field]) {
+            setErrors(prev => ({ ...prev, [field]: false }));
+        }
+    };
+
+    const renderRegisterInput = (
+        icon: string,
+        placeholder: string,
+        value: string,
+        setValue: (text: string) => void,
+        fieldKey: keyof typeof errors,
+        options: { secureTextEntry?: boolean; keyboardType?: any; autoCapitalize?: any } = {}
+    ) => {
+        let errorText = "";
+        if (errors[fieldKey]) {
+            switch (fieldKey) {
+                case 'fullName': errorText = "Full name is required"; break;
+                case 'registerEmail': errorText = "Invalid email Address"; break;
+                case 'registerPassword': errorText = "Passwords must be at least 8 characters long and contain at least one digit, one uppercase letter, and one lowercase letter."; break;
+                case 'confirmPassword': errorText = "Conmfirm password does not match password"; break;
+                case 'phoneNo': errorText = "Invalid Phone Number"; break;
+                default: errorText = "This field is required";
+            }
+        }
+
+        return (
+            <View style={styles.inputWrapper}>
+                {errors[fieldKey] && (
+                    <Text style={styles.topErrorText}>{errorText}</Text>
+                )}
+
+                <CustomTextInput
+                    iconName={icon}
+                    placeholder={placeholder}
+                    value={value}
+                    onChangeText={(text) => { setValue(text); clearError(fieldKey); }}
+                    secureTextEntry={options.secureTextEntry}
+                    keyboardType={options.keyboardType}
+                    autoCapitalize={options.autoCapitalize}
+                    error={!!errors[fieldKey]}
+                />
+            </View>
+        );
+    };
+
+
     // --- Login Logic ---
     const handleLogin = async () => {
         if (!email || !password) {
-            Alert.alert('Warning', 'Please enter Email and Password.');
+            setModalConfig({
+                visible: true,
+                title: 'Input Required',
+                message: 'Please enter your email address.',
+                type: 'warning',
+                confirmText: 'OK',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
             return;
         }
 
         if (!isValidEmail(email)) {
-            Alert.alert('Format Error', 'Invalid Email. Please check again.');
+            setModalConfig({
+                visible: true,
+                title: 'Input Required',
+                message: 'Please enter your password.',
+                type: 'warning',
+                confirmText: 'OK',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
             return;
         }
 
@@ -143,8 +221,14 @@ const LoginScreen: React.FC = () => {
             }
         } catch (error: any) {
             const errorMessage = error.message || 'An error occurred, please try again.';
-            Alert.alert('Login Error', errorMessage);
-            console.error('Error during login:', error);
+            setModalConfig({
+                visible: true,
+                title: 'Login Failed',
+                message: errorMessage,
+                type: 'error',
+                confirmText: 'Try Again',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
         } finally {
             setLoading(false);
         }
@@ -154,41 +238,48 @@ const LoginScreen: React.FC = () => {
     const handleRegister = async () => {
         setLoading(true);
 
+        const newErrors: typeof errors = {};
+        let hasError = false;
+
         // 1. Check required fields
-        if (!fullName || !registerEmail || !registerPassword || !confirmPassword || !phoneNo) {
-            Alert.alert('Warning', 'Please fill in all required fields.');
-            setLoading(false);
-            return;
+        if (!fullName.trim()) {
+            newErrors.fullName = true;
+            hasError = true;
         }
 
         // 2. Email Validation
-        if (!isValidEmail(registerEmail)) {
-            Alert.alert('Format Error', 'Invalid registration Email. Please check again.');
-            setLoading(false);
-            return;
+        if (!registerEmail.trim() || !isValidEmail(registerEmail)) {
+            newErrors.registerEmail = true;
+            hasError = true;
         }
 
         // 3. Password Validation (strength)
-        if (!isValidPassword(registerPassword)) {
-            Alert.alert(
-                'Password Error',
-                'Password must be 8-20 characters long and include: at least 1 lowercase letter, 1 uppercase letter, 1 number, and 1 special character (@$!%*?&).'
-            );
-            setLoading(false);
-            return;
+        if (!registerPassword || !isValidPassword(registerPassword)) {
+            newErrors.registerPassword = true;
+            hasError = true;
+            if (registerPassword && !isValidPassword(registerPassword)) {
+                // Optional: Still show toast/modal for specific password requirements explanation if user typed something but it's weak
+                showCustomToast('Password must have 8-20 chars, uppercase, lowercase, number & special char.');
+            }
         }
 
-        // 4. Check if Passwords match
-        if (registerPassword !== confirmPassword) {
-            Alert.alert('Confirmation Password Error', 'Password and Confirmation Password do not match.');
-            setLoading(false);
-            return;
+        // 4. Check Password Match
+        if (confirmPassword !== registerPassword) {
+            newErrors.confirmPassword = true;
+            hasError = true;
         }
 
-        // 5. Phone Number Validation
-        if (!isValidPhone(phoneNo)) {
-            Alert.alert('Format Error', 'Invalid Phone number. Please check again.');
+        // 5. Check Phone Number
+        if (!phoneNo.trim() || !isValidPhone(phoneNo)) {
+            newErrors.phoneNo = true;
+            hasError = true;
+        }
+
+        setErrors(newErrors);
+
+        if (hasError) {
             setLoading(false);
+            showCustomToast('Please check the highlighted fields.');
             return;
         }
 
@@ -204,28 +295,47 @@ const LoginScreen: React.FC = () => {
             profilepicture: profilePicture || '',
         };
 
-        console.log('Calling Register API with:', credentials);
-
         try {
             await register(credentials);
 
-            Alert.alert('Success', 'Account registration successful! Please log in.');
-
-            setActiveTab('login');
-            setEmail(registerEmail);
-            setPassword('');
+            setModalConfig({
+                visible: true,
+                title: 'Success',
+                message: 'Account registration successful! Please log in.',
+                type: 'success',
+                confirmText: 'Go to Login',
+                onConfirm: () => {
+                    setModalConfig(prev => ({ ...prev, visible: false }));
+                    setActiveTab('login');
+                    setEmail(registerEmail);
+                    setPassword('');
+                }
+            });
 
         } catch (error: any) {
             const errorMessage = error.message || 'An error occurred during registration, please try again.';
-            Alert.alert('Registration Error', errorMessage);
-            console.error('Error during registration:', error);
+            setModalConfig({
+                visible: true,
+                title: 'Registration Error',
+                message: errorMessage,
+                type: 'error',
+                confirmText: 'Close',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
         } finally {
             setLoading(false);
         }
     };
 
     const handleForgotPassword = () => {
-        Alert.alert('Functionality', 'Navigate to forgot password screen.');
+        setModalConfig({
+            visible: true,
+            title: 'Feature Unavailable',
+            message: 'Navigate to forgot password screen (Not implemented).',
+            type: 'info',
+            confirmText: 'Close',
+            onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+        });
     };
 
     const handleGoogleLogin = async () => {
@@ -250,11 +360,17 @@ const LoginScreen: React.FC = () => {
             }
         } catch (error: any) {
             const errorMessage = error.message || 'Unknown error.';
-            if (errorMessage.toLowerCase().includes("cancelled") || errorMessage.toLowerCase().includes("user cancelled")) {
-                showCustomToast('Login cancelled.');
+            if (!errorMessage.toLowerCase().includes("cancelled")) {
+                setModalConfig({
+                    visible: true,
+                    title: 'Google Login Error',
+                    message: errorMessage,
+                    type: 'error',
+                    confirmText: 'Close',
+                    onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+                });
             } else {
-                Alert.alert('Google Login Error', errorMessage);
-                console.error('Error during Google login:', error);
+                showCustomToast('Login cancelled.');
             }
         } finally {
             setLoading(false);
@@ -331,7 +447,7 @@ const LoginScreen: React.FC = () => {
 
                                 <View style={styles.optionsRow}>
                                     <TouchableOpacity onPress={handleForgotPassword}>
-                                        <Text style={styles.forgotPasswordText}>Forget Password?</Text>
+                                        <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                                     </TouchableOpacity>
                                 </View>
 
@@ -360,46 +476,71 @@ const LoginScreen: React.FC = () => {
                                 />
                             </>
                         ) : (
-                            // NEW REGISTRATION INTERFACE
                             <>
-                                <CustomTextInput
+                                {renderRegisterInput("account-outline", "Full Name", fullName, setFullName, 'fullName', { autoCapitalize: 'words' })}
+                                {renderRegisterInput("email-outline", "Email-ID", registerEmail, setRegisterEmail, 'registerEmail', { keyboardType: 'email-address', autoCapitalize: 'none' })}
+                                {renderRegisterInput("lock-outline", "Password", registerPassword, setRegisterPassword, 'registerPassword', { secureTextEntry: true })}
+                                {renderRegisterInput("lock-check-outline", "Confirm Password", confirmPassword, setConfirmPassword, 'confirmPassword', { secureTextEntry: true })}
+                                {renderRegisterInput("phone-outline", "Phone No.", phoneNo, setPhoneNo, 'phoneNo', { keyboardType: 'phone-pad' })}
+
+                                {/* <CustomTextInput
                                     iconName="account-outline"
+                                    error={errors.fullName}
                                     placeholder="Full Name"
                                     autoCapitalize="words"
                                     value={fullName}
-                                    onChangeText={setFullName}
+                                    onChangeText={(text) => {
+                                        setFullName(text);
+                                        clearError('fullName');
+                                    }}
                                 />
                                 <CustomTextInput
                                     iconName="email-outline"
+                                    error={errors.registerEmail}
                                     placeholder="Email-ID"
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     value={registerEmail}
-                                    onChangeText={setRegisterEmail}
+                                    onChangeText={(text) => {
+                                        setRegisterEmail(text);
+                                        clearError('registerEmail');
+                                    }}
                                 />
                                 <CustomTextInput
                                     iconName="lock-outline"
+                                    error={errors.registerPassword}
                                     placeholder="Password"
                                     secureTextEntry
                                     value={registerPassword}
-                                    onChangeText={setRegisterPassword}
+                                    onChangeText={(text) => {
+                                        setRegisterPassword(text);
+                                        clearError('registerPassword');
+                                    }}
                                 />
                                 <CustomTextInput
                                     iconName="lock-check-outline"
+                                    error={errors.confirmPassword}
                                     placeholder="Confirm Password"
                                     secureTextEntry
                                     value={confirmPassword}
-                                    onChangeText={setConfirmPassword}
+                                    onChangeText={(text) => {
+                                        setConfirmPassword(text);
+                                        clearError('confirmPassword');
+                                    }}
                                 />
                                 <CustomTextInput
                                     iconName="phone-outline"
+                                    error={errors.phoneNo}
                                     placeholder="Phone No."
                                     keyboardType="phone-pad"
                                     value={phoneNo}
-                                    onChangeText={setPhoneNo}
-                                />
+                                    onChangeText={(text) => {
+                                        setPhoneNo(text);
+                                        clearError('phoneNo');
+                                    }}
+                                /> */}
 
-                                {/* Date Picker - Mocked interface activated by touch */}
+                                {/* Date Picker */}
                                 <TouchableOpacity onPress={handleShowDatePicker} style={styles.fakeDatePicker}>
                                     <Icon name="calendar-range" size={20} color="#888" style={styles.fakeDateIcon} />
                                     <Text style={styles.fakeDateText}>{formatDate(dob)}</Text>
@@ -448,7 +589,26 @@ const LoginScreen: React.FC = () => {
                     </ScrollView>
                 </View>
             </KeyboardAvoidingView>
-            {/* {showToast && <CustomToast message={toastMessage} />} */}
+
+            <CustomConfirmModal
+                {...modalConfig}
+                onCancel={modalConfig.onCancel}
+                onConfirm={() => {
+                    if (modalConfig.onConfirm) modalConfig.onConfirm();
+                }}
+            />
+
+            {showToast && (
+                <View style={styles.toastContainer}>
+                    <Text style={styles.toastText}>{toastMessage}</Text>
+                </View>
+            )}
+
+            {loading && (
+                <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color="#3b82f6" />
+                </View>
+            )}
         </View>
     );
 };
@@ -567,8 +727,11 @@ const styles = StyleSheet.create({
     googleButtonText: {
         color: '#333',
     },
-
-    // --- New Registration Form Styles ---
+    inputError: {
+        borderColor: 'red',
+        borderWidth: 1,
+        backgroundColor: '#fff5f5',
+    },
     fakeDatePicker: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -654,7 +817,38 @@ const styles = StyleSheet.create({
         color: '#4a90e2',
         fontWeight: 'bold',
         marginHorizontal: 10,
-    }
+    },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 100,
+    },
+    toastContainer: {
+        position: 'absolute',
+        bottom: 50,
+        alignSelf: 'center',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        zIndex: 200,
+    },
+    toastText: {
+        color: '#fff',
+        fontSize: 14,
+    },
+    inputWrapper: {
+        marginBottom: 2,
+    },
+    topErrorText: {
+        color: '#f87c7cff',
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginLeft: 5,
+        marginBottom: 2,
+    },
 });
 
 export default LoginScreen;
