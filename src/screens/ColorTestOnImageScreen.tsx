@@ -8,6 +8,7 @@ import {
     Image,
     Dimensions,
     ScrollView,
+    Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -23,7 +24,8 @@ import ColorPopup from '../components/ColorPopup';
 import ColorPickerPopup from '../components/ColorPickerPopup';
 import PalettePopup from '../components/PalettePopup';
 import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
-import { Foundation, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
+import CustomConfirmModal, { AlertConfig } from '../components/CustomConfirmModal';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -65,6 +67,11 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
     const [showColorPopup, setShowColorPicker] = useState(false);
     const [showPalettPopup, setShowPalettePicker] = useState(false);
     const [showSavedColorPopup, setShowSavedColorPopup] = useState(false);
+
+    const [confirmModalConfig, setConfirmModalConfig] = useState<AlertConfig>({
+        visible: false, title: '', message: '', type: 'info'
+    });
+    const [showSaveOptionModal, setShowSaveOptionModal] = useState(false);
 
     const [allColors, setAllColors] = useState<Color[]>([]);
     const [pickerColors, setPickerColors] = useState<Color[]>([]);
@@ -140,7 +147,14 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
             }
         } catch (error) {
             console.error('Error loading colors from API:', error);
-            Alert.alert('Color Load Error', 'Could not load color data from API.');
+            setConfirmModalConfig({
+                visible: true,
+                title: 'Data Load Error',
+                message: 'Unable to load color list from the system.',
+                type: 'error',
+                confirmText: 'Close',
+                onConfirm: () => setConfirmModalConfig(prev => ({ ...prev, visible: false }))
+            });
         }
     }, [colorTypeId]);
 
@@ -214,6 +228,7 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                 visibilityTime: 2000,
             });
         }
+        setShowSaveOptionModal(false);
     };
 
     const handleSaveColor = () => {
@@ -227,24 +242,7 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
             return;
         }
 
-        Alert.alert(
-            'Lưu Màu Sắc',
-            `Bạn muốn lưu màu "${selectedColorInfo.name}" vào danh sách nào?`,
-            [
-                {
-                    text: 'Best Color',
-                    onPress: () => attemptSaveToColorList('best'),
-                },
-                {
-                    text: 'Worst Color',
-                    onPress: () => attemptSaveToColorList('worst'),
-                },
-                {
-                    text: 'Hủy',
-                    style: 'cancel',
-                },
-            ]
-        );
+        setShowSaveOptionModal(true);
     };
 
     const handleDeleteColor = (colorId: number, mode: ColorListMode) => {
@@ -492,9 +490,119 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
                 canDelete={true}
                 onDeleteColor={(colorId) => handleDeleteColor(colorId, activeColorListMode)}
             />
+
+            <CustomConfirmModal
+                {...confirmModalConfig}
+                onCancel={confirmModalConfig.onCancel}
+                onConfirm={() => {
+                    if (confirmModalConfig.onConfirm) confirmModalConfig.onConfirm();
+                }}
+            />
+
+            {/* Save Option Modal (Custom) */}
+            <Modal
+                transparent={true}
+                visible={showSaveOptionModal}
+                animationType="fade"
+                onRequestClose={() => setShowSaveOptionModal(false)}
+            >
+                <View style={modalStyles.overlay}>
+                    <View style={modalStyles.container}>
+                        <View style={[modalStyles.iconWrapper, { backgroundColor: '#E0F2F1' }]}>
+                            <Ionicons name="save" size={32} color="#009688" />
+                        </View>
+                        <Text style={modalStyles.title}>Save Color</Text>
+                        <Text style={modalStyles.message}>
+                            Which list would you like to save "{selectedColorInfo.name}" to?
+                        </Text>
+
+                        <View style={modalStyles.buttonStack}>
+                            {/* Best Color Button */}
+                            <TouchableOpacity
+                                style={[modalStyles.button, { backgroundColor: '#4CAF50' }]}
+                                onPress={() => attemptSaveToColorList('best')}
+                            >
+                                <Ionicons name="thumbs-up" size={18} color="white" style={{ marginRight: 8 }} />
+                                <Text style={modalStyles.buttonText}>Best Color</Text>
+                            </TouchableOpacity>
+
+                            {/* Worst Color Button */}
+                            <TouchableOpacity
+                                style={[modalStyles.button, { backgroundColor: '#F44336', marginTop: 10 }]}
+                                onPress={() => attemptSaveToColorList('worst')}
+                            >
+                                <Ionicons name="thumbs-down" size={18} color="white" style={{ marginRight: 8 }} />
+                                <Text style={modalStyles.buttonText}>Worst Color</Text>
+                            </TouchableOpacity>
+
+                            {/* Cancel Button */}
+                            <TouchableOpacity
+                                style={[modalStyles.button, { backgroundColor: '#ECEFF1', marginTop: 15 }]}
+                                onPress={() => setShowSaveOptionModal(false)}
+                            >
+                                <Text style={[modalStyles.buttonText, { color: '#555' }]}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
+
+const modalStyles = StyleSheet.create({
+    overlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    container: {
+        width: screenWidth * 0.85,
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 20,
+        alignItems: 'center',
+        elevation: 5,
+    },
+    iconWrapper: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#111',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    message: {
+        fontSize: 14,
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    buttonStack: {
+        width: '100%',
+    },
+    button: {
+        flexDirection: 'row',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    buttonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+    }
+});
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },

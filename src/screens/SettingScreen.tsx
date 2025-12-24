@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -14,6 +14,7 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { useAuth } from './auth/AuthContext';
 import { unifiedLogout } from '../api/authApi';
 import CustomHeader from '../components/CustomHeader';
+import CustomConfirmModal, { AlertConfig } from '../components/CustomConfirmModal';
 
 interface SettingItem {
     id: string;
@@ -74,6 +75,13 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { setIsLoggedIn, userRole } = useAuth();
 
+    const [confirmModalConfig, setConfirmModalConfig] = useState<AlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
+
     const navigateToPackageScreen = () => {
         navigation.navigate('PackageScreen');
     };
@@ -119,23 +127,29 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
         if (item.action === 'navigate' && item.targetScreen) {
             navigation.navigate(item.targetScreen);
         } else if (item.action === 'logout') {
-            Alert.alert(
-                'Đăng xuất',
-                'Bạn có chắc chắn muốn đăng xuất?',
-                [
-                    { text: 'Hủy', style: 'cancel' },
-                    {
-                        text: 'Đăng xuất',
-                        style: 'destructive',
-                        onPress: async () => {
-                            await unifiedLogout();
-                            setIsLoggedIn(false);
-                        },
-                    },
-                ]
-            );
+            setConfirmModalConfig({
+                visible: true,
+                title: 'Log Out',
+                message: 'Are you sure you want to log out of your account?',
+                type: 'warning',
+                confirmText: 'Log Out',
+                cancelText: 'Cancel',
+                onConfirm: async () => {
+                    await unifiedLogout();
+                    setIsLoggedIn(false);
+                    setConfirmModalConfig(prev => ({ ...prev, visible: false }));
+                },
+                onCancel: () => setConfirmModalConfig(prev => ({ ...prev, visible: false }))
+            });
         } else {
-            Alert.alert('Chức năng', `Bạn đã nhấn vào: ${item.label}`);
+            setConfirmModalConfig({
+                visible: true,
+                title: 'Feature',
+                message: `You tapped on: ${item.label}`,
+                type: 'info',
+                confirmText: 'Close',
+                onConfirm: () => setConfirmModalConfig(prev => ({ ...prev, visible: false }))
+            });
         }
     };
 
@@ -178,6 +192,14 @@ const SettingScreen: React.FC<any> = ({ navigation }) => {
                 renderSectionHeader={({ section: { title } }) => (
                     <Text style={styles.sectionTitle}>{title}</Text>
                 )}
+            />
+
+            <CustomConfirmModal
+                {...confirmModalConfig}
+                onCancel={confirmModalConfig.onCancel}
+                onConfirm={() => {
+                    if (confirmModalConfig.onConfirm) confirmModalConfig.onConfirm();
+                }}
             />
         </View>
     );

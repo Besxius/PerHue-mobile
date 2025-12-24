@@ -11,6 +11,8 @@ import {
     FlatList,
     Alert,
     Modal,
+    Platform,
+    ToastAndroid,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +21,7 @@ import Toast from 'react-native-toast-message';
 import { ExpertTestResponse, Color, ExpertTestDetailResponse } from '../types/dataModels';
 import { getExpertTestResultsById, rateExpertTest, sendReviewRequest } from '../api/userApi';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import * as Clipboard from 'expo-clipboard';
 
 type DetailScreenProps = NativeStackScreenProps<
     RootStackParamList,
@@ -85,9 +88,30 @@ interface ColorSwatchDisplayProps {
 const ColorSwatchDisplay: FC<ColorSwatchDisplayProps> = ({ colors, title, colorType }) => {
     if (colors.length === 0) return null;
 
+    const handleCopy = async (hexCode: string) => {
+        await Clipboard.setStringAsync(hexCode);
+
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied list hexcodes to clipboard!`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `Color list hexcodes copied!`);
+        }
+    };
+
     return (
         <View style={styles.swatchSection}>
-            <Text style={styles.swatchTitle}>{title}</Text>
+            <View style={styles.rowBetween}>
+                <Text style={styles.swatchTitle}>{title}</Text>
+                <TouchableOpacity
+                    style={styles.copyButton}
+                    onPress={(e) => {
+                        e.stopPropagation();
+                        handleCopy(colors.map(c => c.hexCode).join(', '));
+                    }}
+                >
+                    <Ionicons name="copy-outline" size={24} color="gray" />
+                </TouchableOpacity>
+            </View>
             <View style={styles.swatchGrid}>
                 {colors.map((color, index) => (
                     <View key={index} style={[styles.colorSquareBox, { backgroundColor: color.hexCode }]}>
@@ -131,12 +155,11 @@ const InteractiveStarRating: FC<InteractiveStarRatingProps> = ({ rating, onRate,
     );
 };
 
-// [CẬP NHẬT] Similarity Score Card với nút Request Review
 interface SimilarityScoreCardProps {
     score: number;
     onRequestReview: () => void;
     isRequesting: boolean;
-    isReviewRequested: boolean; // Trạng thái đã gửi yêu cầu hay chưa (có thể check từ API nếu có field)
+    isReviewRequested: boolean;
 }
 
 const SimilarityScoreCard: FC<SimilarityScoreCardProps> = ({ score, onRequestReview, isRequesting, isReviewRequested }) => {
@@ -956,6 +979,16 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    copyButton: {
+        padding: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 5,
+    },
+    rowBetween: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
 });
 
