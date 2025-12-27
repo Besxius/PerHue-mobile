@@ -16,10 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CapsulePalette from '../components/CapsulePalette';
-import { ManualTestResult } from '../types/dataModels';
+import { CapsulePaletteModel, ManualTestResult } from '../types/dataModels';
 import { getManualTestResultById } from '../api/userApi';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import * as Clipboard from 'expo-clipboard';
+import PaletteDetailModal from '../components/PaletteDetailModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ManualTestResultDetailScreen'>;
 
@@ -90,15 +91,18 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
     const [error, setError] = useState<string | null>(null);
     const [selectedCapsuleId, setSelectedCapsuleId] = useState<number | null>(null);
 
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [selectedDetailPalette, setSelectedDetailPalette] = useState<CapsulePaletteModel | null>(null);
+
     const fetchResult = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
             const data = await getManualTestResultById(id);
             setResult(data);
-            if (data.capsulePalettes && data.capsulePalettes.length > 0) {
-                setSelectedCapsuleId(data.capsulePalettes[0].id);
-            }
+            // if (data.capsulePalettes && data.capsulePalettes.length > 0) {
+            //     setSelectedCapsuleId(data.capsulePalettes[0].id);
+            // }
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Unknown error while loading data.';
             setError(errorMessage);
@@ -111,6 +115,31 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
     useEffect(() => {
         fetchResult();
     }, [fetchResult]);
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+            const actionType = e.data.action.type;
+
+            if (actionType === 'GO_BACK' || actionType === 'POP') {
+                e.preventDefault();
+
+                navigation.navigate('Tabs', {
+                    screen: 'History',
+                    params: {
+                        initialTab: 'Manual Test'
+                    }
+                });
+            }
+        });
+
+        return unsubscribe;
+    }, [navigation]);
+
+    const handlePalettePress = (palette: CapsulePaletteModel) => {
+        setSelectedDetailPalette(palette);
+        setSelectedCapsuleId(palette.id);
+        setIsModalVisible(true);
+    };
 
     const handleGoBack = () => {
         navigation.navigate('Tabs' as any, {
@@ -141,28 +170,7 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
 
     const colorType = result.colorTypeName || 'Undetermined';
     const profilePictureUri = result.picture;
-    const validCapsulePalettes = result.capsulePalettes
-        .map(palette => {
-            const colorsArray = palette.colors.slice(0, 4).map(c => c.hexCode);
-            if (colorsArray.length === 4) {
-                return {
-                    id: palette.id,
-                    colors: colorsArray as [string, string, string, string],
-                };
-            }
-            return null;
-        })
-        .filter((p): p is { id: number, colors: [string, string, string, string] } => p !== null);
-
-    const handleCopy = async (hexCode: string) => {
-        await Clipboard.setStringAsync(hexCode);
-
-        if (Platform.OS === 'android') {
-            ToastAndroid.show(`Copied list hexcodes to clipboard!`, ToastAndroid.SHORT);
-        } else {
-            Alert.alert("Copied", `Color list hexcodes copied!`);
-        }
-    };
+    const validCapsulePalettes = result.capsulePalettes;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -223,14 +231,21 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
                     <Text style={styles.sectionHeader}>Suggested Capsule Palettes ({validCapsulePalettes.length})</Text>
                     {validCapsulePalettes.length > 0 ? (
                         <View style={styles.capsuleGrid}>
-                            {validCapsulePalettes.map((palette) => (
-                                <CapsulePalette
-                                    key={palette.id}
-                                    colors={palette.colors}
-                                    isSelected={palette.id === selectedCapsuleId}
-                                    onSelect={() => setSelectedCapsuleId(palette.id)}
-                                />
-                            ))}
+                            {validCapsulePalettes.map((palette) => {
+                                const colorsArray = palette.colors.slice(0, 4).map(c => c.hexCode);
+                                if (colorsArray.length < 4) return null;
+
+                                return (
+                                    <View key={palette.id} style={styles.capsuleItemWrapper}>
+                                        <CapsulePalette
+                                            colors={colorsArray as [string, string, string, string]}
+                                            isSelected={palette.id === selectedCapsuleId}
+                                            onSelect={() => handlePalettePress(palette)}
+                                        />
+                                        {/* <Text style={styles.paletteName} numberOfLines={1}>{` ${palette.colorType.name} Palette`}</Text> */}
+                                    </View>
+                                );
+                            })}
                         </View>
                     ) : (
                         <Text style={styles.noDataText}>No matching palettes found.</Text>
@@ -239,6 +254,12 @@ const ManualTestResultDetailScreen: React.FC<Props> = ({ route, navigation }) =>
 
                 <View style={{ height: 30 }} />
             </ScrollView>
+
+            <PaletteDetailModal
+                isVisible={isModalVisible}
+                palette={selectedDetailPalette}
+                onClose={() => setIsModalVisible(false)}
+            />
         </View>
     );
 };
@@ -280,6 +301,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#fff',
     },
+    capsuleItemWrapper: {
+        width: '48%',
+        marginBottom: 15,
+        alignItems: 'center',
+    },
     loadingText: {
         marginTop: 10,
         color: '#666',
@@ -299,7 +325,11 @@ const styles = StyleSheet.create({
         color: '#333',
         fontWeight: '600',
     },
-
+    paletteName: {
+        fontSize: 12,
+        color: '#555',
+        fontWeight: '500',
+    },
     // Cards
     summaryCard: {
         backgroundColor: '#fff',
@@ -399,7 +429,6 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(0,0,0,0.1)',
         justifyContent: 'center',
         alignItems: 'center',
-        // Shadow để nổi bật nếu màu trắng
         shadowColor: "#000",
         shadowOffset: {
             width: 0,

@@ -216,7 +216,7 @@ const PalettePopup: React.FC<PalettePopupProps> = ({
                     <Ionicons name="search" size={20} color="gray" style={{ marginLeft: 10 }} />
                     <TextInput
                         style={paletteStyles.searchInput}
-                        placeholder="Tìm kiếm palette màu..."
+                        placeholder="Searching for a color palette..."
                         placeholderTextColor="gray"
                         value={searchText}
                         onChangeText={setSearchText}
@@ -312,7 +312,7 @@ const PalettePopup: React.FC<PalettePopupProps> = ({
                                     />
                                 ) : (
                                     <>
-                                        <Text style={paletteStyles.palettePickerTitle}>CHỌN PALETTE MÀU</Text>
+                                        <Text style={paletteStyles.palettePickerTitle}>CHOOSE COLOR IN CAPSULE PALETTE</Text>
                                         {renderGridView()}
                                     </>
                                 )}

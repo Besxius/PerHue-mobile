@@ -77,7 +77,7 @@ const TermsAndPoliciesScreen: FC<TermsAndPoliciesScreenProps> = () => {
 
                 <Text style={styles.contactInfo}>
                     Last updated: December 5, 2025
-                    {'\n'}Contact: support@perhueapp.com
+                    {'\n'}Contact: perhue2025@gmail.com
                 </Text>
 
             </ScrollView>

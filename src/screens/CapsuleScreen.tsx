@@ -20,9 +20,9 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import CapsulePaletteComponent from '../components/CapsulePalette';
 import * as Clipboard from 'expo-clipboard';
-
 import { ColorType, CapsulePaletteModel, Color } from '../types/dataModels';
 import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
+import PaletteDetailModal from '../components/PaletteDetailModal';
 
 interface TabItem extends ColorType { }
 
@@ -83,49 +83,6 @@ interface PaletteDetailModalProps {
     onClose: () => void;
 }
 
-const PaletteDetailModal: React.FC<PaletteDetailModalProps> = ({ isVisible, palette, onClose }) => {
-    const insets = useSafeAreaInsets();
-
-    if (!palette) return null;
-
-    const title = palette.colorType?.name ? `${palette.colorType.name.toUpperCase()} PALETTE` : 'PALETTE DETAIL';
-
-    return (
-        <Modal
-            animationType="slide"
-            transparent={true}
-            visible={isVisible}
-            onRequestClose={onClose}
-        >
-            <TouchableWithoutFeedback onPress={onClose}>
-                <View style={modalStyles.centeredView}>
-
-                    <TouchableWithoutFeedback>
-                        <View style={[modalStyles.modalView, { paddingBottom: insets.bottom }]}>
-
-                            <View style={modalStyles.headerContainer}>
-                                <TouchableOpacity style={modalStyles.closeButton} onPress={onClose}>
-                                    <Ionicons name="arrow-back" size={24} color="#333" />
-                                </TouchableOpacity>
-                                <Text style={modalStyles.headerTitle}>{title}</Text>
-                            </View>
-
-                            <FlatList
-                                data={palette.colors}
-                                renderItem={({ item }) => <ColorDetailCard color={item} />}
-                                keyExtractor={(item) => item.id.toString()}
-                                contentContainerStyle={modalStyles.colorListContent}
-                                showsVerticalScrollIndicator={false}
-                            />
-
-                        </View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
-        </Modal>
-    );
-};
-
 const CapsuleScreen: React.FC<any> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
 
@@ -173,8 +130,7 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
                     setActiveTabId(data[0].id);
                 }
             } catch (e: any) {
-                console.error("Lỗi tải Color Types:", e);
-                setTabError(e.message || "Không thể tải các loại màu.");
+                setTabError(e.message || "Unable to load color options.");
             } finally {
                 setTabLoading(false);
             }
@@ -187,12 +143,9 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
         if (activeTabId === null) return;
 
         try {
-            // Nếu đang refresh thì không hiện loading giữa màn hình, chỉ hiện spinner ở trên
             if (!isRefresh) {
                 setPaletteLoading(true);
             }
-            // Nếu refresh thì setPalettes([]) hoặc giữ lại tùy UX. 
-            // Ở đây giữ lại data cũ để không bị nháy màn hình.
             if (!isRefresh) {
                 setPalettes([]);
             }
@@ -210,8 +163,7 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
             setSelectedPaletteId(null);
 
         } catch (e: any) {
-            console.error(`Lỗi tải Palettes cho ID ${activeTabId}:`, e);
-            setPaletteError(e.message || "Không thể tải bảng màu.");
+            setPaletteError(e.message || "The color palette could not be loaded.");
             setPalettes([]);
         } finally {
             if (!isRefresh) {
@@ -299,14 +251,14 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
 
     const renderEmptyComponent = () => {
         if (paletteError) {
-            return <Text style={styles.errorText}>Lỗi tải bảng màu: {paletteError}</Text>;
+            return <Text style={styles.errorText}>Error loading palettes: {paletteError}</Text>;
         }
         if (palettes.length > 0 && searchText) {
-            return <Text style={styles.noDataText}>Không tìm thấy kết quả tìm kiếm "{searchText}" trong mùa này.</Text>;
+            return <Text style={styles.noDataText}>No search results were found "{searchText}" in this color type.</Text>;
         }
         return (
             <Text style={styles.noDataText}>
-                Chưa có bảng màu nào cho loại màu này.
+                No palette data available for this color type.
             </Text>
         );
     };
@@ -334,7 +286,7 @@ const CapsuleScreen: React.FC<any> = ({ navigation }) => {
                 <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Tìm kiếm theo tên màu hoặc mã hex..."
+                    placeholder="Search by color name or hex code..."
                     placeholderTextColor="#999"
                     value={searchText}
                     onChangeText={setSearchText}

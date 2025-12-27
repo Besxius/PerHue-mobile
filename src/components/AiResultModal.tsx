@@ -1,5 +1,4 @@
-// components/AiResultModal.tsx
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
     Modal,
     View,
@@ -11,20 +10,21 @@ import {
     Image,
     Animated,
     PanResponder,
+    Platform,
+    ToastAndroid,
+    Alert,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { AiColorTestResponse } from '../types/dataModels';
+import { AiColorTestResponse, Color, CapsulePalette } from '../types/dataModels';
+import * as Clipboard from 'expo-clipboard';
+import ImageView from "react-native-image-viewing";
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
-
-interface DisplayColor {
-    hexCode: string;
-    name: string;
-}
 
 interface AiResultModalProps {
     isVisible: boolean;
@@ -33,6 +33,7 @@ interface AiResultModalProps {
     currentPhotoUri: string | null;
 }
 
+// Helper tính màu tương phản
 const getContrastTextColor = (hex: string) => {
     const cleanHex = hex.replace('#', '');
     if (cleanHex.length !== 6) return '#FFFFFF';
@@ -43,20 +44,17 @@ const getContrastTextColor = (hex: string) => {
     return (yiq >= 128) ? '#000000' : '#FFFFFF';
 };
 
-const createDisplayColor = (hex: string): DisplayColor => ({
-    hexCode: hex.trim(),
-    name: hex.trim().toUpperCase(),
-});
-
-const AiTestResultModal: React.FC<AiResultModalProps> = ({
+const AiResultModal: React.FC<AiResultModalProps> = ({
     isVisible,
     onClose,
     resultData,
     currentPhotoUri,
 }) => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
     const panY = useRef(new Animated.Value(0)).current;
+    const insets = useSafeAreaInsets();
+    const [isImageViewVisible, setIsImageViewVisible] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     useEffect(() => {
         if (isVisible) {
@@ -94,29 +92,71 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
         }
     };
 
+    const handleCopy = async (text: string) => {
+        await Clipboard.setStringAsync(text);
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied: ${text}`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `${text} copied to clipboard!`);
+        }
+    };
+
+    const openImageViewer = (index: number) => {
+        setCurrentImageIndex(index);
+        setIsImageViewVisible(true);
+    };
+
     if (!resultData) return null;
 
-    const suggestedHexes = resultData.suggestedColor
-        ? resultData.suggestedColor.split(',').map(createDisplayColor)
-        : [];
+    // --- 1. Lấy dữ liệu từ cấu trúc mới ---
+    const colorTypeName = `${resultData.colorTypeName}`;
 
+    // Dùng mảng object từ API, nếu không có thì fallback về mảng rỗng
+    const suggestedColors = resultData.suggestedColorsBySystem || [];
+    const capsulePalettes = resultData.suggestedCapsulePalletesBySystem || [];
+    const generatedImages = resultData.generatedImagesList || [];
+
+    // Avoided color vẫn dùng string split như cũ (do API chưa đổi phần này sang object array)
     const avoidedHexes = resultData.avoidedColor
-        ? resultData.avoidedColor.split(',').map(createDisplayColor)
+        ? resultData.avoidedColor.split(',').map(hex => ({ hexCode: hex.trim() }))
         : [];
 
-    const colorTypeName = `Color Type: ${resultData.colorTypeName}`;
-
-    const renderColorSummaryBlock = (color: DisplayColor) => (
-        <View key={color.hexCode} style={[modalStyles.colorBox, { backgroundColor: color.hexCode }]}>
+    // --- Render Items ---
+    const renderColorSummaryBlock = (color: Color, index: number) => (
+        <TouchableOpacity
+            key={color.id || index}
+            style={[modalStyles.colorBox, { backgroundColor: color.hexCode }]}
+            onPress={() => handleCopy(color.hexCode)}
+        >
             <Text style={[modalStyles.colorHexText, { color: getContrastTextColor(color.hexCode) }]}>
                 {color.hexCode.toUpperCase()}
             </Text>
+        </TouchableOpacity>
+    );
+
+    const renderCapsulePalette = (palette: CapsulePalette, index: number) => (
+        <View key={palette.id || index} style={modalStyles.paletteContainer}>
+            <View style={modalStyles.paletteHeader}>
+                <Ionicons name="shirt-outline" size={16} color={BLUE_COLOR} />
+                <Text style={modalStyles.paletteTitle}>
+                    {palette.colorType?.name || `Palette ${index + 1}`}
+                </Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={modalStyles.paletteRow}>
+                {palette.colors.map((c, idx) => (
+                    <TouchableOpacity
+                        key={idx}
+                        style={[modalStyles.miniColorBox, { backgroundColor: c.hexCode }]}
+                        onPress={() => handleCopy(c.hexCode)}
+                    />
+                ))}
+            </ScrollView>
         </View>
     );
 
     return (
         <Modal
-            animationType="slide"
+            animationType="fade"
             transparent={true}
             visible={isVisible}
             onRequestClose={onClose}
@@ -166,35 +206,86 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
                             </View>
                         )}
 
-                        <Text style={modalStyles.subtitle}>SUGGESTED COLORS</Text>
+                        {/* 1. Suggested Colors Section */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                            <Text style={modalStyles.subtitle}>SUGGESTED COLORS</Text>
+                            <TouchableOpacity
+                                style={modalStyles.copyButton}
+                                onPress={() => handleCopy(resultData.suggestedColor)}
+                            >
+                                <Ionicons name="copy-outline" size={20} color="gray" />
+                            </TouchableOpacity>
+                        </View>
+
                         <View style={modalStyles.keyColorsSection}>
-                            {suggestedHexes.length > 0 ? (
+                            {suggestedColors.length > 0 ? (
                                 <View style={modalStyles.colorBlocksSummary}>
-                                    {suggestedHexes.map(renderColorSummaryBlock)}
+                                    {suggestedColors.map((color, index) => renderColorSummaryBlock(color, index))}
                                 </View>
                             ) : (
                                 <Text style={modalStyles.noColorText}>No colors suggested.</Text>
                             )}
                         </View>
 
+                        {/* 3. Avoided Colors Section */}
                         <Text style={modalStyles.subtitle}>AVOIDED COLORS</Text>
                         <View style={modalStyles.keyColorsSection}>
                             {avoidedHexes.length > 0 ? (
                                 <View style={modalStyles.colorBlocksSummary}>
-                                    {avoidedHexes.map(renderColorSummaryBlock)}
+                                    {avoidedHexes.map((item, index) => (
+                                        <View key={index} style={[modalStyles.colorBox, { backgroundColor: item.hexCode }]}>
+                                            <Text style={[modalStyles.colorHexText, { color: getContrastTextColor(item.hexCode) }]}>
+                                                {item.hexCode}
+                                            </Text>
+                                        </View>
+                                    ))}
                                 </View>
                             ) : (
                                 <Text style={modalStyles.noColorText}>No colors to avoid were returned.</Text>
                             )}
                         </View>
 
+                        {generatedImages.length > 0 && (
+                            <>
+                                <Text style={modalStyles.subtitle}>AI GENERATED STYLES</Text>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={modalStyles.generatedImagesList}
+                                >
+                                    {generatedImages.map((img, index) => (
+                                        <TouchableOpacity
+                                            key={img.aiImageId || index}
+                                            onPress={() => openImageViewer(index)}
+                                            style={modalStyles.generatedImageWrapper}
+                                            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                                        >
+                                            <Image
+                                                source={{ uri: img.aiImageLink }}
+                                                style={modalStyles.generatedImage}
+                                            />
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </>
+                        )}
+
+                        {capsulePalettes.length > 0 && (
+                            <>
+                                <Text style={modalStyles.subtitle}>CAPSULE PALETTE</Text>
+                                <View style={modalStyles.capsuleSection}>
+                                    {capsulePalettes.map((palette, index) => renderCapsulePalette(palette, index))}
+                                </View>
+                            </>
+                        )}
+
                         <View style={modalStyles.noteContainer}>
-                            <Text style={modalStyles.subtitle}>EXPERT NOTE</Text>
+                            <Text style={modalStyles.subtitle}>AI NOTE</Text>
                             <Text style={modalStyles.noteText}>{resultData.note || "No detailed note provided."}</Text>
                             <Text style={modalStyles.noteDate}>Date: {new Date(resultData.date).toLocaleDateString()}</Text>
                         </View>
 
-                        {/* [CẬP NHẬT] Nút điều hướng */}
+                        {/* Detail Button */}
                         <TouchableOpacity style={modalStyles.detailButton} onPress={handleNavigateToDetail}>
                             <Text style={modalStyles.detailButtonText}>
                                 VIEW DETAILED ANALYSIS
@@ -205,11 +296,36 @@ const AiTestResultModal: React.FC<AiResultModalProps> = ({
                         <View style={{ height: 40 }} />
                     </ScrollView>
                 </Animated.View>
+                <ImageView
+                    images={generatedImages.map(img => ({ uri: img.aiImageLink }))}
+                    imageIndex={currentImageIndex}
+                    visible={isImageViewVisible}
+                    onRequestClose={() => setIsImageViewVisible(false)}
+                    swipeToCloseEnabled={true}
+                    doubleTapToZoomEnabled={true}
+                    HeaderComponent={() => (
+                        <View style={[modalStyles.imageHeader, { paddingTop: insets.top + 10 }]}>
+                            <TouchableOpacity
+                                style={modalStyles.closeButtonArea}
+                                onPress={() => setIsImageViewVisible(false)}
+                                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                            >
+                                <Ionicons name="close-circle" size={36} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                    FooterComponent={({ imageIndex }) => (
+                        <View style={[modalStyles.imageFooter, { paddingBottom: insets.bottom + 20 }]}>
+                            <Text style={modalStyles.imageFooterText}>
+                                {imageIndex + 1} / {generatedImages.length}
+                            </Text>
+                        </View>
+                    )}
+                />
             </View>
         </Modal>
     );
 };
-
 const modalStyles = StyleSheet.create({
     overlay: {
         flex: 1,
@@ -285,21 +401,34 @@ const modalStyles = StyleSheet.create({
     },
     imageWrapperFull: {
         width: '100%',
-        height: 500,
+        height: 300,
         borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#F5F5F5',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        marginBottom: 10,
     },
     imageThumbnailFull: {
         width: '100%',
         height: '100%',
         resizeMode: 'cover',
     },
+    // Styles cho Generated Images List
+    generatedImagesList: {
+        paddingBottom: 10,
+    },
+    generatedImageWrapper: {
+        marginRight: 10,
+        borderRadius: 12,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    generatedImage: {
+        width: 120,
+        height: 160,
+        resizeMode: 'cover',
+    },
+    // Styles cho Suggested Colors
     keyColorsSection: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -333,6 +462,45 @@ const modalStyles = StyleSheet.create({
         fontWeight: 'bold',
         textAlign: 'center',
     },
+    // Styles cho Capsule Wardrobe
+    capsuleSection: {
+        gap: 10,
+    },
+    paletteContainer: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#eee',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    paletteHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+        gap: 8,
+    },
+    paletteTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#444',
+    },
+    paletteRow: {
+        flexDirection: 'row',
+    },
+    miniColorBox: {
+        width: 35,
+        height: 35,
+        borderRadius: 17.5,
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.1)',
+    },
+    // Các styles khác
     noteContainer: {
         marginTop: 10,
     },
@@ -377,6 +545,34 @@ const modalStyles = StyleSheet.create({
         fontWeight: 'bold',
         letterSpacing: 0.5,
     },
+    copyButton: {
+        padding: 8,
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        borderRadius: 5,
+    },
+    imageHeader: {
+        width: '100%',
+        alignItems: 'flex-end', // Đẩy sang phải
+        paddingHorizontal: 20,
+        zIndex: 9999,
+    },
+    closeButtonArea: {
+        padding: 5,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderRadius: 20,
+    },
+    // Footer cho trình xem ảnh
+    imageFooter: {
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingBottom: 20,
+    },
+    imageFooterText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
 });
 
-export default AiTestResultModal;
+export default AiResultModal;

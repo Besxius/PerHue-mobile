@@ -24,6 +24,7 @@ import {
     VoteForReviewRequest
 } from '../types/dataModels';
 import { getReviewRequestById, sendVoteForReview } from '../api/expertApi';
+import CustomConfirmModal, { AlertConfig } from '../components/CustomConfirmModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExpertReviewDetailScreen'>;
 
@@ -119,6 +120,32 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const [modalConfig, setModalConfig] = useState<AlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info',
+        onConfirm: () => { },
+        onCancel: () => { }
+    });
+
+    const showAlert = (config: Partial<AlertConfig>) => {
+        setModalConfig({
+            visible: true,
+            title: config.title || '',
+            message: config.message || '',
+            type: config.type || 'info',
+            confirmText: config.confirmText,
+            cancelText: config.cancelText,
+            onConfirm: config.onConfirm || (() => setModalConfig(prev => ({ ...prev, visible: false }))),
+            onCancel: config.onCancel || (() => setModalConfig(prev => ({ ...prev, visible: false }))),
+        });
+    };
+
+    const hideAlert = () => {
+        setModalConfig(prev => ({ ...prev, visible: false }));
+    };
+
     const fetchReviewData = useCallback(async () => {
         setIsLoading(true);
         setError(null);
@@ -136,6 +163,56 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         fetchReviewData();
     }, [fetchReviewData]);
 
+    const hasVoted = data?.votedResponseId != null;
+    const hasUnsavedChanges = !hasVoted && (selectedResponseId !== null || voteNote.trim().length > 0);
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+            if (isSuccessModalVisible) {
+                e.preventDefault();
+                return;
+            }
+
+            const actionType = e.data.action.type;
+
+            if (actionType !== 'GO_BACK' && actionType !== 'POP') {
+                return;
+            }
+
+            e.preventDefault();
+
+            const navigateToHistoryPending = () => {
+                navigation.navigate('Tabs', {
+                    screen: 'History',
+                    params: {
+                        initialTab: 'Review Request',
+                        initialStatus: 'Pending'
+                    }
+                });
+            };
+
+            if (hasUnsavedChanges) {
+                showAlert({
+                    type: 'warning',
+                    title: 'Discard Changes?',
+                    message: 'You have unsaved changes. Are you sure you want to discard them and leave?',
+                    confirmText: 'Discard',
+                    cancelText: 'Keep Editing',
+                    onConfirm: () => {
+                        hideAlert();
+                        navigation.dispatch(e.data.action);
+                        navigateToHistoryPending();
+                    },
+                    onCancel: hideAlert
+                });
+            } else {
+                navigateToHistoryPending();
+            }
+        });
+
+        return unsubscribe;
+    }, [navigation, hasUnsavedChanges, modalConfig]);
+
     const handleVotePress = (responseId: number) => {
         if (selectedResponseId === responseId) {
             setSelectedResponseId(null);
@@ -149,10 +226,45 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     const handlePreSubmit = () => {
         if (!selectedResponseId) return;
         if (!voteNote.trim()) {
-            Alert.alert("Required", "Please enter a note for your vote.");
+            showAlert({
+                type: 'error',
+                title: 'Required',
+                message: 'Please enter a note for your vote.',
+                confirmText: 'OK'
+            });
             return;
         }
-        setIsConfirmModalVisible(true);
+
+        showAlert({
+            type: 'warning',
+            title: 'Confirm Submission',
+            message: 'Your review is very important. This review cannot be edited once sent. If you are sure, please click send to submit to the user.',
+            confirmText: 'Send',
+            cancelText: 'Cancel',
+            onConfirm: () => {
+                hideAlert();
+                handleConfirmSubmit();
+            },
+            onCancel: hideAlert
+        });
+    };
+
+    const handleAnalyzeImage = () => {
+        const clientPictureUri = data?.testRequest.pictures?.[0]?.source;
+        if (clientPictureUri) {
+            navigation.navigate('ColorTestOnImageScreen' as any, {
+                imageUri: clientPictureUri,
+                testRequestId: testRequestId,
+                fromScreen: 'ExpertReviewDetailScreen'
+            });
+        } else {
+            showAlert({
+                type: 'error',
+                title: 'Error',
+                message: 'Image not found.',
+                confirmText: 'Close'
+            });
+        }
     };
 
     const handleConfirmSubmit = async () => {
@@ -168,17 +280,28 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
         try {
             await sendVoteForReview(payload);
-            setIsSuccessModalVisible(true);
+            showAlert({
+                type: 'success',
+                title: 'Sent Successfully!',
+                message: 'Thank you for your expert review. The result has been finalized.',
+                confirmText: 'Close',
+                onConfirm: handleSuccessClose
+            });
             fetchReviewData();
         } catch (err: any) {
-            Alert.alert("Submission Failed", err.message || "Could not submit vote.");
+            showAlert({
+                type: 'error',
+                title: 'Submission Failed',
+                message: err.message || "Could not submit vote.",
+                confirmText: 'OK'
+            });
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleSuccessClose = () => {
-        setIsSuccessModalVisible(false);
+        hideAlert();
         navigation.navigate('Tabs', {
             screen: 'History',
             params: {
@@ -188,17 +311,13 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         });
     };
 
-    // [LOGIC MỚI] Lọc danh sách response để hiển thị
     const displayResponses = useMemo(() => {
         if (!data?.previousResponses) return [];
 
-        // Nếu đã vote (votedResponseId không null)
         if (data.votedResponseId != null) {
-            // Ẩn các response có type là "Review"
             return data.previousResponses.filter(res => res.type !== 'Review');
         }
 
-        // Nếu chưa vote, hiển thị tất cả
         return data.previousResponses;
     }, [data]);
 
@@ -224,9 +343,6 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
     const { testRequest, votedResponseId, canEdit } = data;
     const clientPictureUri = testRequest.pictures?.[0]?.source;
-
-    // Kiểm tra xem đã vote chưa
-    const hasVoted = votedResponseId !== null;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -256,6 +372,14 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                         {clientPictureUri && (
                             <View style={styles.clientImageContainer}>
                                 <Image source={{ uri: clientPictureUri }} style={styles.clientImage} resizeMode="contain" />
+
+                                <TouchableOpacity
+                                    style={styles.analyzeButton}
+                                    onPress={handleAnalyzeImage}
+                                    activeOpacity={0.8}
+                                >
+                                    <Ionicons name="camera" size={24} color="#fff" />
+                                </TouchableOpacity>
                             </View>
                         )}
                         <ColorDetailDisplay
@@ -361,59 +485,7 @@ const ExpertReviewDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                     <View style={{ height: 40 }} />
                 </ScrollView>
             </KeyboardAvoidingView>
-
-            <Modal
-                transparent
-                visible={isConfirmModalVisible}
-                animationType="fade"
-                onRequestClose={() => setIsConfirmModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <Ionicons name="alert-circle" size={50} color={WARNING_COLOR} style={{ marginBottom: 10 }} />
-                        <Text style={styles.modalTitle}>Confirm Submission</Text>
-                        <Text style={styles.modalMessage}>
-                            Your review is very important. This review cannot be edited once sent.
-                            If you are sure, please click send to submit to the user.
-                        </Text>
-                        <View style={styles.modalActions}>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton]}
-                                onPress={() => setIsConfirmModalVisible(false)}
-                            >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.confirmButton]}
-                                onPress={handleConfirmSubmit}
-                            >
-                                <Text style={styles.confirmButtonText}>Send</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
-
-            <Modal
-                transparent
-                visible={isSuccessModalVisible}
-                animationType="fade"
-                onRequestClose={handleSuccessClose}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <Ionicons name="checkmark-circle" size={60} color={SUCCESS_COLOR} style={{ marginBottom: 10 }} />
-                        <Text style={styles.modalTitle}>Sent Successfully!</Text>
-                        <Text style={styles.modalMessage}>
-                            Thank you for your expert review. The result has been finalized.
-                        </Text>
-                        <TouchableOpacity style={[styles.modalButton, styles.successButton]} onPress={handleSuccessClose}>
-                            <Text style={styles.confirmButtonText}>Close</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
+            <CustomConfirmModal {...modalConfig} />
         </View>
     );
 };
@@ -485,10 +557,9 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         backgroundColor: '#F5F9FF',
     },
-    // [STYLE MỚI] Style cho card được vote
     responseCardVoted: {
-        backgroundColor: '#FFFBEB', // Vàng nhạt
-        borderColor: '#FCD34D',     // Viền vàng đậm hơn
+        backgroundColor: '#FFFBEB',
+        borderColor: '#FCD34D',
         borderWidth: 2,
     },
     // [STYLE MỚI] Tag thông báo
@@ -649,6 +720,20 @@ const styles = StyleSheet.create({
     confirmButtonText: {
         color: '#fff',
         fontWeight: 'bold',
+    },
+    analyzeButton: {
+        position: 'absolute',
+        bottom: 15,
+        right: 15,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.5)',
+        zIndex: 10,
     },
 });
 

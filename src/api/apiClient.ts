@@ -10,11 +10,11 @@ const HOST =
     (Platform.OS === 'android' && __DEV__)
         ? '10.0.2.2'
         : HOST_LAN_IP;
-export const API_BASE_URL = `http://${HOST}:${HTTP_PORT}/api`;
+// export const API_BASE_URL = `http://${HOST}:${HTTP_PORT}/api`;
 
 // const AZURE_HOST = 'https://perhue16-b4hadyg9c5avfsa5.southeastasia-01.azurewebsites.net';
-// const AZURE_HOST = 'https://api.perhue.dpdns.org';
-// export const API_BASE_URL = `${AZURE_HOST}/api`;
+const AZURE_HOST = 'https://api.perhue.dpdns.org';
+export const API_BASE_URL = `${AZURE_HOST}/api`;
 
 export const AUTH_TOKEN_KEY = 'authToken';
 export const REFRESH_TOKEN_KEY = 'refreshToken';

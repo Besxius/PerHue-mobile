@@ -197,6 +197,7 @@ export const getManualTestResultById = async (id: number): Promise<ManualTestRes
         }
     }
 };
+
 export const getAiTestResults = async (): Promise<AiTestResponse[]> => {
     const url = `${TEST_INFO_ENDPOINT}/ai-test/my-history`;
 
@@ -348,6 +349,29 @@ export const submitReport = async (data: ReportPayload): Promise<ReportResponse>
             console.error('An unexpected error occurred while submitting report:', error);
             throw new Error('An unexpected error occurred.');
         }
+    }
+};
+
+export const saveDeviceToken = async (fcmToken: string): Promise<void> => {
+    const url = `${USER_ENDPOINT}/device-token`;
+
+    try {
+        await apiClient.post(url, { fcmToken });
+        console.log('Device token saved to server successfully');
+    } catch (error) {
+        console.error('Failed to save device token to server:', error);
+    }
+};
+
+export const removeDeviceToken = async (): Promise<void> => {
+    const url = `${USER_ENDPOINT}/device-token`;
+
+    try {
+        await apiClient.delete(url);
+
+        console.log('Device token removed from server successfully');
+    } catch (error) {
+        console.error('Failed to remove device token from server:', error);
     }
 };
 

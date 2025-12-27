@@ -292,7 +292,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, ac
                             style={modalStyles.closeButton}>
                             <AntDesign name="close" size={24} color="#333" />
                         </TouchableOpacity>
-                        <Text style={modalStyles.webViewHeaderText}>Thanh toán PayOS</Text>
+                        <Text style={modalStyles.webViewHeaderText}>PayOS payment</Text>
                         <View style={{ width: 34 }} />
                     </View>
 
@@ -329,7 +329,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, ac
                     <TouchableWithoutFeedback>
                         <View style={modalStyles.modalContainer}>
                             <View style={modalStyles.header}>
-                                <Text style={modalStyles.headerText}>Xác nhận thanh toán</Text>
+                                <Text style={modalStyles.headerText}>Confirm Payment</Text>
                                 <TouchableOpacity onPress={() => onClose(false)} style={modalStyles.closeButton}>
                                     <AntDesign name="close" size={24} color="#333" />
                                 </TouchableOpacity>
@@ -358,11 +358,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, ac
                                     </View>
                                 </View>
 
-                                <Text style={modalStyles.sectionTitle}>Phương thức thanh toán</Text>
+                                <Text style={modalStyles.sectionTitle}>Payment methods</Text>
                                 <View style={modalStyles.infoBox}>
                                     <MaterialCommunityIcons name="link-variant" size={24} color={BLUE_COLOR} />
                                     <Text style={modalStyles.infoText}>
-                                        Hệ thống sẽ chuyển bạn đến cổng thanh toán PayOS (Momo, Thẻ, Ngân hàng,...) để hoàn tất giao dịch.
+                                        The system will redirect you to the PayOS payment gateway (Momo, Card, Bank, etc.) to complete the transaction.
                                     </Text>
                                 </View>
 
@@ -375,7 +375,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ visible, packageDetails, ac
                             {/* Footer Checkout */}
                             <View style={modalStyles.footer}>
                                 <TouchableOpacity style={modalStyles.cancelBtn} onPress={() => onClose(false)} disabled={isProcessing}>
-                                    <Text style={modalStyles.cancelBtnText}>Hủy</Text>
+                                    <Text style={modalStyles.cancelBtnText}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[modalStyles.checkoutBtn, isProcessing && { opacity: 0.7 }]}

@@ -11,16 +11,19 @@ import {
     TouchableOpacity,
     Platform,
     ToastAndroid,
+    Modal,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { getAiTestResultById } from '../api/userApi';
-import { AiTestResponse, Color } from '../types/dataModels';
+import { AiTestResponse, CapsulePaletteModel, Color } from '../types/dataModels';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CapsulePalette from '../components/CapsulePalette';
 import { getColorTypeById } from '../api/capsulePaletteApi';
 import * as Clipboard from 'expo-clipboard';
+import PaletteDetailModal from '../components/PaletteDetailModal';
+import ImageView from "react-native-image-viewing";
 
 type AiTestDetailScreenProps = NativeStackScreenProps<
     RootStackParamList,
@@ -77,7 +80,7 @@ const ColorBoxDisplay: React.FC<{ colors: Color[], title: string }> = ({ colors,
             </View>
             <View style={styles.colorGrid}>
                 {colors.map((colorItem, index) => (
-                    <View key={index} style={[styles.colorBox, { backgroundColor: colorItem.hexCode }]}>
+                    <View key={`suggested-color-${index}`} style={[styles.colorBox, { backgroundColor: colorItem.hexCode }]}>
                         <Text style={[styles.colorHexText, { color: getContrastTextColor(colorItem.hexCode) }]}>
                             {colorItem.hexCode.toUpperCase()}
                         </Text>
@@ -102,6 +105,10 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
     const [error, setError] = useState<string | null>(null);
     const [selectedCapsuleId, setSelectedCapsuleId] = useState<number | null>(null);
     const [colorTypeName, setColorTypeName] = useState<string>('Undetermined');
+    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [selectedDetailPalette, setSelectedDetailPalette] = useState<CapsulePaletteModel | null>(null);
 
     const fetchResult = useCallback(async () => {
         if (!id) {
@@ -138,6 +145,31 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
     useEffect(() => {
         fetchResult();
     }, [fetchResult]);
+
+    const handlePalettePress = (palette: CapsulePaletteModel) => {
+        setSelectedDetailPalette(palette);
+        setSelectedCapsuleId(palette.id);
+        setIsModalVisible(true);
+    };
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+            const actionType = e.data.action.type;
+
+            if (actionType === 'GO_BACK' || actionType === 'POP') {
+                e.preventDefault();
+
+                navigation.navigate('Tabs', {
+                    screen: 'History',
+                    params: {
+                        initialTab: 'AI Test'
+                    }
+                });
+            }
+        });
+
+        return unsubscribe;
+    }, [navigation]);
 
     const handleGoBack = () => {
         navigation.navigate('Tabs' as any, {
@@ -194,6 +226,69 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
             hexCode: hex
         }));
 
+    const renderGeneratedImages = () => {
+        const images = resultData?.newAiTestResultResponseModel?.generatedImagesList;
+
+        if (!images || images.length === 0) return null;
+
+        return (
+            <View style={styles.generatedImagesContainer}>
+                <Text style={styles.sectionTitle}>AI Generated Styles</Text>
+
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.imagesScrollContent}
+                >
+                    {images.map((img, index) => (
+                        <TouchableOpacity
+                            key={img.aiImageId || index}
+                            style={styles.imageWrapper}
+                            activeOpacity={0.8}
+                            onPress={() => setSelectedImageUrl(img.aiImageLink)}
+                        >
+                            <Image
+                                source={{ uri: img.aiImageLink }}
+                                style={styles.generatedImage}
+                                resizeMode="cover"
+                            />
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+        );
+    };
+
+    const renderImageModal = () => {
+        const imagesToShow = selectedImageUrl ? [{ uri: selectedImageUrl }] : [];
+        return (
+            <ImageView
+                images={imagesToShow}
+                imageIndex={0}
+                visible={!!selectedImageUrl}
+                onRequestClose={() => setSelectedImageUrl(null)}
+                swipeToCloseEnabled={true}
+                doubleTapToZoomEnabled={true}
+                HeaderComponent={() => (
+                    <View style={[styles.imageHeader, { paddingTop: insets.top + 10 }]}>
+                        <TouchableOpacity
+                            style={styles.closeButtonArea}
+                            onPress={() => setSelectedImageUrl(null)}
+                            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                        >
+                            <Ionicons name="close-circle" size={36} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                )}
+                FooterComponent={() => (
+                    <View style={[styles.imageFooter, { paddingBottom: insets.bottom + 20 }]}>
+                        <Text style={styles.imageFooterText}>Swipe up to close</Text>
+                    </View>
+                )}
+            />
+        );
+    };
+
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.headerBar}>
@@ -249,6 +344,8 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
                     title="Avoided Colors"
                 />
 
+                {renderGeneratedImages()}
+
                 {suggestedPalettes.length > 0 && (
                     <View style={styles.sectionContainer}>
                         <Text style={styles.sectionHeader}>Suggested Capsule Palettes ({suggestedPalettes.length})</Text>
@@ -262,8 +359,9 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
                                         <CapsulePalette
                                             colors={hexCodes as [string, string, string, string]}
                                             isSelected={selectedCapsuleId === palette.id}
-                                            onSelect={() => setSelectedCapsuleId(palette.id)}
+                                            onSelect={() => handlePalettePress(palette)}
                                         />
+                                        {/* <Text style={styles.paletteName} numberOfLines={1}>{` ${palette.colorType.name} Palette`}</Text> */}
                                     </View>
                                 );
                             })}
@@ -280,6 +378,13 @@ const AiTestResultDetailScreen: FC<AiTestDetailScreenProps> = ({ route, navigati
 
                 <View style={{ height: 50 }} />
             </ScrollView>
+
+            <PaletteDetailModal
+                isVisible={isModalVisible}
+                palette={selectedDetailPalette}
+                onClose={() => setIsModalVisible(false)}
+            />
+            {renderImageModal()}
         </View>
     );
 };
@@ -411,12 +516,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 16,
     },
-    imageWrapper: {
-        alignItems: 'center',
-        backgroundColor: '#f9f9f9',
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
     resultImage: {
         width: '100%',
         height: 500,
@@ -484,5 +583,80 @@ const styles = StyleSheet.create({
         padding: 8,
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
         borderRadius: 5,
+    },
+    paletteName: {
+        marginTop: 5,
+        fontSize: 12,
+        color: '#555',
+        fontWeight: '500',
+    },
+    generatedImagesContainer: {
+        marginTop: 20,
+        marginBottom: 10,
+        paddingHorizontal: 16,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 12,
+    },
+    imagesScrollContent: {
+        paddingRight: 16,
+    },
+    imageWrapper: {
+        marginRight: 12,
+        borderRadius: 12,
+        overflow: 'hidden',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+        backgroundColor: '#fff',
+    },
+    generatedImage: {
+        width: 150,
+        height: 200,
+        borderRadius: 12,
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.95)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    fullScreenImage: {
+        width: width,
+        height: '80%',
+    },
+    imageHeader: {
+        width: '100%',
+        alignItems: 'flex-end',
+        paddingHorizontal: 20,
+        zIndex: 9999, // Đảm bảo nổi lên trên
+    },
+    closeButtonArea: {
+        padding: 5,
+        backgroundColor: 'rgba(0,0,0,0.3)', // Nền mờ nhẹ để dễ nhìn nút hơn
+        borderRadius: 20,
+    },
+    closeButton: {
+        position: 'absolute',
+        right: 20,
+        zIndex: 999,
+        // top sẽ được set dynamic theo insets
+    },
+    imageFooter: {
+        width: width,
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20
+    },
+    imageFooterText: {
+        color: '#fff',
+        fontSize: 14,
+        opacity: 0.8
     }
 });

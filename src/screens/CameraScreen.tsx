@@ -39,11 +39,12 @@ import { FontAwesome } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { aiColorTest, expertColorTest, manualColorTest } from '../api/colorTestApi';
 import ManualResultModal from '../components/ManualResultModal';
-import AiTestResultModal from '../components/AiResultModal';
+import AiResultModal from '../components/AiResultModal';
 import ExpertSuccessModal from '../components/ExpertSuccessModal';
 import { getActiveSubscriptions } from '../api/dataApi';
 import SubscriptionAlertModal from '../components/SubscriptionAlertModal';
 import { useAuth } from './auth/AuthContext';
+import CustomConfirmModal, { AlertConfig } from '../components/CustomConfirmModal';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -124,6 +125,13 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
     const [showExpertSuccessModal, setShowExpertSuccessModal] = useState(false);
     const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
+    const [modalConfig, setModalConfig] = useState<AlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
+
     const highlightAnim = useRef(new Animated.Value(TAB_POSITIONS.manual)).current;
 
     const loadPalettesByTypeId = useCallback(async (colorTypeId: number, seasonName: string) => {
@@ -183,7 +191,14 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             setColorFilters(data);
         } catch (error) {
             console.error("Error loading colors from API:", error);
-            Alert.alert("Color Load Error", "Could not load color data from API.");
+            setModalConfig({
+                visible: true,
+                title: 'Color Load Error',
+                message: 'Could not load color data from API.',
+                type: 'error',
+                confirmText: 'Close',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
         }
     }, []);
 
@@ -211,9 +226,17 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         if (fullPreviewUri) {
             setShowSkiaPicker(true);
         } else {
-            Alert.alert("Chụp Ảnh", "Vui lòng chụp ảnh hoặc chọn ảnh từ thư viện trước.");
+            setModalConfig({
+                visible: true,
+                title: 'Capture Photo',
+                message: 'Please take a photo or select one from the library first.',
+                type: 'warning',
+                confirmText: 'OK',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
         }
     };
+
     const handleChangeCaptureMode = (mode: 'manual' | 'ai' | 'expert') => {
         if (mode === 'manual') {
             setShowSkiaPicker(false);
@@ -223,6 +246,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             setCaptureMode(mode);
         }
     };
+
     const handleChangeCaptureModePreview = (newMode: 'ai' | 'expert') => {
         setCaptureMode(newMode);
         setShowModeDropdown(false);
@@ -243,23 +267,23 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
                 Toast.show({
                     type: 'success',
-                    text1: 'Thành công',
-                    text2: `Đã lưu màu "${selectedColorInfo.name}"!`,
+                    text1: 'Success',
+                    text2: `Color saved"${selectedColorInfo.name}"!`,
                     visibilityTime: 2000,
                 });
             } else {
                 Toast.show({
                     type: 'info',
-                    text1: 'Thông báo',
-                    text2: `Màu "${selectedColorInfo.name}" đã được lưu trước đó.`,
+                    text1: 'Information',
+                    text2: `Color "${selectedColorInfo.name}" was saved previously.`,
                     visibilityTime: 2000,
                 });
             }
         } else {
             Toast.show({
                 type: 'error',
-                text1: 'Lỗi',
-                text2: 'Vui lòng chọn một màu cụ thể để lưu.',
+                text1: 'Error',
+                text2: 'Please select a specific color to save.',
                 visibilityTime: 2000,
             });
         }
@@ -267,7 +291,6 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
 
     const handleImportColors = (newColors: Color[]) => {
         setSavedColors(prevColors => {
-            // Lọc để tránh thêm màu đã tồn tại (dựa vào hexCode)
             const existingHexCodes = new Set(prevColors.map(c => c.hexCode.toLowerCase()));
 
             const uniqueNewColors = newColors.filter(c =>
@@ -277,19 +300,18 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             if (uniqueNewColors.length === 0) {
                 Toast.show({
                     type: 'info',
-                    text1: 'Thông tin',
-                    text2: 'Tất cả các màu nhập vào đã tồn tại.',
+                    text1: 'Information',
+                    text2: 'All imported colors already exist.',
                 });
                 return prevColors;
             }
 
             Toast.show({
                 type: 'success',
-                text1: 'Import thành công',
-                text2: `Đã thêm ${uniqueNewColors.length} màu mới!`,
+                text1: 'Import Successful',
+                text2: `Added ${uniqueNewColors.length} new colors!`,
             });
 
-            // Thêm màu mới lên đầu danh sách
             return [...uniqueNewColors, ...prevColors];
         });
     };
@@ -387,7 +409,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         }
 
         if (!capturedColors) {
-            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Please select Hair, Eye, Lip and Skin color.', visibilityTime: 3000 });
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Please select Hair, Eye, Lip and Skin color.', visibilityTime: 3000 });
             return;
         }
 
@@ -467,8 +489,8 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             console.error(`Error calling ${captureMode.toUpperCase()} API:`, error);
             Toast.show({
                 type: 'error',
-                text1: 'Lỗi API',
-                text2: 'Thử nghiệm AI thất bại. Vui lòng thử lại.',
+                text1: 'API Error',
+                text2: 'AI test failed. Please try again.',
                 visibilityTime: 4000
             });
         } finally {
@@ -499,7 +521,14 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
             if (cameraPermission === 'granted') {
                 setHasPermission(true);
             } else {
-                Alert.alert('Permission Error', 'No access to camera.');
+                setModalConfig({
+                    visible: true,
+                    title: 'Permission Error',
+                    message: 'No access to camera.',
+                    type: 'error',
+                    confirmText: 'Close',
+                    onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+                });
             }
         };
         requestPermissions();
@@ -523,7 +552,14 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
         if (backCamera && frontCamera) {
             setCameraPosition(prev => (prev === 'back' ? 'front' : 'back'));
         } else {
-            Alert.alert('Notice', 'Only one camera found.');
+            setModalConfig({
+                visible: true,
+                title: 'Notice',
+                message: 'Only one camera found.',
+                type: 'info',
+                confirmText: 'OK',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
         }
     }, [backCamera, frontCamera]);
 
@@ -536,7 +572,14 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 setFullPreviewUri(uri);
             } catch (e) {
                 console.error("Error taking photo", e);
-                Alert.alert('Error', 'Could not take photo.');
+                setModalConfig({
+                    visible: true,
+                    title: 'Error',
+                    message: 'Could not take photo.',
+                    type: 'error',
+                    confirmText: 'Try Again',
+                    onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+                });
             }
         }
     };
@@ -925,7 +968,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 currentPhotoUri={fullPreviewUri}
             />
 
-            <AiTestResultModal
+            <AiResultModal
                 isVisible={showAiResultModal}
                 onClose={handleCloseAiModal}
                 resultData={aiResultData}
@@ -943,6 +986,14 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 onConfirm={handleBuyPackage}
             />
 
+            <CustomConfirmModal
+                {...modalConfig}
+                onCancel={modalConfig.onCancel}
+                onConfirm={() => {
+                    if (modalConfig.onConfirm) modalConfig.onConfirm();
+                }}
+            />
+
         </View>
     );
 };
@@ -951,7 +1002,6 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     loadingText: { color: '#fff', textAlign: 'center', marginTop: screenHeight / 2 },
 
-    // Style cho Loading Overlay API
     loadingOverlayApi: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0,0,0,0.5)',

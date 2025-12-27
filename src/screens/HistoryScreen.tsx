@@ -26,7 +26,6 @@ import { TabParamList } from "./HomeScreen";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
-// [1] IMPORT CÁC HÀM API MỚI
 import {
     getExpertPendingRequests,
     getExpertCompletedRequests,
@@ -35,7 +34,6 @@ import {
     getExpertCompletedReviews,
     getExpertExpiredReviews
 } from "../api/expertApi";
-import { getColorType } from "../api/capsulePaletteApi";
 import { BaseHistoryItem, ImageSource } from "../types";
 import { useAuth } from "./auth/AuthContext";
 
@@ -63,11 +61,10 @@ interface SectionData {
 
 const transformManualTestResult = (result: ManualTestResult): BaseHistoryItem => {
     const imageSource: ImageSource[] = result.picture ? [{ uri: result.picture }] : [];
-    const subtitle = `ColorType: ${result.colorTypeName || 'Unknown'}`;
     return {
         id: result.id,
-        title: `#${result.id} - Manual Test`,
-        subTitle: subtitle,
+        title: `#${result.id} - Manual Test Request`,
+        subTitle: `Result: ${result.colorTypeName || 'Unknown'}`,
         date: new Date(result.createdDate).toLocaleDateString('vi-VN'),
         status: 'Completed',
         imageSources: imageSource,
@@ -89,8 +86,8 @@ const transformAiTestResult = (response: AiTestResponse): BaseHistoryItem => {
 
     return {
         id: id,
-        title: `#${id} - AI Test`,
-        subTitle: `ColorType: ${colorTypeName}`,
+        title: `#${id} - AI Test Request`,
+        subTitle: `Result: ${colorTypeName}`,
         date: new Date(response.createdDate).toLocaleDateString('vi-VN'),
         status: response.colorTypeId ? 'Completed' : 'Failed',
         imageSources: imageSource,
@@ -109,7 +106,7 @@ const transformExpertTestResult = (response: ExpertTestResponse): BaseHistoryIte
 
     return {
         id: id,
-        title: `#${id} - Expert Suggestion`,
+        title: `#${id} - Expert Suggestion Request`,
         subTitle: '',
         date: new Date(response.createdDate).toLocaleDateString('vi-VN'),
         status: response.status || 'N/A',
@@ -129,8 +126,8 @@ const transformExpertRequest = (request: ExpertRequest): BaseHistoryItem => {
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
     return {
         id: id,
-        title: `#${id} - ${request.typeOfTest || 'Client Request'}`,
-        subTitle: `User ID: ${request.userAccountId}`,
+        title: `#${id} - ${request.typeOfTest + ' Test Request' || 'Client Request'}`,
+        subTitle: '',
         date: new Date(request.createdDate).toLocaleDateString('vi-VN'),
         status: request.status || 'Pending',
         imageSources: imageSource,
@@ -147,13 +144,12 @@ const transformExpertCompletedRequest = (item: ExpertCompletedRequest): BaseHist
     const id = item.id;
     const pictureUrl = item.pictures?.[0]?.source;
     const imageSource: ImageSource[] = pictureUrl ? [{ uri: pictureUrl }] : [];
-    // Sử dụng expertStatus nếu có, fallback về status
     const statusText = item.expertStatus || item.status;
 
     return {
         id: id,
-        title: `#${id} - ${item.typeOfTest || 'Client Test'}`,
-        subTitle: `Status: ${statusText}`,
+        title: `#${id} - ${item.typeOfTest + ' Test Request' || 'Client Test'}`,
+        subTitle: '',
         date: new Date(item.createdDate).toLocaleDateString('vi-VN'),
         status: statusText,
         imageSources: imageSource,
@@ -190,8 +186,8 @@ const transformReviewRequest = (reviewReq: ReviewTestRequest): BaseHistoryItem =
     return {
         id: id,
         title: `#${id} - Review Request`,
-        subTitle: `Prev responses: ${responseCount}`,
-        date: new Date(reviewReq.testRequest.createdDate).toLocaleDateString('en-US'),
+        subTitle: '',
+        date: new Date(reviewReq.testRequest.createdDate).toLocaleDateString('vi-VN'),
         status: status,
         imageSources: imageSource,
         buttonText: buttonText,
