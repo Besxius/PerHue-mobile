@@ -31,7 +31,7 @@ const BASE_SETTINGS_DATA: { title: string; data: SettingItem[] }[] = [
         data: [
             { id: '1', icon: 'person-outline', iconSet: 'Ionicons', label: 'Edit profile', action: 'navigate', targetScreen: 'UserScreen' },
             { id: '2', icon: 'signature', iconSet: 'AntDesign', label: 'Become Expert', action: 'navigate', targetScreen: 'VerifyExpertScreen' },
-            { id: '3', icon: 'bell', iconSet: 'Feather', label: 'Notifications', action: 'navigate', targetScreen: 'NotificationScreen' },
+            { id: '3', icon: 'bell', iconSet: 'Feather', label: 'Notifications', action: 'navigate', targetScreen: 'NotificationSettingScreen' },
             { id: '4', icon: 'albums-outline', iconSet: 'Ionicons', label: 'My Subscription', action: 'navigate', targetScreen: 'MySubscriptionScreen' },
             { id: '5', icon: 'card-outline', iconSet: 'Ionicons', label: 'My payment history', action: 'navigate', targetScreen: 'MyPaymentHistoryScreen' },
         ],

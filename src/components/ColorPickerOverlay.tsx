@@ -8,6 +8,7 @@ import {
     useCanvasRef,
 } from '@shopify/react-native-skia';
 import { Entypo, Ionicons } from '@expo/vector-icons';
+import CustomConfirmModal, { AlertConfig } from './CustomConfirmModal';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -42,6 +43,13 @@ const ColorPickerOverlay: React.FC<ColorPickerOverlayProps> = ({ imageUri, onClo
     const [selectedColors, setSelectedColors] = useState<SelectedColors>(DEFAULT_SELECTED_COLORS);
     const [activeAttribute, setActiveAttribute] = useState<AttributeColor>('Skin');
     const [currentPixelHex, setCurrentPixelHex] = useState<string>('#FFFFFF');
+
+    const [modalConfig, setModalConfig] = useState<AlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
 
     useEffect(() => {
         if (initialColors) {
@@ -216,12 +224,17 @@ const ColorPickerOverlay: React.FC<ColorPickerOverlayProps> = ({ imageUri, onClo
         ) as AttributeColor[];
 
         if (unselectedAttributes.length > 0) {
-            Alert.alert(
-                'Missing Color Selections',
-                `Please select a color for the following attributes: ${unselectedAttributes.join(', ')}.`,
-                [{ text: 'OK' }]
-            );
-            setActiveAttribute(unselectedAttributes[0]);
+            setModalConfig({
+                visible: true,
+                title: 'Missing Color Selections',
+                message: `Please select a color for the following attributes: ${unselectedAttributes.join(', ')}.`,
+                type: 'warning',
+                confirmText: 'OK',
+                onConfirm: () => {
+                    setModalConfig(prev => ({ ...prev, visible: false }));
+                    setActiveAttribute(unselectedAttributes[0]);
+                }
+            });
             return;
         }
 
@@ -308,6 +321,14 @@ const ColorPickerOverlay: React.FC<ColorPickerOverlayProps> = ({ imageUri, onClo
             >
                 <Text style={styles.doneText}>DONE</Text>
             </TouchableOpacity>
+
+            <CustomConfirmModal
+                {...modalConfig}
+                onCancel={modalConfig.onCancel}
+                onConfirm={() => {
+                    if (modalConfig.onConfirm) modalConfig.onConfirm();
+                }}
+            />
 
         </View>
     );

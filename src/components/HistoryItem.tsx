@@ -63,7 +63,7 @@ const renderImageThumbnails = (imageSources: ImageSource[]) => {
 // COMPONENT HISTORY ITEM
 // ======================================================================
 const HistoryItem: FC<HistoryItemProps> = ({ item, onPressAction }) => {
-    const isCompleted = item.status === 'Completed';
+    const isCompleted = item.status === 'Completed' || item.status === 'Reviewing';
     const isPending = item.status === 'Pending' || item.status === 'PendingReview';
     const isEnabled = isCompleted || (item.isExpert && isPending);
     const isDisabled = !isEnabled;

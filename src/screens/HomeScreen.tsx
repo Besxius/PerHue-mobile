@@ -28,6 +28,7 @@ import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { ExpertInfo } from '../types/dataModels';
 import { getExpertListRanked } from '../api/expertApi';
 import { useAuth } from './auth/AuthContext';
+import { getFCMToken, requestUserPermission } from '../services/fcmService';
 
 const { width } = Dimensions.get('window');
 const DISPLAY_WIDTH = width - 20;
@@ -194,7 +195,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       setExpertList(experts);
     } catch (e) {
       console.error('Error fetching experts:', e);
-      setError('Không thể tải danh sách chuyên gia.');
+      setError('Unable to load the list of experts. Please try again later.');
     } finally {
       setIsLoading(false);
       if (isRefetch) setRefreshing(false);
@@ -204,6 +205,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   useEffect(() => {
     fetchExperts();
   }, [fetchExperts]);
+
+  useEffect(() => {
+    const initNotification = async () => {
+      const hasPermission = await requestUserPermission();
+      if (hasPermission) {
+        await getFCMToken();
+      }
+    };
+
+    initNotification();
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

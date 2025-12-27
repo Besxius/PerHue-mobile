@@ -48,14 +48,16 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
         currentBestColors,
         currentWorstColors,
         colorTypeId,
-        currentNote
+        currentNote,
+        fromScreen
     } = route.params as {
         imageUri: string,
         testRequestId?: number,
         currentBestColors?: Color[],
         currentWorstColors?: Color[],
         colorTypeId?: number,
-        currentNote?: string
+        currentNote?: string,
+        fromScreen: 'CreateExpertTestResponse' | 'ExpertReviewDetailScreen',
     };
 
     const [bestColors, setBestColors] = useState<Color[]>(currentBestColors || []);
@@ -100,14 +102,19 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
             e.preventDefault();
 
             isSavingRef.current = true;
-
-            navigation.navigate('CreateExpertTestResponse', {
-                id: testRequestId,
-                initialBestColors: bestColors,
-                initialWorstColors: worstColors,
-                initialColorTypeId: colorTypeId,
-                initialNote: currentNote,
-            });
+            if (fromScreen === 'CreateExpertTestResponse') {
+                navigation.navigate('CreateExpertTestResponse', {
+                    id: testRequestId,
+                    initialBestColors: bestColors,
+                    initialWorstColors: worstColors,
+                    initialColorTypeId: colorTypeId,
+                    initialNote: currentNote,
+                });
+            } else if (fromScreen === 'ExpertReviewDetailScreen') {
+                navigation.navigate('ExpertReviewDetailScreen', {
+                    id: testRequestId,
+                });
+            }
         });
 
         return unsubscribe;
@@ -182,14 +189,19 @@ const ColorTestOnImageScreen: React.FC<any> = ({ route, navigation }) => {
 
     const handleGoBack = () => {
         isSavingRef.current = true;
-
-        navigation.navigate('CreateExpertTestResponse', {
-            id: testRequestId,
-            initialBestColors: bestColors,
-            initialWorstColors: worstColors,
-            initialColorTypeId: colorTypeId,
-            initialNote: currentNote,
-        });
+        if (fromScreen === 'CreateExpertTestResponse') {
+            navigation.navigate('CreateExpertTestResponse', {
+                id: testRequestId,
+                initialBestColors: bestColors,
+                initialWorstColors: worstColors,
+                initialColorTypeId: colorTypeId,
+                initialNote: currentNote,
+            });
+        } else if (fromScreen === 'ExpertReviewDetailScreen') {
+            navigation.navigate('ExpertReviewDetailScreen', {
+                id: testRequestId,
+            });
+        }
     };
 
     const handleColorSelect = (color: Color) => {

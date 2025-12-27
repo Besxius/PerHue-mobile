@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
+import { createNavigationContainerRef, NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
@@ -27,11 +27,13 @@ import ExpertTestResponseDetailScreen from '../screens/ExpertTestResponseDetailS
 import MyExpertInformationScreen from '../screens/MyExpertInformationScreen';
 import MySalaryScreen from '../screens/MySalaryScreen';
 import ExpertReviewDetailScreen from '../screens/ExpertReviewDetailScreen ';
-
 import CustomTabBar from '../components/CustomTabBar';
 import { AuthProvider, useAuth } from '../screens/auth/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import { Color, ExpertInfo } from '../types/dataModels';
+import { onMessageReceived, onNotificationOpenedApp } from '../services/fcmService';
+import Toast from 'react-native-toast-message';
+import NotificationSettingScreen from '../screens/NotificationSettingScreen';
 
 export type TabRouteName = 'Home' | 'Capsule' | 'Camera' | 'History' | 'Menu';
 export type TabName = 'home' | 'capsule' | 'camera' | 'history' | 'menu';
@@ -70,6 +72,7 @@ export type RootStackParamList = {
   HelpAndSupportScreen: undefined;
   MyExpertInformationScreen: undefined;
   MySalaryScreen: undefined;
+  NotificationSettingScreen: undefined;
 
   CreateExpertTestResponse: {
     id: number;
@@ -86,12 +89,20 @@ export type RootStackParamList = {
     currentWorstColors?: Color[];
     colorTypeId?: number;
     currentNote?: string;
+    fromScreen: 'CreateExpertTestResponse' | 'ExpertReviewDetailScreen';
   };
 };
 
 
 const Tab = createBottomTabNavigator<Record<TabRouteName, undefined>>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
+
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+export function navigate(name: keyof RootStackParamList, params?: any) {
+  if (navigationRef.isReady()) {
+    navigationRef.navigate(name, params);
+  }
+}
 
 const mapRouteToTabName = (routeName: TabRouteName): TabName => {
   switch (routeName) {
@@ -175,7 +186,7 @@ const RootNavigationStack = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4a90e2" />
-        <Text style={{ marginTop: 10 }}>Đang kiểm tra đăng nhập...</Text>
+        <Text style={{ marginTop: 10 }}>Checking login...</Text>
       </View>
     );
   }
@@ -269,6 +280,11 @@ const RootNavigationStack = () => {
             component={MySalaryScreen}
           />
           <RootStack.Screen
+            name="NotificationSettingScreen"
+            component={NotificationSettingScreen}
+            options={{ headerShown: false }}
+          />
+          <RootStack.Screen
             name="ExpertReviewDetailScreen"
             component={ExpertReviewDetailScreen}
           />
@@ -284,13 +300,41 @@ const RootNavigationStack = () => {
   );
 };
 
-const AppNavigator = () => (
-  <NavigationContainer>
-    <AuthProvider>
-      <RootNavigationStack />
-    </AuthProvider>
-  </NavigationContainer>
-);
+const AppNavigator = () => {
+
+  useEffect(() => {
+    onNotificationOpenedApp();
+
+    const unsubscribe = onMessageReceived((remoteMessage) => {
+      const { title, body } = remoteMessage.notification || {};
+
+      Toast.show({
+        type: 'info',
+        text1: title || 'New notification',
+        text2: body || 'You have a new message.',
+        position: 'top',
+        visibilityTime: 5000,
+        autoHide: true,
+        topOffset: 50,
+        onPress: () => {
+          navigate('NotificationScreen');
+          Toast.hide();
+        }
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <AuthProvider>
+        <RootNavigationStack />
+      </AuthProvider>
+    </NavigationContainer>
+  );
+};
 
 const styles = StyleSheet.create({
   loadingContainer: {

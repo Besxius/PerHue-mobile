@@ -39,7 +39,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { aiColorTest, expertColorTest, manualColorTest } from '../api/colorTestApi';
 import ManualResultModal from '../components/ManualResultModal';
-import AiTestResultModal from '../components/AiResultModal';
+import AiResultModal from '../components/AiResultModal';
 import ExpertSuccessModal from '../components/ExpertSuccessModal';
 import { getActiveSubscriptions } from '../api/dataApi';
 import SubscriptionAlertModal from '../components/SubscriptionAlertModal';
@@ -968,7 +968,7 @@ const CameraScreen: React.FC<any> = ({ navigation }) => {
                 currentPhotoUri={fullPreviewUri}
             />
 
-            <AiTestResultModal
+            <AiResultModal
                 isVisible={showAiResultModal}
                 onClose={handleCloseAiModal}
                 resultData={aiResultData}

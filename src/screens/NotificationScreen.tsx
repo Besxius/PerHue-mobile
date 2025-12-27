@@ -14,6 +14,7 @@ import { Notification } from '../types/dataModels';
 import { getNotifications, markAllNotificationAsRead, markNotificationAsRead } from '../api/notificationApi';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { requestUserPermission, getFCMToken, onMessageReceived } from '../services/fcmService';
 
 type NotificationScreenProps = NativeStackScreenProps<RootStackParamList, 'NotificationScreen'>;
 
@@ -26,13 +27,20 @@ type NotificationTab = 'currentMonth' | 'allTime';
 
 const getIconProps = (type: string) => {
     switch (type) {
-        case 'TestRequest': return { iconPlaceholder: '📝', iconBgColor: '#E6F7FF', groupName: 'NEW TEST REQUESTS' };
-        case 'SystemUpdate': return { iconPlaceholder: '⚙️', iconBgColor: '#FFFBEA', groupName: 'SYSTEM UPDATES' };
-        case 'ExpertFeedback': return { iconPlaceholder: '💬', iconBgColor: '#F0FFF0', groupName: 'EXPERT FEEDBACK' };
+        case 'TestRequest': return { iconPlaceholder: '📝', iconBgColor: '#E6F7FF', groupName: 'TEST REQUESTS' };
+        case 'TestResult': return { iconPlaceholder: '✅', iconBgColor: '#F0FFF0', groupName: 'TEST RESULTS' };
+        case 'ReviewRequest': return { iconPlaceholder: '👀', iconBgColor: '#FFF0F5', groupName: 'REVIEW REQUESTS' };
+        case 'ReviewResult': return { iconPlaceholder: '📋', iconBgColor: '#E6E6FA', groupName: 'REVIEW RESULTS' };
+        case 'ResultUpdate': return { iconPlaceholder: '🔄', iconBgColor: '#F0F8FF', groupName: 'UPDATES' };
+        case 'RatingReceived': return { iconPlaceholder: '⭐', iconBgColor: '#FFFACD', groupName: 'RATINGS' };
+        case 'DeadlineWarning': return { iconPlaceholder: '⚠️', iconBgColor: '#FFF3E0', groupName: 'WARNINGS' };
+        case 'Penalty': return { iconPlaceholder: '🚫', iconBgColor: '#FFEBEE', groupName: 'PENALTIES' };
+        case 'Refund': return { iconPlaceholder: '💸', iconBgColor: '#F5F5DC', groupName: 'REFUNDS' };
+        case 'System':
+        case 'SystemUpdate': return { iconPlaceholder: '⚙️', iconBgColor: '#F7F7F7', groupName: 'SYSTEM' };
         default: return { iconPlaceholder: '🔔', iconBgColor: '#F7F7F7', groupName: 'GENERAL NOTIFICATIONS' };
     }
 };
-
 interface NotificationItemProps extends Notification {
     onReadPress: (notificationId: number) => void;
 }
@@ -62,13 +70,15 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ id, title, content,
         </TouchableOpacity>
     );
 };
+
 const groupNotificationsByType = (data: Notification[]) => {
     return data.reduce((acc, notification) => {
         const type = notification.type;
-        if (!acc[type]) {
-            acc[type] = [];
+        const groupKey = type;
+        if (!acc[groupKey]) {
+            acc[groupKey] = [];
         }
-        acc[type].push(notification);
+        acc[groupKey].push(notification);
         return acc;
     }, {} as Record<string, Notification[]>);
 };
@@ -91,17 +101,15 @@ const TabContent: React.FC<TabContentProps> = ({ data, isLoading, onNotification
                     <ActivityIndicator size="large" color="#0000ff" />
                 </View>
             ) : (
-                // Nếu data rỗng vẫn cần ScrollView để có thể vuốt làm mới được
                 <ScrollView
                     contentContainerStyle={data.length === 0 ? styles.emptyScrollContainer : styles.scrollContentContainer}
                     showsVerticalScrollIndicator={false}
-                    // [3] Gắn RefreshControl vào ScrollView
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            colors={['#4285F4']} // Màu spinner Android
-                            tintColor="#4285F4"  // Màu spinner iOS
+                            colors={['#4285F4']}
+                            tintColor="#4285F4"
                         />
                     }
                 >
@@ -161,6 +169,38 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
         fetchNotifications();
     }, [fetchNotifications]);
 
+    useEffect(() => {
+        const setupFCM = async () => {
+            const hasPermission = await requestUserPermission();
+            if (hasPermission) {
+                await getFCMToken();
+            }
+        };
+
+        setupFCM();
+
+        const unsubscribe = onMessageReceived((remoteMessage) => {
+            const notificationTitle = remoteMessage.notification?.title || 'New Notification';
+            const notificationBody = remoteMessage.notification?.body || 'You have a new update.';
+
+            Toast.show({
+                type: 'info',
+                text1: notificationTitle,
+                text2: notificationBody,
+                visibilityTime: 4000,
+                onPress: () => {
+                    handleTabPress('currentMonth');
+                }
+            });
+
+            fetchNotifications(true);
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, [fetchNotifications]);
+
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         await fetchNotifications(true);
@@ -183,23 +223,50 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
 
     const activeData = activeTab === 'currentMonth' ? filteredCurrentMonth : filteredAllTime;
 
-    const navigateToResponseScreen = useCallback((testRequestId: number) => {
-        navigation.navigate('CreateExpertTestResponse' as any, { id: testRequestId });
-    }, [navigation]);
-
     const handleNotificationPress = useCallback(async (notificationId: number) => {
         const notification = notifications.find(n => n.id === notificationId);
 
         if (!notification) return;
 
-        const requestId = notification.testRequestId;
+        const { type, testRequestId } = notification;
 
-        if (notification.type === 'TestRequest' && requestId) {
-            navigateToResponseScreen(requestId);
+        // --- Logic Điều Hướng ---
+        switch (type) {
+            case 'TestRequest':
+                if (testRequestId) navigation.navigate('CreateExpertTestResponse' as any, { id: testRequestId });
+                break;
+            case 'TestResult':
+                if (testRequestId) navigation.navigate('ExpertDetailScreen' as any, { id: testRequestId });
+                break;
+            case 'ReviewRequest':
+                if (testRequestId) navigation.navigate('ExpertReviewDetailScreen' as any, { id: testRequestId });
+                break;
+            case 'ReviewResult':
+            case 'ResultUpdate':
+                if (testRequestId) navigation.navigate('ExpertTestResponseDetailScreen' as any, { responseId: testRequestId });
+                break;
+            case 'RatingReceived':
+                navigation.navigate('MySalaryScreen' as any);
+                break;
+            case 'DeadlineWarning':
+                navigation.navigate('HistoryScreen' as any, { initialTab: 'Expert', filter: 'Pending' });
+                break;
+            case 'Penalty':
+                navigation.navigate('HistoryScreen' as any, { initialTab: 'Expert', filter: 'Expired' });
+                break;
+            case 'Refund':
+                navigation.navigate('MySubscriptionScreen' as any);
+                break;
+            case 'System':
+                break;
+            case 'SystemUpdate':
+                break;
+            default:
+                console.log("Unknown notification type:", type);
+                break;
         }
 
         if (!notification.isRead) {
-
             setNotifications(prev => prev.map(n =>
                 n.id === notificationId ? { ...n, isRead: true } : n
             ));
@@ -210,10 +277,10 @@ const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) =
                 setNotifications(prev => prev.map(n =>
                     n.id === notificationId ? { ...n, isRead: false } : n
                 ));
-                Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to mark as read on server.', visibilityTime: 3000 });
+                Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to mark as read.', visibilityTime: 3000 });
             }
         }
-    }, [notifications, navigateToResponseScreen]);
+    }, [notifications, navigation]);
 
     const handleTabPress = (tab: NotificationTab) => {
         setActiveTab(tab);

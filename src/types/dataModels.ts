@@ -189,12 +189,15 @@ export interface ManualColorTestResponse {
 }
 export interface AiColorTestResponse {
     id: number;
+    generatedImagesList: GeneratedImage[];
     note: string;
     date: string;
     suggestedColor: string;
     avoidedColor: string;
     colorTypeId: number;
     colorTypeName: string;
+    suggestedColorsBySystem: Color[];
+    suggestedCapsulePalletesBySystem: CapsulePalette[];
 }
 
 // Interface cho đối tượng file ảnh đầu vào
@@ -331,12 +334,18 @@ export interface AiTestResult {
     avoidedColor: string[];
 }
 
+export interface GeneratedImage {
+    aiImageId: number;
+    aiImageLink: string;
+}
+
 export interface AiTestResultModel {
     id: number;
     note: string;
     suggestedColor: string;
     avoidedColor: string;
     colorTypeId: number;
+    generatedImagesList: GeneratedImage[];
     suggestedColorsBySystem: Color[];
     suggestedCapsulePalletesBySystem: CapsulePalette[];
 }

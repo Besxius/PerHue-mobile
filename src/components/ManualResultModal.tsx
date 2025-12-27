@@ -11,6 +11,9 @@ import {
     Image,
     Animated,
     PanResponder,
+    Platform,
+    ToastAndroid,
+    Alert,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +21,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { ManualColorTestResponse, Color } from '../types/dataModels';
 import CapsulePalette from './CapsulePalette';
+import * as Clipboard from 'expo-clipboard';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 const BLUE_COLOR = '#4C7BE2';
@@ -108,6 +112,16 @@ const ManualResultModal: React.FC<ManualResultModalProps> = ({
     const chosenDetailedColors = getDetailedColors(chosenColorsArray);
     const suggestedDetailedColors = getDetailedColors(suggestedColorsArray);
 
+    const handleCopy = async (hexCode: string) => {
+        await Clipboard.setStringAsync(hexCode);
+
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`Copied list hexcodes to clipboard!`, ToastAndroid.SHORT);
+        } else {
+            Alert.alert("Copied", `Color list hexcodes copied!`);
+        }
+    };
+
     const renderColorSummaryBlock = (color: Color) => (
         <View key={color.hexCode} style={[modalStyles.colorBox, { backgroundColor: color.hexCode }]}>
             <Text style={[modalStyles.colorHexText, { color: getContrastTextColor(color.hexCode) }]}>
@@ -194,12 +208,33 @@ const ManualResultModal: React.FC<ManualResultModalProps> = ({
 
                         <Text style={modalStyles.subtitle}>KEY COLORS</Text>
                         <View style={modalStyles.keyColorsSection}>
-                            <Text style={modalStyles.keyColorTitle}>CHOSEN COLORS</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                <Text style={modalStyles.keyColorTitle}>CHOSEN COLORS</Text>
+                                <TouchableOpacity
+                                    style={modalStyles.copyButton}
+                                    onPress={(e) => {
+                                        e.stopPropagation();
+                                        handleCopy(chosenDetailedColors.map(c => c.hexCode).join(', '));
+                                    }}
+                                >
+                                    <Ionicons name="copy-outline" size={24} color="gray" />
+                                </TouchableOpacity>
+                            </View>
                             <View style={[modalStyles.colorBlocksSummary, { marginBottom: 15 }]}>
                                 {chosenDetailedColors.map(renderColorSummaryBlock)}
                             </View>
-
-                            <Text style={modalStyles.keyColorTitle}>SUGGESTED COLORS</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                <Text style={modalStyles.keyColorTitle}>SUGGESTED COLORS</Text>
+                                <TouchableOpacity
+                                    style={modalStyles.copyButton}
+                                    onPress={(e) => {
+                                        e.stopPropagation();
+                                        handleCopy(suggestedDetailedColors.map(c => c.hexCode).join(', '));
+                                    }}
+                                >
+                                    <Ionicons name="copy-outline" size={24} color="gray" />
+                                </TouchableOpacity>
+                            </View>
                             <View style={modalStyles.colorBlocksSummary}>
                                 {suggestedDetailedColors.map(renderColorSummaryBlock)}
                             </View>
@@ -389,6 +424,11 @@ const modalStyles = StyleSheet.create({
         fontWeight: 'bold',
         letterSpacing: 0.5,
     },
+    copyButton: {
+        padding: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 5,
+    }
 });
 
 export default ManualResultModal;

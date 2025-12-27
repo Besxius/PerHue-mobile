@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getColorsByType, getCorlorListSpectrum } from '../api/colorApi';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import CustomConfirmModal, { AlertConfig } from '../components/CustomConfirmModal';
 
 type CreateResponseScreenProps = NativeStackScreenProps<
     RootStackParamList,
@@ -185,6 +186,13 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
     const [pickerMode, setPickerMode] = useState<ColorPickerMode>(null);
     const [initialPickerHex, setInitialPickerHex] = useState('#4C7BE2');
 
+    const [modalConfig, setModalConfig] = useState<AlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
+
     const hasExistingResponse = useMemo(() => responsesHistory.length > 0, [responsesHistory]);
     const clientPictureUri = useMemo(() => clientRequest?.pictures?.[0]?.source, [clientRequest]);
 
@@ -211,18 +219,16 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
     const handleHeaderBackPress = useCallback(() => {
         if (hasUnsavedChanges && !isSubmitting) {
-            Alert.alert(
-                'Discard Changes?',
-                'You have unsaved changes. Are you sure you want to discard them and leave?',
-                [
-                    { text: "No", style: 'cancel' },
-                    {
-                        text: 'Yes',
-                        style: 'destructive',
-                        onPress: goBackToHistory
-                    },
-                ]
-            );
+            setModalConfig({
+                visible: true,
+                title: 'Discard Changes?',
+                message: 'You have unsaved changes. Are you sure you want to discard them and leave?',
+                type: 'warning',
+                confirmText: 'Yes',
+                cancelText: 'No',
+                onConfirm: goBackToHistory,
+                onCancel: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
         } else {
             goBackToHistory();
         }
@@ -236,24 +242,16 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
             e.preventDefault();
 
-            Alert.alert(
-                'Discard Changes?',
-                'You have unsaved changes. Are you sure you want to discard them and leave?',
-                [
-                    { text: "No", style: 'cancel', onPress: () => { } },
-                    {
-                        text: 'Yes',
-                        style: 'destructive',
-                        onPress: () => navigation.navigate('Tabs', {
-                            screen: 'History',
-                            params: {
-                                initialTab: 'Test Request',
-                                initialStatus: 'Completed'
-                            }
-                        }),
-                    },
-                ]
-            );
+            setModalConfig({
+                visible: true,
+                title: 'Discard Changes?',
+                message: 'You have unsaved changes. Are you sure you want to discard them and leave?',
+                type: 'warning',
+                confirmText: 'Yes',
+                cancelText: 'No',
+                onConfirm: goBackToHistory,
+                onCancel: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
         });
 
         return unsubscribe;
@@ -302,10 +300,14 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         if (!canEdit) return;
 
         if (!colorTypeId) {
-            Alert.alert(
-                'Selection Required',
-                'Please select a Color Type first before adding colors.'
-            );
+            setModalConfig({
+                visible: true,
+                title: 'Selection Required',
+                message: 'Please select a Color Type first before adding colors.',
+                type: 'info',
+                confirmText: 'OK',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
             return;
         }
 
@@ -464,7 +466,14 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
         const { bestHex, worstHex } = updateColorStrings(bestColorsList, worstColorsList);
 
         if (!testRequestId || !note.trim() || bestColorsList.length === 0 || worstColorsList.length === 0 || !colorTypeId) {
-            Alert.alert('Error', 'Please fill in all required fields (Note, Best Colors, Worst Colors, Color Type).');
+            setModalConfig({
+                visible: true,
+                title: 'Error',
+                message: 'Please fill in all required fields (Note, Best Colors, Worst Colors, Color Type).',
+                type: 'error',
+                confirmText: 'OK',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
             return;
         }
 
@@ -518,7 +527,14 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
 
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Submission failed.';
-            Alert.alert('Submission Failed', errorMessage);
+            setModalConfig({
+                visible: true,
+                title: 'Submission Failed',
+                message: errorMessage,
+                type: 'error',
+                confirmText: 'Close',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, visible: false }))
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -560,6 +576,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
             currentWorstColors: worstColorsList,
             colorTypeId: colorTypeId || undefined,
             currentNote: note,
+            fromScreen: 'CreateExpertTestResponse'
         });
     }, [navigation, clientPictureUri, testRequestId, bestColorsList, worstColorsList, colorTypeId, note]);
 
@@ -597,7 +614,7 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     style={styles.backButton}>
                     <Ionicons name="arrow-back" size={28} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Expert Response #{testRequestId}</Text>
+                <Text style={styles.headerTitle}>Test Request #{testRequestId}</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -754,6 +771,14 @@ const CreateExpertTestResponse: FC<CreateResponseScreenProps> = ({ route, naviga
                     colorTitle={colorPickerProps.colorTitle}
                 />
             )}
+
+            <CustomConfirmModal
+                {...modalConfig}
+                onCancel={modalConfig.onCancel}
+                onConfirm={() => {
+                    if (modalConfig.onConfirm) modalConfig.onConfirm();
+                }}
+            />
         </View>
     );
 };

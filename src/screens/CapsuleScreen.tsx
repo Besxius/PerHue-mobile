@@ -20,9 +20,9 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import CapsulePaletteComponent from '../components/CapsulePalette';
 import * as Clipboard from 'expo-clipboard';
-
 import { ColorType, CapsulePaletteModel, Color } from '../types/dataModels';
 import { getCapsulePalettesByType, getColorType } from '../api/capsulePaletteApi';
+import PaletteDetailModal from '../components/PaletteDetailModal';
 
 interface TabItem extends ColorType { }
 
@@ -82,49 +82,6 @@ interface PaletteDetailModalProps {
     palette: CapsulePaletteModel | null;
     onClose: () => void;
 }
-
-const PaletteDetailModal: React.FC<PaletteDetailModalProps> = ({ isVisible, palette, onClose }) => {
-    const insets = useSafeAreaInsets();
-
-    if (!palette) return null;
-
-    const title = palette.colorType?.name ? `${palette.colorType.name.toUpperCase()} PALETTE` : 'PALETTE DETAIL';
-
-    return (
-        <Modal
-            animationType="slide"
-            transparent={true}
-            visible={isVisible}
-            onRequestClose={onClose}
-        >
-            <TouchableWithoutFeedback onPress={onClose}>
-                <View style={modalStyles.centeredView}>
-
-                    <TouchableWithoutFeedback>
-                        <View style={[modalStyles.modalView, { paddingBottom: insets.bottom }]}>
-
-                            <View style={modalStyles.headerContainer}>
-                                <TouchableOpacity style={modalStyles.closeButton} onPress={onClose}>
-                                    <Ionicons name="arrow-back" size={24} color="#333" />
-                                </TouchableOpacity>
-                                <Text style={modalStyles.headerTitle}>{title}</Text>
-                            </View>
-
-                            <FlatList
-                                data={palette.colors}
-                                renderItem={({ item }) => <ColorDetailCard color={item} />}
-                                keyExtractor={(item) => item.id.toString()}
-                                contentContainerStyle={modalStyles.colorListContent}
-                                showsVerticalScrollIndicator={false}
-                            />
-
-                        </View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
-        </Modal>
-    );
-};
 
 const CapsuleScreen: React.FC<any> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
