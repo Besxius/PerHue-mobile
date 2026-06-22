@@ -6,7 +6,7 @@ PerHue Mobile is the official cross-platform mobile client for the PerHue person
 ## Key Features
 * **AI-Driven Color Assessment:** Utilizes the device's native camera capabilities to capture high-quality images for automated personal color palette identification via the integrated backend.
 * **Interactive Color Testing:** Features dedicated on-image testing modules allowing users to visualize and analyze tonal variations dynamically.
-* **Capsule Wardrobe and Palette Management:** Allows users to view, manage, and retrieve customized personal color palettes and capsule wardrobe collections synced in real time.
+* **Capsule Palettes and Colors profile Management:** Allows users to view, manage, and retrieve customized personal color palettes and capsule wardrobe collections synced in real time.
 * **Consultant Booking and Review Network:** Provides an interface for users to browse expert profiles, request detailed personal color analyses, and view historical consultation reports.
 * **Cross-Platform Push Notifications:** Integrated with Firebase Cloud Messaging (FCM) to handle transactional alerts, subscription reminders, and real-time expert evaluation status updates.
 * **Secure Enterprise Authentication:** Multi-option authentication architecture supporting standard email/password contexts alongside secure Google OAuth social logins.
